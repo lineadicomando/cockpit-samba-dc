@@ -5,19 +5,75 @@ Samba 4.22. Subcommand names and flags must be confirmed on the target version
 (`samba-tool <cmd> --help`) before implementing: some were renamed across
 releases (e.g. `ou create` → `ou add`, `computer create` → `computer add`).
 
-Legend: `[ ]` planned · `[?]` left out for now, future implementation to be decided
+Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
-Sections 1 and 2 are release infrastructure and come before the feature work.
+Sections 1 and 2 are release infrastructure and come before the feature work;
+section 0 collects the follow-ups of the last review, small enough to take
+up at any time.
 
-Each feature item (sections 3–8), when implemented, also needs: validators in `src/lib/validators.ts`,
-parsers and tests under `test/`, cache invalidation in `src/lib/samba.ts`,
-strings in both `src/locales/en` and `src/locales/it`, and a line in the README
-feature list.
+Each feature item (sections 3–8), when implemented, also needs: validators in
+`src/lib/validators.ts`, parsers and tests under `test/`, cache invalidation
+for every mutation, strings translated in `po/it.po` (then `make pot && make
+po-compile`), a line in the README feature list, and a check on the test DC
+(skill `vm-lab`) before the commit.
+
+## Where things stand
+
+Updated on 2026-10-21.
+
+- Features: users, groups, computers, home directories (H:), shared folders
+  with POSIX ACLs and drive mapping through the "Cockpit - Mapped drives"
+  GPO. No release, tag or package yet (sections 1 and 2).
+- Last work: a review of the code base and its fixes (commit `c28e04c`:
+  shares follow renames of users and groups, bulk actions capped at four
+  processes, member DNs resolved to account names, GPO relinked on write,
+  stricter managed paths, group rename syntax of Samba 4.22). All checked on
+  the test DC and Windows client; what was left open is in section 0.
+- Test environment (commit `b410bb6`): two VMs, a Samba AD DC and a Windows
+  11 client joined to it, driven by `test/vm/` and configured by an
+  untracked `.env` (see `.env.example`). `CLAUDE.md` and the skills `vm-lab`
+  and `win-gui` describe how to use them.
+
+To resume: read `CLAUDE.md`, run `npm install && make check && npx tsc
+--noEmit`; for anything touching `src/lib/`, follow the workflow of skill
+`vm-lab` (`test/vm/lab.sh reset`, `start dc`, `deploy`).
+
+## 0. Follow-ups of the October 2026 review
+
+- [ ] **Stale share entries after a delete.** Deleting a user or group leaves
+      it in `valid users` / `read list` of its shares, on purpose: removing
+      the only entry would leave the list empty, which opens the share to
+      every domain user. Show such entries as unknown in the share editor so
+      the administrator can remove them, and list the affected shares in the
+      delete confirmation.
+- [ ] **Home directory after a user rename.** The folder
+      (`/srv/samba/home/<old name>`) and `homeDirectory` keep the old name.
+      Access still works (ownership follows the SID); decide whether to
+      rename both.
+- [ ] **`ensureHomeShare` remembers success for the whole session**
+      (`src/lib/samba.ts`): a `home` share removed meanwhile is not created
+      again until the page is reloaded.
+- [ ] **`samba-tool ntacl sysvolreset` after every mapping change**
+      (`src/lib/drivemaps.ts`): slow on a large sysvol and resets every GPO's
+      ACLs; measure, and consider fixing only the module's GPO folder.
+- [ ] **Nested groups** are not expanded when the user page shows a user's
+      access to shared folders (`effectiveShareAccess`); smbd does expand
+      them, so the page can show less access than the user has.
+- [ ] **Linter.** `validators.ts` carries an `eslint-disable` comment but
+      ESLint is not set up: add a config, a script and a CI step;
+      `src/lib/hooks.ts` mixes 2- and 4-space indentation.
+- [ ] **Integration checks.** `test/vm/review-smoke.ts` covers only the review
+      fixes; grow it into a suite run before each release (users, groups,
+      home directories, shares, drive mapping), with cleanup of its data.
+- [ ] **Rebuild scripts.** `test/vm/build-dc.sh` and `build-win.sh` record
+      steps that were run by hand; they have not run end to end yet. Do it
+      at the next rebuild of the VMs (the Windows client is an evaluation
+      edition and expires).
 
 ## 1. Versioning through git tags (top priority)
 
 Release infrastructure, to be done before any new feature. There are no tags
-or releases yet, and the two version fields disagree (`package.json` says
+or releases yet (commit `6151d6b` is titled "v0.1.0" but was never tagged), and the two version fields disagree (`package.json` says
 `0.1.0`, `src/manifest.json` says `0`). The README version badge and the
 "cockpit-samba-dc version" field of the bug report template have nothing
 to point at.
@@ -43,8 +99,8 @@ to point at.
 ## 2. Debian package (top priority)
 
 Depends on section 1 for the version number. Today only `sudo make install`
-is supported; the `deb` target exists only in the untracked `Makefile.local`
-and cannot work because the repository has no `debian/` directory.
+(and `test/vm/lab.sh deploy` on the test DC) is supported; there is no
+`debian/` directory and no `deb` target.
 
 - [ ] **Add a tracked `debian/` directory**
   - [ ] `control` — binary package `cockpit-samba-dc`, `Architecture: all`,
@@ -58,14 +114,15 @@ and cannot work because the repository has no `debian/` directory.
       needs npm dependencies, which a clean Debian build environment does not
       download; either build the bundle beforehand and package `dist/`, or
       document that the package is built with network access
-- [ ] **Move the `deb` target into the tracked `Makefile`**; keep only the
-      VM deploy targets in `Makefile.local`
+- [ ] **Add a `deb` target to the tracked `Makefile`**, and have `lab.sh`
+      install the package on the test DC instead of copying `dist/`
 - [ ] **Clean upgrade path** — the package must replace a previous
-      `make install` in the same directory without leaving stale files
+      `make install` or `lab.sh deploy` in the same directory without
+      leaving stale files
 - [ ] **Build the `.deb` in CI** and attach it to the GitHub release created
       by the tag workflow (section 1)
 - [ ] **Check the result** — `lintian`, then install, upgrade and remove on
-      the Debian 13 test VM
+      the test DC (skill `vm-lab`)
 - [ ] Update the README installation section with the `.deb` instructions
 - [?] RPM package for Fedora/RHEL-based servers — future implementation to be
       decided
@@ -161,7 +218,10 @@ access as done for the "Cockpit - Mapped drives" GPO.
 
 A new, mostly read-only "Domain" tab.
 
-- [ ] **Overview** — `domain info`, `domain level show`, `fsmo show`, `processes`
+- [ ] **Overview** — `domain level show`, `fsmo show`, `processes`; not
+      `domain info`, a CLDAP network query that fails when Samba does not
+      listen on loopback: read the same facts locally (rootDSE of `sam.ldb`,
+      `testparm`), as `src/lib/exec.ts` does
 - [ ] **Health checks** run on demand, with the raw output shown:
   - [ ] `samba-tool dbcheck` (report only; `--fix` is not exposed)
   - [ ] `samba-tool ntacl sysvolcheck`, with `sysvolreset` offered on failure
