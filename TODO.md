@@ -92,6 +92,9 @@ to point at.
 - [ ] **Release workflow** — GitHub Actions job triggered by `v*` tags: type
       check, build, test, then publish a GitHub release with the build
       artifacts
+- [x] **CI actions on Node 24** — `actions/checkout` and `actions/setup-node`
+      moved from v4 (Node 20, deprecated by GitHub) to v7; use the same
+      versions in the release workflow
 - [ ] **First tag** — decide the starting version and tag the current state
 - [ ] Update the "Supported versions" table in `SECURITY.md` when it stops
       being just `0.x`
