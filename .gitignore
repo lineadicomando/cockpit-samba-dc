@@ -2,3 +2,6 @@ node_modules/
 dist/
 *.log
 Makefile.local
+CLAUDE.local.md
+.env
+__pycache__/
