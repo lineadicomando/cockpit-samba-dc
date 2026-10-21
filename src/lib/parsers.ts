@@ -103,9 +103,53 @@ export function ridFromSid(sid: string): string {
     return parts[parts.length - 1] ?? "-";
 }
 
+// Value of the first RDN ("CN=Rossi\\, Mario,OU=..." -> "Rossi, Mario"). This
+// is the CN, which is not always the account name: prefer resolveDn() when
+// the directory entries are at hand.
 export function dnToName(dn: string): string {
-    const first = dn.split(",")[0] ?? "";
-    return first.replace(/^CN=/i, "").trim();
+    let end = 0;
+    while (end < dn.length && dn[end] !== ",") end += dn[end] === "\\" ? 2 : 1;
+    return unescapeDnValue(dn.slice(0, end).replace(/^\s*CN=/i, "")).trim();
+}
+
+// RFC 4514 escapes: "\\" followed by a special character, or by two hex
+// digits encoding one UTF-8 byte.
+function unescapeDnValue(value: string): string {
+    if (!value.includes("\\")) return value;
+    const bytes: number[] = [];
+    const encoder = new TextEncoder();
+    for (let i = 0; i < value.length; i++) {
+        if (value[i] === "\\" && /^[0-9a-fA-F]{2}$/.test(value.slice(i + 1, i + 3))) {
+            bytes.push(parseInt(value.slice(i + 1, i + 3), 16));
+            i += 2;
+        } else {
+            if (value[i] === "\\" && i + 1 < value.length) i++;
+            const ch = String.fromCodePoint(value.codePointAt(i)!);
+            bytes.push(...encoder.encode(ch));
+            i += ch.length - 1;
+        }
+    }
+    return new TextDecoder().decode(new Uint8Array(bytes));
+}
+
+// Lowercased DN -> sAMAccountName, from ldbsearch records.
+export function buildDnNameMap(...recordSets: LdapFields[][]): Map<string, string> {
+    const map = new Map<string, string>();
+    for (const records of recordSets) {
+        for (const f of records) {
+            const dn = firstValue(f, "dn");
+            const name = firstValue(f, "sAMAccountName");
+            if (dn && name) map.set(dn.toLowerCase(), name);
+        }
+    }
+    return map;
+}
+
+// Account name of a DN found in member/memberOf. User CNs are often the full
+// name ("Mario Rossi" for mrossi), so the CN is only a fallback for entries
+// outside the map (e.g. computers or foreign security principals).
+export function resolveDn(dn: string, dnNames: Map<string, string>): string {
+    return dnNames.get(dn.toLowerCase()) ?? dnToName(dn);
 }
 
 export function parseGroupType(raw: string): "Security" | "Distribution" {

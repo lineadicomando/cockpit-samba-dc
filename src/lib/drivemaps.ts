@@ -6,8 +6,7 @@
 // The GPO is written directly to the local sam.ldb and sysvol, as root, so no
 // domain credentials are needed ("samba-tool gpo" works over SMB/LDAP and
 // would require them).
-import { cache, runAsRoot, runAsRootWithInput, getRealm, getSysvolPath, getDCNetbiosName, getWorkgroup, SAM_LDB } from "./exec.ts";
-import { getBaseDN } from "./samba.ts";
+import { cache, runAsRoot, runAsRootWithInput, getBaseDN, getRealm, getSysvolPath, getDCNetbiosName, getWorkgroup, SAM_LDB } from "./exec.ts";
 import { parseLdapMulti, firstValue } from "./parsers.ts";
 import type { ShareAccess, DriveMapping } from "./types.ts";
 
@@ -157,7 +156,8 @@ async function findGpo(): Promise<Gpo | null> {
     };
 }
 
-// Same objects "samba-tool gpo create" writes, plus the domain-root link.
+// Same objects "samba-tool gpo create" writes. The domain-root link is added
+// separately, by ensureGpoLinked().
 async function createGpo(): Promise<Gpo> {
     const [baseDN, realm] = await Promise.all([getBaseDN(), getRealm()]);
     const domain = realm.toLowerCase();
@@ -194,18 +194,24 @@ async function createGpo(): Promise<Gpo> {
         "",
     ].join("\n"));
 
+    return { guid, dn, version: 0 };
+}
+
+// Checked on every write rather than only after creation: if linking failed
+// once, the GPO would otherwise exist unlinked forever and never apply.
+async function ensureGpoLinked(gpo: Gpo): Promise<void> {
+    const baseDN = await getBaseDN();
     const linkRaw = await runAsRoot(["ldbsearch", "-H", SAM_LDB, "-s", "base", "-b", baseDN, "gPLink"]);
     const oldLink = parseLdapMulti(linkRaw).map(f => firstValue(f, "gPLink")).find(Boolean) ?? "";
+    if (oldLink.toLowerCase().includes(`[ldap://${gpo.dn.toLowerCase()};`)) return;
     await runAsRootWithInput(["ldbmodify", "-H", SAM_LDB], [
         `dn: ${baseDN}`,
         "changetype: modify",
         "replace: gPLink",
-        `gPLink: ${oldLink}[LDAP://${dn};0]`,
+        `gPLink: ${oldLink}[LDAP://${gpo.dn};0]`,
         "-",
         "",
     ].join("\n"));
-
-    return { guid, dn, version: 0 };
 }
 
 async function readDrives(gpo: Gpo): Promise<string> {
@@ -289,6 +295,7 @@ export function setDriveMapping(shareName: string, access: ShareAccess[], mappin
 
         if (!gpo) gpo = await createGpo();
         try {
+            await ensureGpoLinked(gpo);
             const dir = await gpoDir(gpo.guid);
             const version = gpo.version + USER_VERSION_STEP;
             await writeRootFile(`${dir}/USER/Preferences/Drives/Drives.xml`,

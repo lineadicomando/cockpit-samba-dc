@@ -1,5 +1,6 @@
 import cockpit from "cockpit";
 import { createCache } from "./cache.ts";
+import { parseLdapMulti, firstValue } from "./parsers.ts";
 
 // Shared by samba.ts and shares.ts, so mutations in one module can invalidate
 // entries cached by the other.
@@ -66,4 +67,20 @@ export function getRealm(): Promise<string> {
 
 export function getSysvolPath(): Promise<string> {
     return getSmbConfParam("path", "sysvol");
+}
+
+// Read from the local sam.ldb rootDSE rather than "samba-tool domain info
+// 127.0.0.1", which is a CLDAP network query and fails when Samba does not
+// listen on loopback (e.g. "bind interfaces only").
+const ROOT_DSE_KEY = "ldb:rootdse";
+
+export async function getBaseDN(): Promise<string> {
+    let raw = cache.get(ROOT_DSE_KEY, 3_600_000);
+    if (raw === null) {
+        raw = await runAsRoot(["ldbsearch", "-H", SAM_LDB, "-s", "base", "-b", "", "defaultNamingContext"]);
+        cache.set(ROOT_DSE_KEY, raw);
+    }
+    const dn = parseLdapMulti(raw).map(f => firstValue(f, "defaultNamingContext")).find(Boolean);
+    if (!dn) throw new Error("Cannot determine the domain naming context from sam.ldb");
+    return dn;
 }

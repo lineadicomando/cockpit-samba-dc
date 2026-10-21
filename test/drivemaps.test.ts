@@ -160,6 +160,16 @@ describe("setDriveMapping", () => {
         assert.deepEqual(parseDrivesXml(drivesFile(dc)).map(d => d.path), ["\\\\DC\\lab"]);
     });
 
+    it("links an existing GPO that was left unlinked", async () => {
+        const dc = fakeDc();
+        const teachers = [{ name: "Teachers", kind: "group" as const, level: "write" as const }];
+        await setDriveMapping("docs", teachers, { letter: "P", label: "" });
+        dc.gplink = DEFAULT_LINK; // e.g. the link write failed after the GPO was created
+        await setDriveMapping("lab", teachers, { letter: "L", label: "" });
+        assert.equal(dc.ldbadds, 1);
+        assert.equal(dc.gplink, `${DEFAULT_LINK}[LDAP://CN=${dc.gpo!.guid},CN=Policies,CN=System,${BASE};0]`);
+    });
+
     it("does nothing when removing a mapping and no GPO exists", async () => {
         const dc = fakeDc();
         await setDriveMapping("docs", [], null);

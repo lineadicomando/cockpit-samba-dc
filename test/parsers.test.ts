@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseLdapShow, parseLdapMulti, parseList, deriveUserStatus, deriveLastActivity, ridFromSid, dnToName, parseGroupType, parseNetConf, parseSmbUserList, parseSmbBool } from "../src/lib/parsers.ts";
+import { parseLdapShow, parseLdapMulti, parseList, deriveUserStatus, deriveLastActivity, ridFromSid, dnToName, resolveDn, buildDnNameMap, parseGroupType, parseNetConf, parseSmbUserList, parseSmbBool } from "../src/lib/parsers.ts";
 
 describe("parseList", () => {
     it("splits output in names", () => {
@@ -179,6 +179,25 @@ describe("dnToName", () => {
     });
     it("is case-insensitive on cn=", () => {
         assert.equal(dnToName("cn=alice,DC=acme"), "alice");
+    });
+    it("keeps escaped commas and decodes hex escapes (RFC 4514)", () => {
+        assert.equal(dnToName("CN=Rossi\\, Mario,OU=Staff,DC=acme"), "Rossi, Mario");
+        assert.equal(dnToName("CN=Nicol\\C3\\B2 \\\\ co,DC=acme"), "Nicolò \\ co");
+        assert.equal(dnToName("CN=\\#tag\\+1,DC=acme"), "#tag+1");
+    });
+});
+
+describe("resolveDn", () => {
+    const names = buildDnNameMap([
+        { dn: "CN=Mario Rossi,CN=Users,DC=acme", sAMAccountName: "mrossi" },
+        { dn: "CN=No Account,DC=acme" },
+    ]);
+    it("returns the account name, matching the DN case-insensitively", () => {
+        assert.equal(resolveDn("cn=mario rossi,cn=users,dc=acme", names), "mrossi");
+    });
+    it("falls back to the CN for DNs not in the map", () => {
+        assert.equal(resolveDn("CN=PC01,CN=Computers,DC=acme", names), "PC01");
+        assert.equal(resolveDn("CN=No Account,DC=acme", names), "No Account");
     });
 });
 

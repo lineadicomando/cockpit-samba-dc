@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listUsers, createUser, createGroup, addGroupMembers, deleteUser, provisionHomeDir } from "../src/lib/samba.ts";
+import { listUsers, listGroups, createUser, createGroup, addGroupMembers, deleteUser, provisionHomeDir, modifyUser, renameGroup } from "../src/lib/samba.ts";
 
 const ROOT_DSE = [
     "# record 1",
@@ -148,5 +148,97 @@ describe("home share", () => {
         await provision("u1");
         assert.ok(calls.some(c => c.args.join(" ") === "net conf setparm home path /srv/samba/home"));
         assert.ok(!calls.some(c => isCmd(c, "net", "conf", "addshare")));
+    });
+});
+
+describe("DN resolution", () => {
+    // CNs differ from account names: samba-tool names users "Given Surname",
+    // and groups made with other tools can have any CN.
+    const groups = [
+        "dn: CN=Docenti (2026),CN=Users,DC=school,DC=internal",
+        "sAMAccountName: Teachers",
+        "objectSid: S-1-5-21-1-2-3-1108",
+        "member: CN=Rossi\\, Mario,CN=Users,DC=school,DC=internal",
+        "member: CN=PC01,CN=Computers,DC=school,DC=internal",
+        "",
+        "dn: CN=Domain Users,CN=Users,DC=school,DC=internal",
+        "sAMAccountName: Domain Users",
+        "objectSid: S-1-5-21-1-2-3-513",
+        "",
+    ].join("\n");
+    const users = [
+        "dn: CN=Rossi\\, Mario,CN=Users,DC=school,DC=internal",
+        "cn: Rossi, Mario",
+        "sAMAccountName: mrossi",
+        "objectSid: S-1-5-21-1-2-3-1200",
+        "primaryGroupID: 513",
+        "memberOf: cn=docenti (2026),cn=users,dc=school,dc=internal",
+        "",
+    ].join("\n");
+    function handler(call: SpawnCall): string {
+        if (call.args.includes("-s") && call.args.includes("base")) return ROOT_DSE;
+        if (call.args.includes("(objectClass=group)")) return groups;
+        return users;
+    }
+    // Mutations drop the cached ldbsearch results of the earlier tests
+    async function resetCaches(): Promise<void> {
+        setSpawnHandler(() => "");
+        await createGroup("cache-reset");
+        await createUser("cache-reset", "x");
+        setSpawnHandler(handler);
+    }
+
+    it("lists group members by account name", async () => {
+        await resetCaches();
+        const teachers = (await listGroups()).find(g => g.name === "Teachers");
+        assert.deepEqual(teachers?.members, ["mrossi", "PC01"]);
+        assert.equal((await listGroups()).find(g => g.name === "Domain Users")?.memberCount, 1);
+    });
+
+    it("lists user groups by account name", async () => {
+        await resetCaches();
+        const [u] = await listUsers();
+        assert.deepEqual(u.groups, ["Teachers", "Domain Users"]);
+    });
+});
+
+describe("renames", () => {
+    const netConf = "[docs]\n\tpath = /srv/samba/shares/docs\n\tvalid users = @\"SCHOOL\\Teachers\" \"SCHOOL\\mrossi\"\n";
+    function handler(call: SpawnCall): string {
+        if (isCmd(call, "testparm")) return "SCHOOL\n";
+        if (isCmd(call, "net", "conf", "list")) return netConf;
+        if (isCmd(call, "ldbsearch")) return call.args.includes("defaultNamingContext") ? ROOT_DSE : "";
+        return "";
+    }
+    const validUsers = () => calls.find(c => isCmd(c, "net", "conf", "setparm") && c.args[4] === "valid users")?.args[5];
+
+    it("renaming a user updates the shares that list it", async () => {
+        setSpawnHandler(handler);
+        await modifyUser("mrossi", { newUsername: "mario.rossi" });
+        assert.equal(validUsers(), '@"SCHOOL\\Teachers" "SCHOOL\\mario.rossi"');
+    });
+
+    it("renaming a group updates the shares that list it", async () => {
+        setSpawnHandler(handler);
+        await renameGroup("Teachers", "Docenti");
+        assert.equal(validUsers(), '@"SCHOOL\\Docenti" "SCHOOL\\mrossi"');
+        // Samba 4.22 takes the new name as an option, not a second argument
+        assert.deepEqual(calls.find(c => isCmd(c, "samba-tool", "group", "rename"))?.args,
+            ["samba-tool", "group", "rename", "Teachers", "--samaccountname=Docenti"]);
+    });
+
+    it("other edits leave the shares alone", async () => {
+        setSpawnHandler(handler);
+        await modifyUser("mrossi", { email: "m@school.internal" });
+        assert.ok(!calls.some(c => isCmd(c, "net")));
+    });
+
+    it("reports a share update failure as happening after the rename", async () => {
+        setSpawnHandler(call => {
+            if (isCmd(call, "net", "conf", "setparm")) throw new Error("registry locked");
+            return handler(call);
+        });
+        await assert.rejects(renameGroup("Teachers", "Docenti"), /Renamed "Teachers" to "Docenti", but updating its shared folders failed: registry locked/);
+        assert.ok(calls.some(c => isCmd(c, "samba-tool", "group", "rename")));
     });
 });

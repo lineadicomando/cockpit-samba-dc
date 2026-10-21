@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess } from "../src/lib/shares.ts";
+import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, renameSharePrincipal, isManagedPath } from "../src/lib/shares.ts";
 
 const NET_CONF = [
     "[home]",
@@ -204,5 +204,36 @@ describe("effectiveShareAccess", () => {
         const r = effectiveShareAccess(share, "mrossi", ["Students"]);
         assert.equal(r?.level, "read");
         assert.equal(r?.via.length, 2);
+    });
+});
+
+describe("renameSharePrincipal", () => {
+    it("rewrites the renamed group in valid users and read list only", async () => {
+        setSpawnHandler(handler());
+        await renameSharePrincipal("group", "students", "Alunni");
+        assert.equal(setparm("valid users"), '@"SCHOOL\\Teachers" @"SCHOOL\\Alunni" "SCHOOL\\mrossi"');
+        assert.equal(setparm("read list"), '@"SCHOOL\\Alunni"');
+        assert.ok(calls.every(c => !isCmd(c, "net", "conf", "setparm") || c.args[3] === "docs"));
+        assert.ok(!calls.some(c => isCmd(c, "setfacl")));
+    });
+
+    it("matches the kind: a group rename leaves a same-named user alone", async () => {
+        setSpawnHandler(handler());
+        await renameSharePrincipal("group", "mrossi", "x");
+        assert.ok(!calls.some(c => isCmd(c, "net", "conf", "setparm")));
+
+        setSpawnHandler(handler());
+        await renameSharePrincipal("user", "MRossi", "mario.rossi");
+        assert.equal(setparm("valid users"), '@"SCHOOL\\Teachers" @"SCHOOL\\Students" "SCHOOL\\mario.rossi"');
+    });
+});
+
+describe("isManagedPath", () => {
+    it("accepts only direct children of the shares directory", () => {
+        assert.ok(isManagedPath("/srv/samba/shares/docs"));
+        for (const p of ["/srv/samba/shares", "/srv/samba/shares/", "/srv/samba/shares/.", "/srv/samba/shares/..",
+            "/srv/samba/shares/../home", "/srv/samba/shares/a/b", "/srv/samba/shares/docs/", "/srv/samba/sharesX/a"]) {
+            assert.ok(!isManagedPath(p), p);
+        }
     });
 });

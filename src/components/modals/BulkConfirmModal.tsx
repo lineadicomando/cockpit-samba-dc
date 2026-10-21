@@ -6,6 +6,7 @@ import {
 } from "@patternfly/react-core";
 import { enableUser, disableUser, deleteUser, provisionHomeDir } from "../../lib/samba.ts";
 import type { User } from "../../lib/types.ts";
+import { mapLimit, BULK_CONCURRENCY } from "../../lib/concurrency.ts";
 
 export type BulkConfirmAction = "enable" | "disable" | "delete" | "provision-home";
 
@@ -76,19 +77,17 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
 
     async function handleConfirm() {
         setRunning(true);
-        const settled = await Promise.all(
-            actionable.map(async u => {
-                try {
-                    if (action === "enable") await enableUser(u.username);
-                    else if (action === "disable") await disableUser(u.username);
-                    else if (action === "delete") await deleteUser(u.username);
-                    else await provisionHomeDir(u.username);
-                    return { username: u.username, ok: true, error: "" };
-                } catch (e) {
-                    return { username: u.username, ok: false, error: e instanceof Error ? e.message : String(e) };
-                }
-            })
-        );
+        const settled = await mapLimit(actionable, BULK_CONCURRENCY, async u => {
+            try {
+                if (action === "enable") await enableUser(u.username);
+                else if (action === "disable") await disableUser(u.username);
+                else if (action === "delete") await deleteUser(u.username);
+                else await provisionHomeDir(u.username);
+                return { username: u.username, ok: true, error: "" };
+            } catch (e) {
+                return { username: u.username, ok: false, error: e instanceof Error ? e.message : String(e) };
+            }
+        });
         setRunning(false);
         const succeeded = settled.filter(r => r.ok).map(r => r.username);
         const failed = settled.filter(r => !r.ok).map(r => ({ username: r.username, error: r.error }));

@@ -13,11 +13,15 @@ export interface ShareData {
     automount: DriveMapping | null;
 }
 
-// Registry shares live in "net conf"; only those under SHARES_DIR are
-// managed here, so the module never runs a recursive setfacl or rm on a path
-// it did not create (e.g. the home share or hand-made shares).
-function isManagedPath(path: string): boolean {
-    return path.startsWith(`${SHARES_DIR}/`) && !path.slice(SHARES_DIR.length).split("/").includes("..");
+// Registry shares live in "net conf"; only those whose path is exactly
+// SHARES_DIR/<name> (the shape createShare uses) are managed here, so the
+// module never runs a recursive setfacl or rm on a path it did not create:
+// the home share, hand-made shares, or SHARES_DIR itself ("…/shares/",
+// "…/shares/.").
+export function isManagedPath(path: string): boolean {
+    if (!path.startsWith(`${SHARES_DIR}/`)) return false;
+    const dir = path.slice(SHARES_DIR.length + 1);
+    return dir !== "" && dir !== "." && dir !== ".." && !dir.includes("/");
 }
 
 async function loadNetConf(): Promise<Map<string, Record<string, string>>> {
@@ -193,6 +197,27 @@ export async function deleteShare(name: string, deleteData: boolean): Promise<vo
         if (share.automount) await setDriveMapping(share.name, [], null);
         await runAsRoot(["net", "conf", "delshare", share.name]);
         if (deleteData) await runAsRoot(["rm", "-rf", "--one-file-system", "--", share.path]);
+    } finally {
+        cache.invalidate(k => k === NET_CONF_KEY);
+    }
+}
+
+// Called after a user or group is renamed: smb.conf lists principals by
+// name, so without this they would lose access to their shares. The POSIX
+// ACL needs no change (it stores uid/gid, which follow the SID); the drive
+// mapping is rewritten only to refresh the names next to the SIDs.
+export async function renameSharePrincipal(kind: "user" | "group", oldName: string, newName: string): Promise<void> {
+    if (oldName === newName) return;
+    cache.invalidate(k => k === NET_CONF_KEY);
+    try {
+        for (const share of await listShares()) {
+            const matches = (a: ShareAccess) => a.kind === kind && a.name.toLowerCase() === oldName.toLowerCase();
+            if (!share.access.some(matches)) continue;
+            const access = share.access.map(a => (matches(a) ? { ...a, name: newName } : a));
+            const data = { comment: share.comment, browseable: share.browseable, access, automount: share.automount };
+            await applyShareParams(share.name, data);
+            if (share.automount) await setDriveMapping(share.name, access, share.automount);
+        }
     } finally {
         cache.invalidate(k => k === NET_CONF_KEY);
     }

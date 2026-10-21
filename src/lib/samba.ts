@@ -1,16 +1,17 @@
 import cockpit from "cockpit";
-import { cache, cacheKey, checkName, runAsRoot, runAsRootWithInput, getDCNetbiosName, HOMES_DIR, SAM_LDB } from "./exec.ts";
+import { cache, cacheKey, checkName, runAsRoot, runAsRootWithInput, getBaseDN, getDCNetbiosName, HOMES_DIR, SAM_LDB } from "./exec.ts";
+import { renameSharePrincipal } from "./shares.ts";
 import type { User, Group, Computer, PasswordPolicy, LdapFields } from "./types.ts";
 import {
     parseList, parseLdapShow, parseLdapMulti, firstValue, listValue,
-    deriveUserStatus, deriveLastActivity, ridFromSid, dnToName,
+    deriveUserStatus, deriveLastActivity, ridFromSid, buildDnNameMap, resolveDn,
     parseDomainPasswordSettings, parseGroupType,
 } from "./parsers.ts";
 
 const LDB_KEY_USERS = "ldb:users";
 const LDB_KEY_GROUPS = "ldb:groups";
 const LDB_KEY_COMPUTERS = "ldb:computers";
-const LDB_KEY_PRIMARY_COUNTS = "ldb:primary-counts";
+const LDB_KEY_USER_ACCOUNTS = "ldb:user-accounts";
 
 const PROTECTED_USERS = new Set(["administrator", "krbtgt", "guest"]);
 const PROTECTED_GROUPS = new Set([
@@ -59,16 +60,6 @@ async function runLdbCached(key: string, args: string[], ttlMs: number): Promise
     return output;
 }
 
-// Read from the local sam.ldb rootDSE rather than "samba-tool domain info
-// 127.0.0.1", which is a CLDAP network query and fails when Samba does not
-// listen on loopback (e.g. "bind interfaces only").
-export async function getBaseDN(): Promise<string> {
-    const raw = await runLdbCached("ldb:rootdse", ["-H", SAM_LDB, "-s", "base", "-b", "", "defaultNamingContext"], 3_600_000);
-    const dn = parseLdapMulti(raw).map(f => firstValue(f, "defaultNamingContext")).find(Boolean);
-    if (!dn) throw new Error("Cannot determine the domain naming context from sam.ldb");
-    return dn;
-}
-
 function loadGroupsRaw(baseDN: string): Promise<string> {
     return runLdbCached(LDB_KEY_GROUPS, [
         "-H", SAM_LDB, "-b", baseDN,
@@ -76,6 +67,26 @@ function loadGroupsRaw(baseDN: string): Promise<string> {
         "sAMAccountName", "cn", "description", "member",
         "objectSid", "isCriticalSystemObject", "groupType",
     ], 60_000);
+}
+
+// Every user account with its primary group: resolves member DNs to account
+// names and counts primary-group members (not reflected in "member").
+function loadUserAccountsRaw(baseDN: string): Promise<string> {
+    return runLdbCached(LDB_KEY_USER_ACCOUNTS, [
+        "-H", SAM_LDB, "-b", baseDN,
+        "(&(objectClass=user)(!(objectClass=computer)))",
+        "sAMAccountName", "primaryGroupID",
+    ], 30_000);
+}
+
+// Users per primary group RID.
+function countPrimaryGroups(accounts: LdapFields[]): Map<string, number> {
+    const counts = new Map<string, number>();
+    for (const f of accounts) {
+        const rid = firstValue(f, "primaryGroupID");
+        if (rid) counts.set(rid, (counts.get(rid) ?? 0) + 1);
+    }
+    return counts;
 }
 
 // Maps a group RID to its name, to resolve users' primaryGroupID.
@@ -118,12 +129,13 @@ function buildUser(fields: LdapFields, directGroups: string[], ridToGroup: Map<s
 }
 
 // primaryCounts: users per primary group RID (not reflected in "member").
-function buildGroup(fields: LdapFields, primaryCounts?: Map<string, number>, name = firstValue(fields, "sAMAccountName")): Group {
-    const members = listValue(fields, "member").map(dnToName).filter(Boolean);
+// dnNames: resolves member DNs to account names (see resolveDn).
+function buildGroup(fields: LdapFields, primaryCounts: Map<string, number>, dnNames: Map<string, string>, name = firstValue(fields, "sAMAccountName")): Group {
+    const members = listValue(fields, "member").map(dn => resolveDn(dn, dnNames)).filter(Boolean);
     const sid = firstValue(fields, "objectSid");
     const rid = ridFromSid(sid);
     const isCritical = firstValue(fields, "isCriticalSystemObject").toUpperCase() === "TRUE";
-    const primaryCount = primaryCounts?.get(rid) ?? 0;
+    const primaryCount = primaryCounts.get(rid) ?? 0;
     return {
         name,
         description: firstValue(fields, "description"),
@@ -163,29 +175,22 @@ export async function listUsers(): Promise<User[]> {
         loadGroupsRaw(baseDN),
     ]);
     const ridToGroup = buildRidToGroup(groupsRaw);
+    const groupNames = buildDnNameMap(parseLdapMulti(groupsRaw));
     return parseLdapMulti(usersRaw)
         .filter(f => firstValue(f, "sAMAccountName") !== "")
-        .map(f => buildUser(f, listValue(f, "memberOf").map(dnToName).filter(Boolean), ridToGroup));
+        .map(f => buildUser(f, listValue(f, "memberOf").map(dn => resolveDn(dn, groupNames)).filter(Boolean), ridToGroup));
 }
 
 export async function listGroups(): Promise<Group[]> {
     const baseDN = await getBaseDN();
-    const [groupsRaw, primaryRaw] = await Promise.all([
-        loadGroupsRaw(baseDN),
-        runLdbCached(LDB_KEY_PRIMARY_COUNTS, [
-            "-H", SAM_LDB, "-b", baseDN,
-            "(&(objectClass=user)(!(objectClass=computer)))",
-            "primaryGroupID",
-        ], 30_000),
-    ]);
-    const primaryCounts = new Map<string, number>();
-    for (const f of parseLdapMulti(primaryRaw)) {
-        const rid = firstValue(f, "primaryGroupID");
-        if (rid) primaryCounts.set(rid, (primaryCounts.get(rid) ?? 0) + 1);
-    }
-    return parseLdapMulti(groupsRaw)
+    const [groupsRaw, accountsRaw] = await Promise.all([loadGroupsRaw(baseDN), loadUserAccountsRaw(baseDN)]);
+    const groups = parseLdapMulti(groupsRaw);
+    const accounts = parseLdapMulti(accountsRaw);
+    const dnNames = buildDnNameMap(groups, accounts);
+    const primaryCounts = countPrimaryGroups(accounts);
+    return groups
         .filter(f => firstValue(f, "sAMAccountName") !== "")
-        .map(f => buildGroup(f, primaryCounts));
+        .map(f => buildGroup(f, primaryCounts, dnNames));
 }
 
 export async function listComputers(): Promise<Computer[]> {
@@ -219,7 +224,7 @@ export async function refreshUser(username: string): Promise<User> {
         k === cacheKey("user", "show", username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS ||
-        k === LDB_KEY_PRIMARY_COUNTS
+        k === LDB_KEY_USER_ACCOUNTS
     );
     return getUserDetails(username);
 }
@@ -231,13 +236,13 @@ export async function createUser(username: string, password: string, givenName?:
     if (surname) args.push(`--surname=${surname}`);
     // samba-tool prompts "New Password:" / "Retype Password:" when omitted from argv
     await runSambaWithInput(args, `${password}\n${password}\n`);
-    cache.invalidate(k => k.startsWith(cacheKey("user", "")) || k === LDB_KEY_USERS || k === LDB_KEY_PRIMARY_COUNTS);
+    cache.invalidate(k => k.startsWith(cacheKey("user", "")) || k === LDB_KEY_USERS || k === LDB_KEY_USER_ACCOUNTS);
 }
 
 export async function deleteUser(username: string): Promise<void> {
     checkName(username);
     await runSamba(["user", "delete", username]);
-    cache.invalidate(k => k.startsWith(cacheKey("user", "")) || k === LDB_KEY_USERS || k === LDB_KEY_PRIMARY_COUNTS);
+    cache.invalidate(k => k.startsWith(cacheKey("user", "")) || k === LDB_KEY_USERS || k === LDB_KEY_USER_ACCOUNTS);
 }
 
 export async function enableUser(username: string): Promise<void> {
@@ -272,8 +277,23 @@ export async function modifyUser(username: string, data: { givenName?: string; s
     cache.invalidate(k =>
         k === cacheKey("user", "show", username) ||
         k === cacheKey("user", "getgroups", username) ||
-        k === LDB_KEY_USERS
+        k === LDB_KEY_USERS ||
+        k === LDB_KEY_USER_ACCOUNTS
     );
+    if (data.newUsername && data.newUsername !== username) {
+        await updateSharesAfterRename("user", username, data.newUsername);
+    }
+}
+
+// The rename itself already succeeded: say so, so the error is not read as
+// "nothing changed".
+async function updateSharesAfterRename(kind: "user" | "group", oldName: string, newName: string): Promise<void> {
+    try {
+        await renameSharePrincipal(kind, oldName, newName);
+    } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        throw new Error(`Renamed "${oldName}" to "${newName}", but updating its shared folders failed: ${msg}`);
+    }
 }
 
 export async function setUserPassword(username: string, newPassword: string, mustChange: boolean): Promise<void> {
@@ -291,7 +311,7 @@ export async function setPrimaryGroup(username: string, groupName: string): Prom
         k === cacheKey("user", "show", username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS ||
-        k === LDB_KEY_PRIMARY_COUNTS
+        k === LDB_KEY_USER_ACCOUNTS
     );
 }
 
@@ -305,22 +325,21 @@ export async function getPasswordPolicy(): Promise<PasswordPolicy> {
 export async function getGroupDetails(name: string): Promise<Group> {
     checkName(name);
     const baseDN = await getBaseDN();
-    const detail = await runSambaCached(["group", "show", name], 60_000);
-    const g = buildGroup(parseLdapShow(detail), undefined, name);
-    // Count users whose primary group is this group (not reflected in the member attribute)
-    const primaryRaw = await runLdb(["-H", SAM_LDB, "-b", baseDN,
-        `(&(objectClass=user)(!(objectClass=computer))(primaryGroupID=${g.id}))`,
-        "dn",
+    const [detail, groupsRaw, accountsRaw] = await Promise.all([
+        runSambaCached(["group", "show", name], 60_000),
+        loadGroupsRaw(baseDN),
+        loadUserAccountsRaw(baseDN),
     ]);
-    const primaryCount = parseLdapMulti(primaryRaw).filter(f => Object.keys(f).length > 0).length;
-    return { ...g, memberCount: g.memberCount + primaryCount };
+    const accounts = parseLdapMulti(accountsRaw);
+    const dnNames = buildDnNameMap(parseLdapMulti(groupsRaw), accounts);
+    return buildGroup(parseLdapShow(detail), countPrimaryGroups(accounts), dnNames, name);
 }
 
 export async function refreshGroup(name: string): Promise<Group> {
     cache.invalidate(k =>
         k === cacheKey("group", "show", name) ||
         k === LDB_KEY_GROUPS ||
-        k === LDB_KEY_PRIMARY_COUNTS ||
+        k === LDB_KEY_USER_ACCOUNTS ||
         k === LDB_KEY_USERS
     );
     return getGroupDetails(name);
@@ -357,8 +376,10 @@ export async function deleteGroup(name: string): Promise<void> {
 
 export async function renameGroup(oldName: string, newName: string): Promise<void> {
     checkName(oldName, newName);
-    await runSamba(["group", "rename", oldName, newName]);
+    // The CN follows the new sAMAccountName ("samba-tool group rename" renames it)
+    await runSamba(["group", "rename", oldName, `--samaccountname=${newName}`]);
     invalidateGroupCaches();
+    await updateSharesAfterRename("group", oldName, newName);
 }
 
 export async function addGroupMembers(groupName: string, members: string[]): Promise<void> {

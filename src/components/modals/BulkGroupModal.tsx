@@ -8,6 +8,7 @@ import {
 import { addGroupMembers, removeGroupMembers, setPrimaryGroup } from "../../lib/samba.ts";
 import { useGroupNames } from "../../lib/hooks.ts";
 import type { User } from "../../lib/types.ts";
+import { mapLimit, BULK_CONCURRENCY } from "../../lib/concurrency.ts";
 
 export type BulkGroupAction = "add-group" | "remove-group" | "change-primary-group";
 
@@ -75,16 +76,14 @@ export function BulkGroupModal({ action, users, onClose, onSuccess }: Props) {
                 return;
             }
             // change-primary-group: per-user
-            const settled = await Promise.all(
-                users.map(async u => {
-                    try {
-                        await setPrimaryGroup(u.username, selectedGroup);
-                        return { username: u.username, ok: true, error: "" };
-                    } catch (e) {
-                        return { username: u.username, ok: false, error: e instanceof Error ? e.message : String(e) };
-                    }
-                })
-            );
+            const settled = await mapLimit(users, BULK_CONCURRENCY, async u => {
+                try {
+                    await setPrimaryGroup(u.username, selectedGroup);
+                    return { username: u.username, ok: true, error: "" };
+                } catch (e) {
+                    return { username: u.username, ok: false, error: e instanceof Error ? e.message : String(e) };
+                }
+            });
             const succeeded = settled.filter(r => r.ok).map(r => r.username);
             const failed = settled.filter(r => !r.ok).map(r => ({ username: r.username, error: r.error }));
             if (failed.length === 0) { onSuccess(); return; }
