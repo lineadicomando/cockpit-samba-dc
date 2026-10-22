@@ -7,14 +7,13 @@ releases (e.g. `ou create` → `ou add`, `computer create` → `computer add`).
 
 Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
-Sections 1 and 2 are release infrastructure and come before the feature work;
-section 0 collects the follow-ups of the last review, small enough to take
-up at any time.
+Order: section 2 (Debian package) is next, then the features from section
+3 on. Section 0 collects the follow-ups of the last review, small enough to
+take up at any time.
 
-Each feature item (sections 3–8), when implemented, also needs: validators in
-`src/lib/validators.ts`, parsers and tests under `test/`, cache invalidation
-for every mutation, strings translated in `po/it.po` (then `make pot && make
-po-compile`), a line in the README feature list, and a check on the test DC
+Each feature item (sections 3–8) also needs what `CLAUDE.md` lists under
+"Adding things" (validators, parsers and tests, cache invalidation,
+translations, README and `CHANGELOG.md` entries) and a check on the test DC
 (skill `vm-lab`) before the commit.
 
 ## Where things stand
@@ -23,21 +22,25 @@ Updated on 2026-10-22.
 
 - Features: users, groups, computers, home directories (H:), shared folders
   with POSIX ACLs and drive mapping through the "Cockpit - Mapped drives"
-  GPO. First release `v0.1.0` (2026-10-22, section 1); no package yet
-  (section 2).
-- Last work: a review of the code base and its fixes (commit `c28e04c`:
-  shares follow renames of users and groups, bulk actions capped at four
-  processes, member DNs resolved to account names, GPO relinked on write,
-  stricter managed paths, group rename syntax of Samba 4.22). All checked on
-  the test DC and Windows client; what was left open is in section 0.
-- Test environment (commit `b410bb6`): two VMs, a Samba AD DC and a Windows
-  11 client joined to it, driven by `test/vm/` and configured by an
-  untracked `.env` (see `.env.example`). `CLAUDE.md` and the skills `vm-lab`
-  and `win-gui` describe how to use them.
+  GPO.
+- Releases: `v0.1.0` published on 2026-10-22, the first one. The version
+  comes from the git tag (`scripts/version.mjs`, shown next to the page
+  title); `make release VERSION=x.y.z` dates `CHANGELOG.md`, commits and
+  tags; pushing the tag runs `.github/workflows/release.yml`, which
+  publishes the built module as `cockpit-samba-dc-X.Y.Z.tar.gz`. Rule and
+  procedure: README, "Versions and releases". No Debian package yet.
+- Before that: a review of the code base and its fixes (commit `c28e04c`),
+  checked on the test DC and Windows client; what was left open is in
+  section 0.
+- Test environment: two VMs, a Samba AD DC and a Windows 11 client joined
+  to it, driven by `test/vm/` and configured by an untracked `.env` (see
+  `.env.example`); skills `vm-lab` and `win-gui`. Left shut off at snapshot
+  `lab_baseline`.
 
 To resume: read `CLAUDE.md`, run `npm install && make check && npx tsc
 --noEmit`; for anything touching `src/lib/`, follow the workflow of skill
-`vm-lab` (`test/vm/lab.sh reset`, `start dc`, `deploy`).
+`vm-lab` (`test/vm/lab.sh reset`, `start dc`, `deploy`). Next step: the
+first decision of section 2, how the package gets its `node_modules`.
 
 ## 0. Follow-ups of the October 2026 review
 
@@ -71,9 +74,9 @@ To resume: read `CLAUDE.md`, run `npm install && make check && npx tsc
       at the next rebuild of the VMs (the Windows client is an evaluation
       edition and expires).
 
-## 1. Versioning through git tags (top priority)
+## 1. Versioning through git tags (done)
 
-Release infrastructure, to be done before any new feature. The rule and the
+Done. The rule and the
 procedure are in the README ("Versions and releases"): the build takes the
 version from the tag, `make release` commits and tags, the `release.yml`
 workflow publishes. The first release is `v0.1.0`.
@@ -101,9 +104,10 @@ workflow publishes. The first release is `v0.1.0`.
 
 ## 2. Debian package (top priority)
 
-Depends on section 1 for the version number. Today only `sudo make install`
-(and `test/vm/lab.sh deploy` on the test DC) is supported; there is no
-`debian/` directory and no `deb` target.
+The version comes from section 1 (the git tag). Today the module is
+installed with `sudo make install`, from the release tarball (README,
+"Installation") or, on the test DC, with `test/vm/lab.sh deploy`; there is
+no `debian/` directory and no `deb` target.
 
 - [ ] **Add a tracked `debian/` directory**
   - [ ] `control` — binary package `cockpit-samba-dc`, `Architecture: all`,
@@ -115,15 +119,16 @@ Depends on section 1 for the version number. Today only `sudo make install`
   - [ ] `copyright` (LGPL-2.1-or-later) and `source/format`
 - [ ] **Decide how `node_modules` is provided at build time** — the build
       needs npm dependencies, which a clean Debian build environment does not
-      download; either build the bundle beforehand and package `dist/`, or
-      document that the package is built with network access
+      download; either package the `dist/` that the release workflow already
+      builds (the tarball of each GitHub release), or document that the
+      package is built with network access
 - [ ] **Add a `deb` target to the tracked `Makefile`**, and have `lab.sh`
       install the package on the test DC instead of copying `dist/`
 - [ ] **Clean upgrade path** — the package must replace a previous
       `make install` or `lab.sh deploy` in the same directory without
       leaving stale files
-- [ ] **Build the `.deb` in CI** and attach it to the GitHub release created
-      by the tag workflow (section 1)
+- [ ] **Build the `.deb` in CI** and attach it to the GitHub release, in
+      `.github/workflows/release.yml` next to the tarball
 - [ ] **Check the result** — `lintian`, then install, upgrade and remove on
       the test DC (skill `vm-lab`)
 - [ ] Update the README installation section with the `.deb` instructions

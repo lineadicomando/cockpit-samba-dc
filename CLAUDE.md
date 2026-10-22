@@ -92,7 +92,8 @@ Each new feature (see `TODO.md`) also needs:
 - parsers and tests under `test/`;
 - cache invalidation for every mutation (rule 7);
 - strings: English in the source through `t()`, Italian in `po/it.po`, then
-  `make pot && make po-compile`;
+  `make po-compile && make pot` (in this order: `pot` sorts the catalogs,
+  `po-compile` writes them in the order of `po/it.po`);
 - a line in the README feature list and one under `[Unreleased]` in
   `CHANGELOG.md`.
 
