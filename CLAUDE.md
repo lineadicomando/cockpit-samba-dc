@@ -15,6 +15,8 @@ Documents, each with one job; do not repeat one in another:
 - `README.md`: what the module does, how to install it, and what it creates
   on the server ("Files and shares on the server", "Network drive mapping").
   Update it with every change a user or an administrator would notice.
+- `CHANGELOG.md`: what changed in each release, for its users. Add a line
+  under `[Unreleased]` with every change that goes into the README.
 - `TODO.md`: the roadmap (release infrastructure first, then `samba-tool`
   features). Tick items as they are completed and keep it short.
 - This file: how to work on the project.
@@ -31,7 +33,8 @@ users, groups, computers, home directories; `shares.ts` shared folders;
 `drivemaps.ts` the drive-mapping GPO; `parsers.ts`, `validators.ts`,
 `cache.ts`, `hooks.ts`, `concurrency.ts`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
-`po/` and `src/locales/` translations.
+`po/` and `src/locales/` translations, `scripts/` build and release
+helpers (`version.mjs` reads the version from the git tag).
 
 ## Non-negotiable rules
 
@@ -90,7 +93,8 @@ Each new feature (see `TODO.md`) also needs:
 - cache invalidation for every mutation (rule 7);
 - strings: English in the source through `t()`, Italian in `po/it.po`, then
   `make pot && make po-compile`;
-- a line in the README feature list.
+- a line in the README feature list and one under `[Unreleased]` in
+  `CHANGELOG.md`.
 
 A page is a component under `src/components/` and a tab in `src/app.tsx`;
 lists use `useSingleLoad` and `usePagination` from `src/lib/hooks.ts`.
@@ -105,7 +109,10 @@ make pot                # extract strings into src/locales/*/translation.json
 make po-compile         # po/it.po → src/locales/it/translation.json
 make devel-install      # symlink dist/ into ~/.local/share/cockpit/samba-dc
 sudo make install       # copy dist/ into /usr/share/cockpit/samba-dc
+make release VERSION=x.y.z  # commit and tag a release (README, "Versions and releases")
 ```
+
+Releases are made only when the user asks; pushing the tag publishes them.
 
 ## Tests
 

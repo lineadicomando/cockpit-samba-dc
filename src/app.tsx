@@ -4,6 +4,8 @@ import {
   Page,
   PageSection,
   Title,
+  Flex,
+  FlexItem,
   Tabs,
   Tab,
   TabTitleText,
@@ -14,6 +16,7 @@ import { ComputersPage } from "./components/ComputersPage.tsx";
 import { SharesPage } from "./components/SharesPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
 import { useCockpitLocation } from "./lib/hooks.ts";
+import { VERSION } from "./lib/version.ts";
 
 export function App() {
   const { t } = useTranslation();
@@ -37,9 +40,19 @@ export function App() {
       {/* Main layout — always in DOM to preserve UsersPage filter/sort state */}
       <div hidden={detailUsername !== null}>
         <PageSection>
-          <Title headingLevel="h1" size="2xl">
-            Samba DC
-          </Title>
+          <Flex alignItems={{ default: "alignItemsBaseline" }}>
+            <FlexItem>
+              <Title headingLevel="h1" size="2xl">
+                Samba DC
+              </Title>
+            </FlexItem>
+            <FlexItem
+              className="pf-v6-u-font-size-sm pf-v6-u-text-color-subtle"
+              title={t("Module version")}
+            >
+              {VERSION}
+            </FlexItem>
+          </Flex>
         </PageSection>
         <PageSection type="tabs" padding={{ default: "noPadding" }}>
           <Tabs

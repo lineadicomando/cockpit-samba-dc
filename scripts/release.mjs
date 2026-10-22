@@ -1,0 +1,88 @@
+// Release helper.
+//
+//   node scripts/release.mjs prepare X.Y.Z   (make release VERSION=X.Y.Z)
+//       On a clean main: run the checks, date the Unreleased changes in
+//       CHANGELOG.md, set the version in package.json, commit, tag vX.Y.Z.
+//       Nothing is pushed.
+//   node scripts/release.mjs verify vX.Y.Z
+//       The tag matches package.json and CHANGELOG.md (release workflow).
+//   node scripts/release.mjs notes X.Y.Z
+//       Print the CHANGELOG.md section of a version (release notes).
+import { execFileSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { changelogSection, releaseChangelog } from "./changelog.mjs";
+import { SEMVER, packageVersion } from "./version.mjs";
+
+const CHANGELOG = "CHANGELOG.md";
+
+function fail(message) {
+    console.error(`release: ${message}`);
+    process.exit(1);
+}
+
+function run(cmd, args, opts = {}) {
+    return execFileSync(cmd, args, { encoding: "utf8", ...opts });
+}
+
+function git(...args) {
+    return run("git", args).trim();
+}
+
+function checkVersion(version) {
+    if (!version || !SEMVER.test(version)) fail(`"${version ?? ""}" is not a version of the form X.Y.Z`);
+}
+
+function prepare(version) {
+    checkVersion(version);
+    const tag = `v${version}`;
+    if (git("rev-parse", "--abbrev-ref", "HEAD") !== "main") fail("releases are tagged on main");
+    if (git("status", "--porcelain")) fail("the work tree is not clean");
+    if (git("tag", "--list", tag)) fail(`tag ${tag} already exists`);
+
+    const date = new Date().toISOString().slice(0, 10);
+    let changelog;
+    try {
+        changelog = releaseChangelog(readFileSync(CHANGELOG, "utf8"), version, date);
+    } catch (e) {
+        fail(e.message);
+    }
+
+    console.log("release: type check and tests");
+    run("npx", ["tsc", "--noEmit"], { stdio: "inherit" });
+    run("npm", ["test"], { stdio: "inherit" });
+
+    writeFileSync(CHANGELOG, changelog);
+    if (packageVersion(".") !== version) {
+        // Updates package.json and package-lock.json together.
+        run("npm", ["version", version, "--no-git-tag-version"], { stdio: "ignore" });
+    }
+    run("git", ["add", CHANGELOG, "package.json", "package-lock.json"]);
+    run("git", ["commit", "--quiet", "-m", `Release ${tag}`]);
+    run("git", ["tag", "--annotate", tag, "-m", `cockpit-samba-dc ${version}`]);
+    console.log(`release: committed and tagged ${tag}. Publish with:\n  git push origin main ${tag}`);
+}
+
+function verify(tag) {
+    if (!tag?.startsWith("v")) fail(`"${tag ?? ""}" is not a release tag vX.Y.Z`);
+    const version = tag.slice(1);
+    checkVersion(version);
+    const pkg = packageVersion(".");
+    if (pkg !== version) fail(`package.json has version ${pkg}, the tag ${tag}`);
+    const notes = changelogSection(readFileSync(CHANGELOG, "utf8"), version);
+    if (!notes) fail(`CHANGELOG.md has no entries for ${version}`);
+}
+
+function notes(version) {
+    checkVersion(version);
+    const body = changelogSection(readFileSync(CHANGELOG, "utf8"), version);
+    if (!body) fail(`CHANGELOG.md has no entries for ${version}`);
+    process.stdout.write(body + "\n");
+}
+
+const [command, arg] = process.argv.slice(2);
+switch (command) {
+    case "prepare": prepare(arg); break;
+    case "verify": verify(arg); break;
+    case "notes": notes(arg); break;
+    default: fail("usage: release.mjs prepare X.Y.Z | verify vX.Y.Z | notes X.Y.Z");
+}

@@ -60,7 +60,17 @@ sudo make install
 This installs the module to:
 `/usr/share/cockpit/samba-dc`
 
-For pre-`1.0.0` releases, deployment is Make-based (`sudo make install`).
+Each release on the
+[Releases page](https://github.com/lineadicomando/cockpit-samba-dc/releases)
+also has the built module, `cockpit-samba-dc-X.Y.Z.tar.gz`, which needs no
+Node.js on the server:
+
+```bash
+sudo rm -rf /usr/share/cockpit/samba-dc
+sudo tar -C /usr/share/cockpit -xzf cockpit-samba-dc-X.Y.Z.tar.gz
+```
+
+The installed version is shown next to the page title.
 
 ## Development
 
@@ -83,6 +93,34 @@ make check
 # Watch mode (auto-rebuild on save)
 make watch
 ```
+
+## Versions and releases
+
+Versions follow [Semantic Versioning](https://semver.org/). A release is a
+tag `vX.Y.Z` on `main`, and the tag is the only source of the version: the
+build reads it with `git describe` and writes it into `dist/manifest.json`
+and the page header. A build between two releases shows the distance from
+the last tag (`0.2.0-3-gabc1234`, `-dirty` with uncommitted changes); a
+build without git metadata uses the version in `package.json`.
+
+While the version is `0.x`, the minor number goes up for new features and
+for breaking changes, the patch number for fixes only. A breaking change is
+one that asks the administrator to act on upgrade: what the module creates
+on the server changes (paths under `/srv/samba`, share settings, the GPO),
+a requirement is raised (Cockpit, Samba, Debian), or a feature is removed.
+From `1.0.0` breaking changes raise the major number.
+
+To release, list the changes under `[Unreleased]` in `CHANGELOG.md`, commit,
+then:
+
+```bash
+make release VERSION=X.Y.Z    # checks, dates the changelog, commits, tags
+git push origin main vX.Y.Z   # the tag starts the release workflow
+```
+
+The release workflow checks the tag against `package.json` and
+`CHANGELOG.md`, builds and tests, and publishes a GitHub release with the
+built module and the changelog entries as notes.
 
 ## Files and shares on the server
 

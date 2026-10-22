@@ -6,7 +6,7 @@ INSTALL_DIR := $(PROD_COCKPIT_DIR)/$(PKG_NAME)
 
 -include Makefile.local
 
-.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check pot po-compile help
+.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check pot po-compile release help
 
 all: build
 
@@ -44,6 +44,9 @@ pot: ## Extract translatable strings from src/ → src/locales/en/translation.js
 
 po-compile: ## Compile po/it.po → src/locales/it/translation.json
 	npm run po-compile
+
+release: ## Commit and tag a release: make release VERSION=x.y.z (nothing is pushed)
+	node scripts/release.mjs prepare "$(VERSION)"
 
 help:
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk -F ':.*?## ' '{printf "  %-18s %s\n", $$1, $$2}'

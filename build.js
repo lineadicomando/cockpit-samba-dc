@@ -1,9 +1,11 @@
 import * as esbuild from "esbuild";
 import { sassPlugin } from "esbuild-sass-plugin";
-import { cpSync, mkdirSync } from "fs";
+import { cpSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { buildVersion } from "./scripts/version.mjs";
 
 const isWatch = process.argv.includes("--watch");
 const outdir = "dist";
+const version = buildVersion();
 
 const cockpitExternalPlugin = {
     name: "cockpit-external",
@@ -44,13 +46,16 @@ const ctx = await esbuild.context({
         ".svg": "file",
         ".png": "file",
     },
+    define: { __APP_VERSION__: JSON.stringify(version) },
     minify: !isWatch,
     sourcemap: isWatch ? "inline" : false,
 });
 
 mkdirSync(outdir, { recursive: true });
 cpSync("src/index.html", `${outdir}/index.html`);
-cpSync("src/manifest.json", `${outdir}/manifest.json`);
+const manifest = JSON.parse(readFileSync("src/manifest.json", "utf8"));
+manifest.version = version;
+writeFileSync(`${outdir}/manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
 
 if (isWatch) {
     await ctx.watch();
@@ -58,5 +63,5 @@ if (isWatch) {
 } else {
     await ctx.rebuild();
     await ctx.dispose();
-    console.log("Build complete.");
+    console.log(`Build complete: version ${version}.`);
 }

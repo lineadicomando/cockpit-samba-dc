@@ -19,11 +19,12 @@ po-compile`), a line in the README feature list, and a check on the test DC
 
 ## Where things stand
 
-Updated on 2026-10-21.
+Updated on 2026-10-22.
 
 - Features: users, groups, computers, home directories (H:), shared folders
   with POSIX ACLs and drive mapping through the "Cockpit - Mapped drives"
-  GPO. No release, tag or package yet (sections 1 and 2).
+  GPO. First release `v0.1.0` (2026-10-22, section 1); no package yet
+  (section 2).
 - Last work: a review of the code base and its fixes (commit `c28e04c`:
   shares follow renames of users and groups, bulk actions capped at four
   processes, member DNs resolved to account names, GPO relinked on write,
@@ -72,30 +73,29 @@ To resume: read `CLAUDE.md`, run `npm install && make check && npx tsc
 
 ## 1. Versioning through git tags (top priority)
 
-Release infrastructure, to be done before any new feature. There are no tags
-or releases yet (commit `6151d6b` is titled "v0.1.0" but was never tagged), and the two version fields disagree (`package.json` says
-`0.1.0`, `src/manifest.json` says `0`). The README version badge and the
-"cockpit-samba-dc version" field of the bug report template have nothing
-to point at.
+Release infrastructure, to be done before any new feature. The rule and the
+procedure are in the README ("Versions and releases"): the build takes the
+version from the tag, `make release` commits and tags, the `release.yml`
+workflow publishes. The first release is `v0.1.0`.
 
-- [ ] **Define the rule** — semver, tag `vX.Y.Z` on `main` as the single
+- [x] **Define the rule** — semver, tag `vX.Y.Z` on `main` as the single
       source of truth; document it (README or `CONTRIBUTING.md`), including
       what counts as a breaking change while on `0.x`
-- [ ] **Derive the version from the tag** instead of hand-editing files
-  - [ ] `build.js` writes the version into `dist/manifest.json`
+- [x] **Derive the version from the tag** instead of hand-editing files
+  - [x] `build.js` writes the version into `dist/manifest.json`
         (`git describe --tags`, with a fallback when building from a tarball
         without git metadata)
-  - [ ] Keep `package.json` aligned (a `make release VERSION=x.y.z` target, or
+  - [x] Keep `package.json` aligned (a `make release VERSION=x.y.z` target, or
         `npm version`, that bumps, commits and tags)
-- [ ] **Show the version in the UI** so users can report it in bug reports
-- [ ] **Changelog** — `CHANGELOG.md` updated at each release
-- [ ] **Release workflow** — GitHub Actions job triggered by `v*` tags: type
+- [x] **Show the version in the UI** so users can report it in bug reports
+- [x] **Changelog** — `CHANGELOG.md` updated at each release
+- [x] **Release workflow** — GitHub Actions job triggered by `v*` tags: type
       check, build, test, then publish a GitHub release with the build
       artifacts
 - [x] **CI actions on Node 24** — `actions/checkout` and `actions/setup-node`
       moved from v4 (Node 20, deprecated by GitHub) to v7; use the same
       versions in the release workflow
-- [ ] **First tag** — decide the starting version and tag the current state
+- [x] **First tag** — `v0.1.0`
 - [ ] Update the "Supported versions" table in `SECURITY.md` when it stops
       being just `0.x`
 

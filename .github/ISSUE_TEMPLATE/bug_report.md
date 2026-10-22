@@ -16,7 +16,7 @@ A clear description of what the bug is.
 What you expected to happen.
 
 **Environment**
-- cockpit-samba-dc version:
+- cockpit-samba-dc version (shown next to the page title):
 - Cockpit version (`cockpit-bridge --version`):
 - Samba version (`samba --version`):
 - OS and version:

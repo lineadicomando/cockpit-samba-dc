@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The build reads its version from the tag (git describe).
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Check the tag against package.json and CHANGELOG.md
+        run: node scripts/release.mjs verify "$GITHUB_REF_NAME"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      - name: Run tests
+        run: npm test
+
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          built=$(node -p 'require("./dist/manifest.json").version')
+          if [ "$built" != "$version" ]; then
+            echo "dist/manifest.json has version $built, expected $version" >&2
+            exit 1
+          fi
+          archive="cockpit-samba-dc-$version.tar.gz"
+          mkdir -p out
+          cp -a dist out/samba-dc
+          tar -C out -czf "$archive" --owner=0 --group=0 samba-dc
+          sha256sum "$archive" > "$archive.sha256"
+          node scripts/release.mjs notes "$version" > release-notes.md
+          echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
+
+      - name: Publish the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=
+          case "$GITHUB_REF_NAME" in *-*) prerelease=--prerelease ;; esac
+          gh release create "$GITHUB_REF_NAME" $prerelease \
+            --title "cockpit-samba-dc ${GITHUB_REF_NAME#v}" \
+            --notes-file release-notes.md \
+            "$ARCHIVE" "$ARCHIVE.sha256"
