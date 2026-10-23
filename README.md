@@ -97,6 +97,9 @@ installed version is shown next to the page title.
 
 ## Development
 
+How the project is built, and the plan to merge it with
+`ansible-collection-samba_dc` around a shared core: `docs/architecture.md`.
+
 ```bash
 # Install dependencies
 npm install

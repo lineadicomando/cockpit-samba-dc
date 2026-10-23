@@ -22,6 +22,10 @@ Documents, each with one job; do not repeat one in another:
 - `TODO.md`: the roadmap of `samba-tool` features and the plan of the next
   release (`— vX.Y.Z` at the end of the headings of its sections). Tick
   items as they are completed and keep it short.
+- `docs/architecture.md`: how the project is built, the target of the
+  unification with `ansible-collection-samba_dc` (one core on the DC, with
+  Cockpit, Ansible and MCP on top) and how far it has got. Update its
+  migration table when a step of `TODO.md` A1–A6 is done.
 - This file: how to work on the project.
 
 `CLAUDE.local.md` and `Makefile.local`, when present, are not tracked: they

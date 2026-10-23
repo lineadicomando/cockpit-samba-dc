@@ -1,17 +1,21 @@
 # TODO
 
-Roadmap of `samba-tool` features not yet exposed by the module. Every
-subcommand and flag named in sections 3–8 was checked with `samba-tool <cmd>
+Roadmap. First, sections A1–A6: one project with
+`ansible-collection-samba_dc`, around a core shared by the Cockpit page,
+Ansible and MCP (`docs/architecture.md`). Then the `samba-tool` features not
+yet exposed (sections 3–8). Every subcommand and flag named in sections 3–8
+was checked with `samba-tool <cmd>
 --help` on the test DC (Samba 4.22.11) on 2026-10-23; check again on the
 target before implementing, since some were renamed across releases (e.g.
 `ou create` → `ou add`, `computer create` → `computer add`).
 
 Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
-Order: section 8 (the "Domain" tab, where section 4 puts the password
-policy), then sections 4, 5, 6 and 7 (7 waits for a decision on
-authentication). Section 0 collects the follow-ups of the last review, small
-enough to take up at any time.
+Order: sections A1–A6 before any other item of this list, so that what
+follows is written for the new layout (A6 rewrites it). Then section 8 (the
+"Domain" tab, where section 4 puts the password policy), then sections 4, 5,
+6 and 7 (7 waits for a decision on authentication). Section 0 collects the
+follow-ups of the last review.
 
 Versions: only the next release is planned. The heading of each section
 that goes into it ends with its version (`— v0.2.0`), which it keeps once
@@ -53,6 +57,9 @@ Updated on 2026-10-23.
 - Before that: a review of the code base and its fixes (commit `c28e04c`),
   checked on the test DC and Windows client; what was left open is in
   section 0.
+- Plan (2026-10-23): one project with `ansible-collection-samba_dc`, the
+  Windows roles moving to `ansible-collection-win_workman`; target and
+  migration in `docs/architecture.md`, steps in sections A1–A6.
 - Test environment: two VMs, a Samba AD DC and a Windows 11 client joined
   to it, driven by `test/vm/` and configured by an untracked `.env` (see
   `.env.example`); skills `vm-lab` and `win-gui`. Left shut off at snapshot
@@ -68,7 +75,128 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section 8, the "Domain" tab.
+4. Next step: section A1.
+
+## A1. Windows roles and lab defaults out of the collection
+
+In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
+`ansible-win_edulab`; nothing changes in this repository.
+`docs/architecture.md`, "Boundaries".
+
+- [ ] **win_workman: a `domain` management role** merging `samba_win_join`
+      and `samba_win_status`, as win_workman's `CLAUDE.md` asks (schema in
+      `vars/`, `act_join`, `act_leave`, `act_status`, default `status`,
+      `meta/mcp.yaml`, docs and catalog rows); variables
+      `win_workman_domain_*`; the DNS step of win_edulab's
+      `playbooks/samba_dc_join.yaml` moves into `act_join`
+      (`win_workman_domain_dns_servers`); dependency `microsoft.ad`
+- [ ] Try it on this project's Windows client with the test DC (skill
+      `vm-lab`): status, leave, join again, then a domain logon
+- [ ] **win_edulab**: `samba_dc_join.yaml` and the `samba_win_join_*`
+      variables become the task `domain-join` and `win_workman_domain_*`;
+      membership status through the win-workman MCP; its skills and docs
+- [ ] **The collection**: remove the two roles,
+      `playbooks/samba_win_status.yaml`, the `samba_win_status` MCP tool and
+      the dependencies `microsoft.ad` and `ansible.windows`; the MCP
+      `inventory` no longer defaults to `school` (required, or
+      `ANSIBLE_MCP_INVENTORY`); no `lab_win` fallback; examples with
+      neutral group names; README and `galaxy.yml` describe what the
+      Cockpit page does (no DNS or service controls)
+- [ ] Releases of win_workman and of the collection (breaking: roles
+      removed); win_edulab pinned to both tags instead of `main`
+
+## A2. The collection in this repository — v0.3.0
+
+- [ ] Carry over the collection's open `TODO.md` items (the
+      `samba_tool_user` bugs, the sanity ignore files) into section 0, and
+      its changes since its last tag into `CHANGELOG.md`
+- [ ] `git subtree add --prefix=ansible` of the collection's `main`, with
+      its history; `ansible/galaxy.yml` stays at the collection root
+- [ ] One version: `make release` writes it into `ansible/galaxy.yml`,
+      `release.mjs verify` checks it, `release.yml` builds the collection
+      tarball (`ansible-galaxy collection build ansible`) and attaches it.
+      Not published on Ansible Galaxy for now (to reconsider when the
+      project is more mature)
+- [ ] CI: the collection's jobs (ansible-lint, `ansible-test sanity` and
+      `units`, which need an `ansible_collections/lineadicomando/samba_dc`
+      path) next to the existing ones
+- [ ] `samba_dc_build` installs the Cockpit page from the release of its own
+      version, checksum verified: `samba_dc_build_cockpit_install: package`
+      (default), `source` (a git revision built on the DC, for development)
+      or `none`; an optional URL or local path for sites without Internet
+      access; it removes the working copy `/usr/local/src/cockpit-samba-dc`
+- [ ] Docs: a README section on the collection (installed from
+      `git+https://github.com/lineadicomando/cockpit-samba-dc.git#/ansible`:
+      check the exact `ansible-galaxy` syntax); `ansible/README.md` for
+      Galaxy; the collection's rules in `CLAUDE.md` (ansible-lint as the
+      gate, SPDX headers, variable names); one `CHANGELOG.md`; licenses per
+      directory (`ansible/LICENSE`)
+- [ ] `test/vm` runs Ansible from the host against the test DC:
+      `samba_dc_build` from `baseline` with the package install; `samba_tool`
+      and `samba_share` on shares made in Cockpit, and back
+- [ ] The old repository: a README pointing here (archived at the end of
+      the plan, A6); win_edulab: `requirements.yaml`, the symlink under
+      `ansible_collections/`, `.mcp.json`
+
+## A3. Core: spike on shared folders and drive mapping
+
+The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
+`ansible/plugins/module_utils/samba_share.py`). Ends with a decision.
+
+- [ ] Python package and command `samba-dc-admin` (`core/`) with `share
+      list|get|set|delete` and drive mapping, as in `docs/architecture.md`,
+      "The core"; check on the target what the samba Python bindings cover
+      (`SamDB`, the registry shares of `net conf`) and fall back to the
+      tools where they do not
+- [ ] The schemas of these operations, and the generator of TypeScript
+      types, Ansible `argument_specs` and MCP tools, with a CI check that the
+      generated files are up to date
+- [ ] pytest tests; verbatim tool outputs as fixtures shared with the
+      TypeScript tests (`test/fixtures/`)
+- [ ] Debian source package with two binaries: `samba-dc-tools`, and
+      `cockpit-samba-dc` depending on it (`= ${binary:Version}`); lintian
+      clean
+- [ ] `shares.ts` and `drivemaps.ts`, and the `samba_share` and
+      `samba_share_info` modules, call the core; the modules fail with a
+      clear message when `samba-dc-tools` is missing
+- [ ] On the test DC: time to list and to save (cold and warm) against
+      today's; a share made in Cockpit, changed with Ansible, and back; the
+      mapped drive at a Windows logon
+- [ ] **Go/no-go**, written here with the measures: on to A4, or stop at A2
+      and keep two implementations
+
+## A4. Core: every other operation
+
+- [ ] One operation at a time: users, groups, computers, home directories,
+      password policy (read), lockout and expiry; each with its schema and
+      tests, and the TypeScript it replaces removed only once the core
+      version is tried on the test DC
+- [ ] Ansible modules per object (`samba_user`, `samba_group`,
+      `samba_computer`, `samba_home`, …) on the core; `samba_tool` becomes a
+      thin dispatcher of them; `samba_tool_user` goes
+- [ ] `CLAUDE.md`: the non-negotiable rules refer to the core
+
+## A5. MCP server on the DC
+
+- [ ] `samba-dc-admin mcp` (stdio), tools generated from the schemas,
+      `--check` as preview, secrets never in a result or a log
+- [ ] Reached through SSH, with a sudoers rule for that command alone;
+      documented in the README
+- [ ] The orchestration MCP (playbooks on the control node) keeps
+      `samba_dc_build` and `samba_dc_backup` and drops the day-two tools;
+      win_edulab's `.mcp.json` lists both
+- [ ] The integration suite of section 0 runs through the MCP tools and
+      through the Cockpit page's operations
+
+## A6. The roadmap in the new layout
+
+- [ ] Rewrite sections 0 and 4–8 as operations of the core with their three
+      interfaces; update "Where things stand", the migration table of
+      `docs/architecture.md` and the README
+- [ ] Archive `ansible-collection-samba_dc` on GitHub, once the plan is
+      done (ask first: it is public)
+- [?] Rename the repository: it keeps its name for now; to reconsider when
+      the project is more mature (GitHub redirects the old name)
 
 ## 0. Follow-ups of the October 2026 review
 
