@@ -5,6 +5,9 @@ The schemas are the contract: the command validates every input against
 them, and they generate the TypeScript types, the Ansible argument specs and
 the MCP tools (docs/architecture.md, "The core").
 """
+from .accounts import Computers, Groups, Users
+from .domain import Domain
+from .homes import Homes
 from .shares import Shares
 
 _NAME = {"type": "string", "minLength": 1, "maxLength": 256}
@@ -34,11 +37,207 @@ _DRIVE = {
 }
 
 
+_ACCOUNT = {"type": "string", "minLength": 1, "maxLength": 20,
+            "description": "sAMAccountName of the user"}
+_GROUP = {"type": "string", "minLength": 1, "maxLength": 256, "description": "sAMAccountName of the group"}
+_PASSWORD = {"type": "string", "minLength": 1, "maxLength": 512, "writeOnly": True,
+             "description": "The password; a secret, never returned"}
+_TEXT = {"type": "string", "maxLength": 1024}
+_EXPIRES = {"type": ["string", "null"], "maxLength": 64,
+            "description": ("When the account stops working, ISO 8601 with a time zone "
+                            "(e.g. 2027-07-01T00:00:00+02:00); null: never")}
+_USER_FIELDS = {
+    "given_name": dict(_TEXT, description="Given name"),
+    "surname": dict(_TEXT, description="Surname"),
+    "email": dict(_TEXT, description="E-mail address; empty removes it"),
+    "description": dict(_TEXT, description="Description; empty removes it"),
+    "title": dict(_TEXT, description="Job title; empty removes it"),
+    "department": dict(_TEXT, description="Department; empty removes it"),
+    "company": dict(_TEXT, description="Company; empty removes it"),
+}
+_NAME_ONLY = lambda d, desc: {"type": "object", "properties": {"name": dict(d, description=desc)},
+                              "required": ["name"], "additionalProperties": False}
+_NONE = {"type": "object", "properties": {}, "additionalProperties": False}
+
+
 def _shares(ctx):
     return Shares(ctx.dc, ctx.runner)
 
 
+def _users(ctx):
+    return Users(ctx.dc, ctx.runner)
+
+
+def _groups(ctx):
+    return Groups(ctx.dc, ctx.runner)
+
+
+def _computers(ctx):
+    return Computers(ctx.dc, ctx.runner)
+
+
 OPERATIONS = {
+    # -- users
+    ("user", "list"): {
+        "description": "List the domain users, with their groups, status, lockout and expiry",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"users": _users(ctx).list()},
+    },
+    ("user", "get"): {
+        "description": "One domain user",
+        "mutates": False, "input": _NAME_ONLY(_ACCOUNT, "sAMAccountName of the user"),
+        "run": lambda ctx, req: {"user": _users(ctx).get(req["name"])},
+    },
+    ("user", "create"): {
+        "description": "Create a domain user",
+        "mutates": True,
+        "input": {
+            "type": "object",
+            "properties": dict(_USER_FIELDS, **{
+                "name": _ACCOUNT,
+                "password": _PASSWORD,
+                "must_change_password": {"type": "boolean", "description": "Change it at the next logon; default false"},
+                "ou": dict(_TEXT, description="Container to create it in, relative to the domain (e.g. OU=Students); default CN=Users"),
+                "groups": {"type": "array", "items": _GROUP, "description": "Groups to add it to"},
+            }),
+            "required": ["name", "password"], "additionalProperties": False,
+        },
+        "run": lambda ctx, req: _users(ctx).create(req),
+    },
+    ("user", "set"): {
+        "description": ("Bring a user to the given settings; settings left out keep their value. "
+                        "A new name also renames it in the shared folders"),
+        "mutates": True,
+        "input": {
+            "type": "object",
+            "properties": dict(_USER_FIELDS, **{
+                "name": _ACCOUNT,
+                "new_name": dict(_ACCOUNT, description="New sAMAccountName"),
+                "enabled": {"type": "boolean"},
+                "expires": _EXPIRES,
+                "groups": {"type": "array", "items": _GROUP,
+                           "description": "Groups it belongs to, the primary group aside"},
+                "groups_mode": {"type": "string", "enum": ["replace", "append", "remove"],
+                                "description": "replace (default), append or remove the groups given"},
+                "primary_group": dict(_GROUP, description="Primary group, one the user belongs to"),
+            }),
+            "required": ["name"], "additionalProperties": False,
+        },
+        "run": lambda ctx, req: _users(ctx).set(req),
+    },
+    ("user", "password"): {
+        "description": "Set a user's password",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": _ACCOUNT, "password": _PASSWORD,
+            "must_change": {"type": "boolean", "description": "Change it at the next logon; default false"},
+        }, "required": ["name", "password"], "additionalProperties": False},
+        "run": lambda ctx, req: _users(ctx).password(req),
+    },
+    ("user", "unlock"): {
+        "description": "Unlock a user locked out after failed logons",
+        "mutates": True, "input": _NAME_ONLY(_ACCOUNT, "sAMAccountName of the user"),
+        "run": lambda ctx, req: _users(ctx).unlock(req),
+    },
+    ("user", "delete"): {
+        "description": "Delete a domain user (not the built-in ones); shared folders keep listing it",
+        "mutates": True, "input": _NAME_ONLY(_ACCOUNT, "sAMAccountName of the user"),
+        "run": lambda ctx, req: _users(ctx).delete(req),
+    },
+    # -- groups
+    ("group", "list"): {
+        "description": "List the groups, with their members",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"groups": _groups(ctx).list()},
+    },
+    ("group", "get"): {
+        "description": "One group",
+        "mutates": False, "input": _NAME_ONLY(_GROUP, "sAMAccountName of the group"),
+        "run": lambda ctx, req: {"group": _groups(ctx).get(req["name"])},
+    },
+    ("group", "create"): {
+        "description": "Create a group",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": _GROUP,
+            "description": dict(_TEXT, description="Description"),
+            "scope": {"type": "string", "enum": ["domain", "global", "universal"], "description": "Default: global"},
+            "category": {"type": "string", "enum": ["security", "distribution"], "description": "Default: security"},
+            "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: _groups(ctx).create(req),
+    },
+    ("group", "set"): {
+        "description": ("Bring a group to the given settings; settings left out keep their value. "
+                        "A new name also renames it in the shared folders"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": _GROUP,
+            "new_name": dict(_GROUP, description="New sAMAccountName"),
+            "description": dict(_TEXT, description="Description; empty removes it"),
+            "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
+            "members_mode": {"type": "string", "enum": ["replace", "append", "remove"],
+                             "description": "replace (default), append or remove the members given"},
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: _groups(ctx).set(req),
+    },
+    ("group", "delete"): {
+        "description": "Delete a group (not the built-in ones); shared folders keep listing it",
+        "mutates": True, "input": _NAME_ONLY(_GROUP, "sAMAccountName of the group"),
+        "run": lambda ctx, req: _groups(ctx).delete(req),
+    },
+    # -- computers
+    ("computer", "list"): {
+        "description": "List the computer accounts",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"computers": _computers(ctx).list()},
+    },
+    ("computer", "get"): {
+        "description": "One computer account",
+        "mutates": False, "input": _NAME_ONLY(_ACCOUNT, "Computer name, with or without the trailing $"),
+        "run": lambda ctx, req: {"computer": _computers(ctx).get(req["name"])},
+    },
+    ("computer", "create"): {
+        "description": "Create a computer account before the computer joins",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": dict(_ACCOUNT, description="Computer name, without the trailing $"),
+            "ou": dict(_TEXT, description="Container, relative to the domain; default CN=Computers"),
+            "description": dict(_TEXT, description="Description"),
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: _computers(ctx).create(req),
+    },
+    ("computer", "delete"): {
+        "description": "Delete a computer account and its DNS records (not a domain controller)",
+        "mutates": True, "input": _NAME_ONLY(_ACCOUNT, "Computer name, with or without the trailing $"),
+        "run": lambda ctx, req: _computers(ctx).delete(req),
+    },
+    # -- home directories
+    ("home", "provision"): {
+        "description": ("Create a user's home directory under /srv/samba/home, map it at logon "
+                        "(homeDrive, homeDirectory) and make sure the home share serves it"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": _ACCOUNT,
+            "drive": {"type": "string", "minLength": 2, "maxLength": 2, "description": "Drive letter; default H:"},
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: Homes(ctx.dc, ctx.runner).provision(req),
+    },
+    ("home", "delete"): {
+        "description": "Clear a user's home drive; with delete_data, also remove its folder",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": _ACCOUNT,
+            "delete_data": {"type": "boolean", "description": "Remove /srv/samba/home/<name> and its contents"},
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: Homes(ctx.dc, ctx.runner).delete(req),
+    },
+    # -- domain
+    ("domain", "password-policy"): {
+        "description": "The domain password and lockout settings",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"policy": Domain(ctx.dc, ctx.runner).password_policy()},
+    },
     ("share", "list"): {
         "description": "List the shared folders under /srv/samba/shares, with access and drive mapping",
         "mutates": False,

@@ -316,8 +316,13 @@ class TestCli(unittest.TestCase):
     def test_schema_lists_operations(self):
         code, out = self.call(["schema"], "")
         self.assertEqual(code, 0)
-        self.assertEqual(sorted(out), ["share delete", "share get", "share list", "share rename-principal", "share set"])
+        for op in ("share set", "user create", "group set", "computer delete", "home provision",
+                   "domain password-policy"):
+            self.assertIn(op, out)
         self.assertTrue(out["share set"]["mutates"])
+        self.assertFalse(out["user list"]["mutates"])
+        # Secrets are marked, so that the interfaces can hide them
+        self.assertTrue(out["user create"]["input"]["properties"]["password"]["writeOnly"])
 
 
 if __name__ == "__main__":

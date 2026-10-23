@@ -15,7 +15,7 @@ from .smbconf import (SHARES_DIR, access_key, format_user_list, is_managed_path,
                       share_access, share_name_violation)
 
 
-def _check_principal_names(names):
+def check_principal_names(names):
     # A leading "-" would be read as an option by the tools these names reach
     for name in names:
         if not isinstance(name, str) or not name or name.startswith("-"):
@@ -73,7 +73,7 @@ class Shares:
 
     def _resolve(self, access):
         """Canonical names and kinds from the directory, with each SID."""
-        _check_principal_names([e["name"] for e in access])
+        check_principal_names([e["name"] for e in access])
         found = self.dc.resolve_principals([e["name"] for e in access])
         unknown = [e["name"] for e in access if e["name"].lower() not in found]
         if unknown:
@@ -259,7 +259,7 @@ class Shares:
         uid/gid, which follow the SID; the drive mapping is rewritten for the
         names next to the SIDs."""
         kind, old, new = request["kind"], request["old"], request["new"]
-        _check_principal_names([old, new])
+        check_principal_names([old, new])
         renamed = []
         if old == new:
             return {"changed": False, "shares": renamed}

@@ -197,7 +197,119 @@ class Dc:
         msg[attribute] = ldb.MessageElement(value, ldb.FLAG_MOD_REPLACE, attribute)
         self.samdb.modify(msg)
 
+    # -- directory records: {attribute: [str]}, objectSid as text, "dn"
+
+    def search(self, expression, attrs, base=None, scope="sub"):
+        import ldb
+        from samba.dcerpc import security
+        from samba.ndr import ndr_unpack
+        scopes = {"sub": ldb.SCOPE_SUBTREE, "base": ldb.SCOPE_BASE, "one": ldb.SCOPE_ONELEVEL}
+        records = []
+        for msg in self.samdb.search(base=base or self.domain_dn, scope=scopes[scope],
+                                     expression=expression, attrs=attrs):
+            record = {"dn": [str(msg.dn)]}
+            for attr in attrs:
+                if attr in msg:
+                    if attr.lower() == "objectsid":
+                        record[attr] = [str(ndr_unpack(security.dom_sid, v)) for v in msg[attr]]
+                    else:
+                        record[attr] = [str(v) for v in msg[attr]]
+            records.append(record)
+        return records
+
+    def domain_attrs(self, attrs):
+        return self.search("(objectClass=*)", attrs, scope="base")[0]
+
+    def modify(self, dn, changes):
+        """Replace (value) or delete (None) attributes of one entry."""
+        import ldb
+        for attr, value in changes.items():
+            self.runner.record("sam.ldb: %s %s = %s" % (dn, attr, "(deleted)" if value is None else value))
+        if self.runner.check or not changes:
+            return
+        msg = ldb.Message()
+        msg.dn = ldb.Dn(self.samdb, dn)
+        for attr, value in changes.items():
+            if value is None:
+                msg[attr] = ldb.MessageElement([], ldb.FLAG_MOD_DELETE, attr)
+            else:
+                msg[attr] = ldb.MessageElement(str(value), ldb.FLAG_MOD_REPLACE, attr)
+        self._samdb_call(self.samdb.modify, msg)
+
+    def _samdb_call(self, fn, *args, **kwargs):
+        """A SamDB call whose failure becomes an AddcError with Samba's message
+        (a password the policy refuses, an entry that exists)."""
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            message = e.args[1] if len(getattr(e, "args", ())) > 1 else str(e)
+            raise AddcError(str(message).strip()) from None
+
+    def _filter(self, name, object_class):
+        import ldb
+        return "(&(objectClass=%s)(sAMAccountName=%s))" % (object_class, ldb.binary_encode(name))
+
+    def new_user(self, name, password, **attributes):
+        self.runner.record("sam.ldb: create user %s" % name)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.newuser, name, password, **attributes)
+
+    def delete_user(self, name):
+        self.runner.record("sam.ldb: delete user %s" % name)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.deleteuser, name)
+
+    def set_password(self, name, password, must_change):
+        self.runner.record("sam.ldb: set password of %s%s" % (name, ", must change at next logon" if must_change else ""))
+        if not self.runner.check:
+            self._samdb_call(self.samdb.setpassword, self._filter(name, "user"), password,
+                             force_change_at_next_login=must_change)
+
+    def set_enabled(self, name, enabled):
+        self.runner.record("sam.ldb: %s %s" % ("enable" if enabled else "disable", name))
+        if not self.runner.check:
+            fn = self.samdb.enable_account if enabled else self.samdb.disable_account
+            self._samdb_call(fn, self._filter(name, "user"))
+
+    def unlock(self, name):
+        self.runner.record("sam.ldb: unlock %s" % name)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.unlock_account, self._filter(name, "user"))
+
+    def change_members(self, group, members, add):
+        self.runner.record("sam.ldb: %s %s %s" % (group, "add" if add else "remove", ", ".join(members)))
+        if not self.runner.check and members:
+            self._samdb_call(self.samdb.add_remove_group_members, group, members, add_members_operation=add)
+
+    def new_group(self, name, grouptype, description=None):
+        self.runner.record("sam.ldb: create group %s" % name)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.newgroup, name, grouptype=grouptype, description=description)
+
+    def delete_group(self, name):
+        self.runner.record("sam.ldb: delete group %s" % name)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.deletegroup, name)
+
+    def new_computer(self, name, ou=None, description=None):
+        self.runner.record("sam.ldb: create computer %s" % name)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.newcomputer, name, computerou=ou, description=description)
+
+    def samba_tool(self, args):
+        """What only samba-tool does (renames, primary group, computer delete
+        with its DNS records): argv, never a shell."""
+        return self.runner.change(["samba-tool"] + args)
+
     # -- NSS
+
+    def posix_account(self, name):
+        """(uid, gid of the login group) of a domain user through NSS, or None."""
+        try:
+            entry = pwd.getpwnam("%s\\%s" % (self.workgroup, name))
+        except KeyError:
+            return None
+        return entry.pw_uid, entry.pw_gid
 
     def posix_ids(self, name):
         """{"u": uid, "g": gid} of a domain principal through NSS (winbind);
