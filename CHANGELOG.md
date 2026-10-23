@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-23
+
 ### Added
 
 - Debian package (`cockpit-samba-dc_X.Y.Z_all.deb`) attached to each release,
