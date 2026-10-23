@@ -38,18 +38,53 @@ export function debianVersion(version) {
     return deb;
 }
 
+// Lines of a Debian changelog entry may not exceed 80 columns (lintian
+// debian-changelog-line-too-long), and the items are indented more than in
+// CHANGELOG.md: each item is wrapped again.
+const DEBIAN_WIDTH = 80;
+
+function wrapItem(text, first, rest) {
+    const lines = [];
+    let line = first;
+    for (const word of text.split(/\s+/).filter(Boolean)) {
+        const start = line === first || line === rest;
+        if (!start && line.length + 1 + word.length > DEBIAN_WIDTH) {
+            lines.push(line);
+            line = rest + word;
+        } else {
+            line += (start ? "" : " ") + word;
+        }
+    }
+    lines.push(line);
+    return lines;
+}
+
 // CHANGELOG.md section (Keep a Changelog) → Debian changelog items:
-// "### Added" → "  * Added:", "- item" → "    - item", continuations
-// indented to match.
+// "### Added" → "  * Added:", "- item" → "    - item", wrapped at 80
+// columns with continuations indented to match.
 export function debianItems(section) {
     const out = [];
+    let item = null;
+    const flush = () => {
+        if (item !== null) out.push(...wrapItem(item, "    - ", "      "));
+        item = null;
+    };
     for (const line of section.split("\n")) {
         if (!line.trim()) continue;
         const heading = /^###\s+(.*)$/.exec(line);
-        if (heading) out.push(`  * ${heading[1]}:`);
-        else if (line.startsWith("- ")) out.push(`    ${line}`);
-        else out.push(`      ${line.trim()}`);
+        if (heading) {
+            flush();
+            out.push(`  * ${heading[1]}:`);
+        } else if (line.startsWith("- ")) {
+            flush();
+            item = line.slice(2);
+        } else if (item !== null) {
+            item += " " + line.trim();
+        } else {
+            out.push(...wrapItem(line.trim(), "      ", "      "));
+        }
     }
+    flush();
     return out;
 }
 

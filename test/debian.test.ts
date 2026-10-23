@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { debianChangelog, debianItems, debianVersion } from "../scripts/debian.mjs";
+import { changelogSection } from "../scripts/changelog.mjs";
 
 describe("debianVersion", () => {
     it("keeps a release as it is", () => {
@@ -37,8 +39,7 @@ describe("debianChangelog", () => {
             "cockpit-samba-dc (0.2.0) unstable; urgency=medium",
             "",
             "  * Added:",
-            "    - Users: list, create,",
-            "      delete.",
+            "    - Users: list, create, delete.",
             "    - Groups.",
             "  * Fixed:",
             "    - A bug.",
@@ -54,8 +55,22 @@ describe("debianChangelog", () => {
         assert.match(text, /\n {2}\* Development build 0\.1\.0-3-gabc1234, not a release\.\n/);
     });
 
-    it("keeps items within 80 columns when CHANGELOG.md does", () => {
-        const line = "- " + "x".repeat(74);
-        assert.ok(debianItems(line).every((l) => l.length <= 80));
+    it("wraps items again within 80 columns", () => {
+        const items = debianItems("### Fixed\n\n- " + "word ".repeat(40).trim() + "\n  and more.");
+        assert.ok(items.every((l) => l.length <= 80), items.join("\n"));
+        assert.ok(items[1].startsWith("    - word") && items.slice(2).every((l) => l.startsWith("      word") || l.startsWith("      and")));
+        assert.equal(items.join(" ").replace(/\s+/g, " ").includes("word and more."), true);
+    });
+
+    it("keeps every release of CHANGELOG.md within 80 columns", () => {
+        // What lintian checks in the release workflow, which CI does not
+        // reach: its packages are builds between releases.
+        const text = readFileSync("CHANGELOG.md", "utf8");
+        const versions = [...text.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map((m) => m[1]);
+        assert.ok(versions.length > 0);
+        for (const version of versions) {
+            const entry = debianChangelog({ ...base, version, notes: changelogSection(text, version) });
+            for (const line of entry.split("\n")) assert.ok(line.length <= 80, `${version}: ${line}`);
+        }
     });
 });

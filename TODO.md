@@ -36,17 +36,20 @@ Updated on 2026-10-23.
   computers (list, delete), home directories (H:), shared folders with
   POSIX ACLs and drive mapping through the "Cockpit - Mapped drives" GPO.
   Tabs in `src/app.tsx`: Users, Groups, Shared folders, Computers.
-- Releases: `v0.1.0` published on 2026-10-22, the only one so far, with the
-  tarball only. The version comes from the git tag; `make release`
-  computes the next one, dates `CHANGELOG.md`, commits and tags; pushing
-  the tag runs `.github/workflows/release.yml`, which publishes
+- Releases: `v0.1.0` (2026-10-22, tarball only) and `v0.2.1`
+  (2026-10-23, tarball and `.deb`); `v0.2.0` was tagged but not published,
+  its package failing `lintian`. The version comes from the git tag; `make
+  release` computes the next one, dates `CHANGELOG.md`, commits and tags;
+  pushing the tag runs `.github/workflows/release.yml`, which publishes
   `cockpit-samba-dc-X.Y.Z.tar.gz` and `cockpit-samba-dc_X.Y.Z_all.deb`.
   Rule and procedure: README, "Versions and releases".
 - Debian package (section 2, commit `f403bef`): `make deb` builds it in a
   Debian 13 container and runs `lintian`; `lab.sh deploy` installs it on
   the test DC. Tried on the test DC (install over a hand-made copy,
   upgrade, remove); the "Debian package" step of `ci.yml` passed on GitHub
-  on 2026-10-23. The first release with a `.deb` is the next tag.
+  on 2026-10-23. CI builds the package of a build between releases; the
+  changelog of a release is checked by a unit test (`test/debian.test.ts`),
+  since only the release workflow packages it.
 - Before that: a review of the code base and its fixes (commit `c28e04c`),
   checked on the test DC and Windows client; what was left open is in
   section 0.
@@ -65,8 +68,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: release v0.2.0 (`make next-version`, then `make release`),
-   then section 8, the "Domain" tab.
+4. Next step: section 8, the "Domain" tab.
 
 ## 0. Follow-ups of the October 2026 review
 

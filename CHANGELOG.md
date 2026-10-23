@@ -8,6 +8,12 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Fixed
+
+- The Debian package is attached to the release again: the one of 0.2.0
+  failed `lintian` (changelog lines over 80 columns), so 0.2.0 was tagged
+  but not published.
+
 ## [0.2.0] - 2026-10-23
 
 ### Added
