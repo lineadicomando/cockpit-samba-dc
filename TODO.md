@@ -40,9 +40,10 @@ Updated on 2026-10-23.
   computers (list, delete), home directories (H:), shared folders with
   POSIX ACLs and drive mapping through the "Cockpit - Mapped drives" GPO.
   Tabs in `src/app.tsx`: Users, Groups, Shared folders, Computers.
-- Releases: `v0.1.0` (2026-10-22, tarball only) and `v0.2.1`
-  (2026-10-23, tarball and `.deb`); `v0.2.0` was tagged but not published,
-  its package failing `lintian`. The version comes from the git tag; `make
+- Releases: `v0.1.0` (2026-10-22, tarball only), `v0.2.1` (2026-10-23,
+  tarball and `.deb`; `v0.2.0` was tagged but not published, its package
+  failing `lintian`) and `v0.8.0` (2026-10-23, the first with the Ansible
+  collection, also attached as a tarball). The version comes from the git tag; `make
   release` computes the next one, dates `CHANGELOG.md`, commits and tags;
   pushing the tag runs `.github/workflows/release.yml`, which publishes
   `cockpit-samba-dc-X.Y.Z.tar.gz` and `cockpit-samba-dc_X.Y.Z_all.deb`.
@@ -75,7 +76,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section A2.
+4. Next step: section A3, the core spike.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -109,7 +110,7 @@ In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
       also carries the untagged 0.6.0); win_edulab pinned to both tags
       instead of `main`; CI green on both collections
 
-## A2. The collection in this repository — v0.8.0
+## A2. The collection in this repository (done) — v0.8.0
 
 The first release with the collection is 0.8.0 for both: the collection was
 at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
@@ -152,7 +153,7 @@ at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
 The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 `ansible/plugins/module_utils/samba_share.py`). Ends with a decision.
 
-- [ ] First, once v0.8.0 is out: a README in `ansible-collection-samba_dc`
+- [x] First, once v0.8.0 is out: a README in `ansible-collection-samba_dc`
       pointing here (archived at the end of the plan, A6); win_edulab's
       `requirements.yaml` on `git+…/cockpit-samba-dc.git#/ansible/` at
       v0.8.0, its symlink under `ansible_collections/` and `.mcp.json` on
