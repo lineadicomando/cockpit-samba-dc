@@ -11,36 +11,51 @@ Cockpit module for managing a Samba Active Directory Domain Controller via `samb
 
 ## Features
 
-- **Users** — list, create, edit password, enable/disable, delete, home directory provisioning
+- **Users** — list, create, edit (first and last name, e-mail, account name), reset password, enable/disable, delete, group membership and primary group, home directory (H:) provisioning; bulk enable, disable, delete, add to or remove from a group, change primary group, provision home directories
 - **Groups** — list, create, rename, delete, member management (add/remove)
-- **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients
+- **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
 - **Computers** — list, delete
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
-- Live search and filter in every section
+- Live search and filters in every section
+- English and Italian interface, following Cockpit's language
 - Full support for Cockpit light/dark theme
+- The installed version is shown next to the page title
 
 ## Tech stack
 
 | Component | Version |
 |---|---|
+| Debian (target) | 13 |
 | Cockpit | 337 |
 | Samba | 4.22 |
 | React | 18.3 |
-| PatternFly | 6.1 |
+| PatternFly | 6.4 |
 | TypeScript | 5.9 |
 | esbuild | 0.28 |
-| Node.js | ≥ 18 |
+| Node.js (build and tests) | 22 |
 
 ## Requirements
 
-- Git
-- Make
-- Cockpit ≥ 337 installed on the server
-- `samba-tool` available at `/usr/bin/samba-tool`
-- `registry shares = yes` (or `include = registry`) in `smb.conf` — required for the home and shared-folder shares created via `net conf` (enabled by default on a Samba AD DC)
-- `setfacl` (package `acl`) on the server, for shared-folder permissions
-- Node.js ≥ 18 on the development machine
-- npm (bundled with Node.js)
+On the server, a Samba Active Directory domain controller with:
+
+- Cockpit ≥ 337
+- Samba 4.22, with `samba-tool` at `/usr/bin/samba-tool` (the page is shown
+  only when it is there)
+- `ldbsearch` and `ldbmodify` (package `ldb-tools`), `net` and `testparm`
+  (`samba-common-bin`), `setfacl` (`acl`); the Debian package depends on
+  all of them
+- `registry shares = yes` (or `include = registry`) in the `[global]`
+  section of `smb.conf`, for the home and shared-folder shares that the
+  module creates with `net conf`. Samba's default is `no`, also on a domain
+  controller: check with
+  `testparm -s --parameter-name="registry shares"`, and set it when
+  provisioning (`samba-tool domain provision --option="registry shares =
+  yes"`) or add it to `smb.conf` and restart `samba-ad-dc`
+
+To build from the sources:
+
+- Git and Make
+- Node.js ≥ 22.6 with npm (the unit tests use `--experimental-strip-types`)
 - podman or docker, to build the Debian package (`make deb`)
 
 ## Installation
@@ -95,8 +110,9 @@ sudo make install
 # Install as symlink into local cockpit (development shortcut)
 make devel-install
 
-# Run unit tests
+# Run unit tests and the type check
 make check
+npx tsc --noEmit
 
 # Debian package in build/ (Debian 13 container: podman or docker)
 make deb
@@ -175,7 +191,11 @@ logon or `gpupdate`.
 
 ## Privilege escalation
 
-The module uses `cockpit.spawn` with `superuser: "require"` — no hardcoded `sudo` in command arguments. Cockpit handles privilege escalation via PolicyKit.
+Commands run through `cockpit.spawn` with `superuser: "require"`: the
+Cockpit user needs administrative access (Cockpit's "Administrative access"
+switch, through sudo or polkit). There is no `sudo` and no shell in the
+command arguments, and passwords reach `samba-tool` on standard input, not
+on its command line.
 
 ## License
 

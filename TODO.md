@@ -1,9 +1,10 @@
 # TODO
 
-Roadmap of `samba-tool` features not yet exposed by the module, checked against
-Samba 4.22. Subcommand names and flags must be confirmed on the target version
-(`samba-tool <cmd> --help`) before implementing: some were renamed across
-releases (e.g. `ou create` → `ou add`, `computer create` → `computer add`).
+Roadmap of `samba-tool` features not yet exposed by the module. Every
+subcommand and flag named in sections 3–8 was checked with `samba-tool <cmd>
+--help` on the test DC (Samba 4.22.11) on 2026-10-23; check again on the
+target before implementing, since some were renamed across releases (e.g.
+`ou create` → `ou add`, `computer create` → `computer add`).
 
 Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
@@ -19,32 +20,44 @@ translations, README and `CHANGELOG.md` entries) and a check on the test DC
 
 Updated on 2026-10-23.
 
-- Features: users, groups, computers, home directories (H:), shared folders
-  with POSIX ACLs and drive mapping through the "Cockpit - Mapped drives"
-  GPO.
-- Releases: `v0.1.0` published on 2026-10-22, the first one. The version
-  comes from the git tag (`scripts/version.mjs`, shown next to the page
-  title); `make release VERSION=x.y.z` dates `CHANGELOG.md`, commits and
-  tags; pushing the tag runs `.github/workflows/release.yml`, which
-  publishes the built module as `cockpit-samba-dc-X.Y.Z.tar.gz` and
-  `cockpit-samba-dc_X.Y.Z_all.deb`. Rule and procedure: README, "Versions
-  and releases".
-- Debian package (section 2): `debian/` packages the built `dist/`; `make
-  deb` builds it in a Debian 13 container and runs `lintian`; `lab.sh
-  deploy` installs it on the test DC. Its first run on GitHub is at the
-  next tag.
+- Features: users (create, edit names, e-mail and account name, password,
+  enable and disable, delete, groups), groups, computers (list, delete),
+  home directories (H:), shared folders with POSIX ACLs and drive mapping
+  through the "Cockpit - Mapped drives" GPO. Tabs in `src/app.tsx`: Users,
+  Groups, Shared folders, Computers.
+- Releases: `v0.1.0` published on 2026-10-22, the only one so far, with the
+  tarball only. The version comes from the git tag; `make release
+  VERSION=x.y.z` dates `CHANGELOG.md`, commits and tags; pushing the tag
+  runs `.github/workflows/release.yml`, which publishes
+  `cockpit-samba-dc-X.Y.Z.tar.gz` and `cockpit-samba-dc_X.Y.Z_all.deb`.
+  Rule and procedure: README, "Versions and releases".
+- Debian package (section 2, commit `f403bef`): `make deb` builds it in a
+  Debian 13 container and runs `lintian`; `lab.sh deploy` installs it on
+  the test DC. Tried on the test DC (install over a hand-made copy,
+  upgrade, remove). Not yet run on GitHub: the first push runs the "Debian
+  package" step of `ci.yml` (Docker on the runner, where the build was only
+  tried here through podman's emulation); the first release with a `.deb`
+  is the next tag.
 - Before that: a review of the code base and its fixes (commit `c28e04c`),
   checked on the test DC and Windows client; what was left open is in
   section 0.
 - Test environment: two VMs, a Samba AD DC and a Windows 11 client joined
   to it, driven by `test/vm/` and configured by an untracked `.env` (see
   `.env.example`); skills `vm-lab` and `win-gui`. Left shut off at snapshot
-  `lab_baseline`.
+  `lab_baseline`. The Windows client is an evaluation edition (section 0,
+  "Rebuild scripts").
 
-To resume: read `CLAUDE.md`, run `npm install && make check && npx tsc
---noEmit`; for anything touching `src/lib/`, follow the workflow of skill
-`vm-lab` (`test/vm/lab.sh reset`, `start dc`, `deploy`). Next step:
-section 3, account lockout and expiry.
+To resume:
+
+1. Read `CLAUDE.md`, then run `npm install && make check && npx tsc
+   --noEmit`.
+2. If the commits since `v0.1.0` are pushed, check that the "Debian
+   package" step of the last CI run on GitHub passed
+   (`gh run list --workflow ci.yml`).
+3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
+   (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
+   docker for `make deb` (the build image is made on first use).
+4. Next step: section 3, account lockout and expiry.
 
 ## 0. Follow-ups of the October 2026 review
 
@@ -54,6 +67,11 @@ section 3, account lockout and expiry.
       every domain user. Show such entries as unknown in the share editor so
       the administrator can remove them, and list the affected shares in the
       delete confirmation.
+- [ ] **`registry shares` is not checked.** Samba's default is `no`, also on
+      a DC; without it smbd should not serve the shares that `net conf`
+      creates (home, shared folders): confirm on the test DC, then read it
+      with `testparm` and warn on the Shared folders tab and before
+      provisioning home directories.
 - [ ] **Home directory after a user rename.** The folder
       (`/srv/samba/home/<old name>`) and `homeDirectory` keep the old name.
       Access still works (ownership follows the SID); decide whether to
@@ -80,61 +98,30 @@ section 3, account lockout and expiry.
 
 ## 1. Versioning through git tags (done)
 
-Done. The rule and the
-procedure are in the README ("Versions and releases"): the build takes the
-version from the tag, `make release` commits and tags, the `release.yml`
-workflow publishes. The first release is `v0.1.0`.
+The tag `vX.Y.Z` on `main` is the only source of the version
+(`scripts/version.mjs`): the build writes it into `dist/manifest.json` and
+the page header, `make release` dates `CHANGELOG.md`, commits and tags, and
+`release.yml` publishes on the tag. Rule and procedure: README, "Versions
+and releases".
 
-- [x] **Define the rule** — semver, tag `vX.Y.Z` on `main` as the single
-      source of truth; document it (README or `CONTRIBUTING.md`), including
-      what counts as a breaking change while on `0.x`
-- [x] **Derive the version from the tag** instead of hand-editing files
-  - [x] `build.js` writes the version into `dist/manifest.json`
-        (`git describe --tags`, with a fallback when building from a tarball
-        without git metadata)
-  - [x] Keep `package.json` aligned (a `make release VERSION=x.y.z` target, or
-        `npm version`, that bumps, commits and tags)
-- [x] **Show the version in the UI** so users can report it in bug reports
-- [x] **Changelog** — `CHANGELOG.md` updated at each release
-- [x] **Release workflow** — GitHub Actions job triggered by `v*` tags: type
-      check, build, test, then publish a GitHub release with the build
-      artifacts
-- [x] **CI actions on Node 24** — `actions/checkout` and `actions/setup-node`
-      moved from v4 (Node 20, deprecated by GitHub) to v7; use the same
-      versions in the release workflow
-- [x] **First tag** — `v0.1.0`
 - [ ] Update the "Supported versions" table in `SECURITY.md` when it stops
       being just `0.x`
 
 ## 2. Debian package (done)
 
-Done: the package carries the `dist/` built by `make build` (or by the
-release workflow), since a Debian build environment does not download npm
-dependencies. README, "Installation" and "Versions and releases".
+`debian/` packages the `dist/` built beforehand, since a Debian build
+environment does not download npm dependencies: `debian/rules` only copies
+it into `/usr/share/cockpit/samba-dc`. `scripts/debian.mjs` turns the tag
+into the Debian version (`0.2.0+3.gabc1234` between releases) and writes
+`debian/changelog`, which is not tracked. `debian/preinst` removes a
+hand-made copy on first install. `make deb` = build + `deb-package`
+(changelog, then `scripts/deb-container.sh`: `deb-binary` and `lintian` in
+a Debian 13 container); `release.yml` attaches the `.deb`, `ci.yml` builds
+it on every push. Depends: `cockpit-bridge (>= 337)`, `samba-ad-dc (>=
+2:4.22)`, `samba-common-bin`, `ldb-tools`, `acl`. README, "Installation".
 
-- [x] **Add a tracked `debian/` directory**
-  - [x] `control` — binary package `cockpit-samba-dc`, `Architecture: all`,
-        `Depends:` `cockpit-bridge (>= 337)`, `samba-ad-dc (>= 2:4.22)`,
-        `samba-common-bin`, `ldb-tools`, `acl` (checked on Debian 13)
-  - [x] `changelog` — generated from the git tag (`scripts/debian.mjs`), not tracked
-  - [x] `rules` — copy the built `dist/` into
-        `/usr/share/cockpit/samba-dc`
-  - [x] `copyright` (LGPL-2.1-or-later) and `source/format`
-- [x] **Decide how `node_modules` is provided at build time** — the build
-      needs npm dependencies, which a clean Debian build environment does not
-      download; the package carries the `dist/` built beforehand, the same
-      one as the release tarball
-- [x] **Add a `deb` target to the tracked `Makefile`**, and have `lab.sh`
-      install the package on the test DC instead of copying `dist/`
-- [x] **Clean upgrade path** — the package must replace a previous
-      `make install` or `lab.sh deploy` in the same directory without
-      leaving stale files
-- [x] **Build the `.deb` in CI** and attach it to the GitHub release, in
-      `.github/workflows/release.yml` next to the tarball (also built and
-      linted by `ci.yml` on every push)
-- [x] **Check the result** — `lintian`, then install, upgrade and remove on
-      the test DC (skill `vm-lab`)
-- [x] Update the README installation section with the `.deb` instructions
+- [ ] When a requirement is raised (Cockpit, Samba), raise the matching
+      `Depends:` in `debian/control` too
 - [?] RPM package for Fedora/RHEL-based servers — future implementation to be
       decided
 
@@ -198,7 +185,9 @@ touches the navigation of all sections, so it should be designed as a whole.
       `--must-change-at-next-login`, `--description`, `--mail-address`
 - [ ] **Groups** — `group add` options: `--description`, `--group-scope`
       (Domain/Global/Universal), `--group-type` (Security/Distribution),
-      `--mail-address`; edit description on existing groups
+      `--mail-address`; edit description on existing groups (`samba-tool
+      group edit` opens an editor: write `description` with `ldbmodify` on
+      `sam.ldb`, as `src/lib/samba.ts` already does for `homeDirectory`)
 - [ ] **Computers**
   - [ ] Detail page — `samba-tool computer show <name>`
   - [ ] Pre-create an account in a chosen OU — `samba-tool computer add`
