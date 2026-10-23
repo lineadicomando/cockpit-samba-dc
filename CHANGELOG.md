@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-23
+
 ### Added
 
 - The Ansible collection `lineadicomando.samba_dc`, until 0.7.0 in its own
