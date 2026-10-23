@@ -1,13 +1,18 @@
 import { runAsRootWithInput } from "./exec.ts";
+import type { AddcctlInputs } from "./addcctl-schema.ts";
+
+export type AddcctlOperation = keyof AddcctlInputs;
 
 // addcctl, the core on the DC (docs/architecture.md): one operation per
-// call, JSON in on stdin and JSON out on stdout. A failure rejects with the
-// core's message, which it writes to stderr (English, shown as it is).
-export async function addcctl<T>(object: string, action: string, input: object = {}): Promise<T> {
-    const out = await runAsRootWithInput(["addcctl", object, action], JSON.stringify(input));
+// call, JSON in on stdin and JSON out on stdout, the input typed from the
+// operation's JSON Schema (addcctl-schema.ts, generated). A failure rejects
+// with the core's message, which it writes to stderr (English, shown as it is).
+// The result is the caller's to type: `(await addcctl(...)) as {...}`.
+export async function addcctl<K extends AddcctlOperation>(operation: K, input: AddcctlInputs[K]): Promise<unknown> {
+    const out = await runAsRootWithInput(["addcctl", ...operation.split(" ")], JSON.stringify(input));
     try {
-        return JSON.parse(out) as T;
+        return JSON.parse(out) as unknown;
     } catch {
-        throw new Error(`addcctl ${object} ${action} returned no JSON: ${out.slice(0, 200)}`);
+        throw new Error(`addcctl ${operation} returned no JSON: ${out.slice(0, 200)}`);
     }
 }

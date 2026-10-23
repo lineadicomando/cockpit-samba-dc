@@ -21,6 +21,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generated types up to date with the core
+        run: node scripts/addcctl-types.mjs --check
+
       - name: Type check
         run: npx tsc --noEmit
 

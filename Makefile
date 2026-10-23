@@ -7,7 +7,7 @@ DEB_DIR := build
 
 -include Makefile.local
 
-.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check pot po-compile next-version release deb deb-package deb-changelog deb-binary help
+.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check schema pot po-compile next-version release deb deb-package deb-changelog deb-binary help
 
 all: build
 
@@ -39,6 +39,9 @@ install: build ## Copy dist/ into /usr/share/cockpit and addcctl into /usr/lib/a
 
 uninstall: ## Remove what install copied
 	rm -rf $(INSTALL_DIR) /usr/lib/addcctl /usr/bin/addcctl
+
+schema: ## Generate src/lib/addcctl-schema.ts from the core's operations (addcctl schema)
+	node scripts/addcctl-types.mjs
 
 check: ## Run unit tests (the page and the core)
 	npm test

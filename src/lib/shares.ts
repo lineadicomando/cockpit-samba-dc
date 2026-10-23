@@ -1,5 +1,6 @@
 import { cache, checkName } from "./exec.ts";
 import { addcctl } from "./addcctl.ts";
+import type { ShareSetInput } from "./addcctl-schema.ts";
 import { validateShareName } from "./validators.ts";
 import type { SharedFolder, ShareAccess, ShareAccessLevel, DriveMapping } from "./types.ts";
 
@@ -43,7 +44,7 @@ function fromCore(s: CoreShare): SharedFolder {
 export async function listShares(): Promise<SharedFolder[]> {
     let raw = cache.get(SHARES_KEY, 30_000);
     if (raw === null) {
-        raw = JSON.stringify(await addcctl<{ shares: CoreShare[] }>("share", "list"));
+        raw = JSON.stringify(await addcctl("share list", {}));
         cache.set(SHARES_KEY, raw);
     }
     return (JSON.parse(raw) as { shares: CoreShare[] }).shares.map(fromCore);
@@ -55,7 +56,7 @@ function checkShareData(data: ShareData): void {
     checkName(...data.access.map(a => a.name));
 }
 
-function setRequest(name: string, data: ShareData): object {
+function setRequest(name: string, data: ShareData): ShareSetInput {
     return {
         name,
         access: data.access.map(a => ({ name: a.name, kind: a.kind, level: a.level })),
@@ -75,7 +76,7 @@ export async function createShare(name: string, data: ShareData): Promise<void> 
         throw new Error(`A share named "${name}" already exists`);
     }
     try {
-        await addcctl("share", "set", setRequest(name, data));
+        await addcctl("share set", setRequest(name, data));
     } finally {
         cache.invalidate(k => k === SHARES_KEY);
     }
@@ -84,7 +85,7 @@ export async function createShare(name: string, data: ShareData): Promise<void> 
 export async function updateShare(name: string, data: ShareData): Promise<void> {
     checkShareData(data);
     try {
-        await addcctl("share", "set", setRequest(name, data));
+        await addcctl("share set", setRequest(name, data));
     } finally {
         cache.invalidate(k => k === SHARES_KEY);
     }
@@ -92,7 +93,7 @@ export async function updateShare(name: string, data: ShareData): Promise<void> 
 
 export async function deleteShare(name: string, deleteData: boolean): Promise<void> {
     try {
-        await addcctl("share", "delete", { name, delete_data: deleteData });
+        await addcctl("share delete", { name, delete_data: deleteData });
     } finally {
         cache.invalidate(k => k === SHARES_KEY);
     }
@@ -103,7 +104,7 @@ export async function deleteShare(name: string, deleteData: boolean): Promise<vo
 export async function renameSharePrincipal(kind: "user" | "group", oldName: string, newName: string): Promise<void> {
     if (oldName === newName) return;
     try {
-        await addcctl("share", "rename-principal", { kind, old: oldName, new: newName });
+        await addcctl("share rename-principal", { kind, old: oldName, new: newName });
     } finally {
         cache.invalidate(k => k === SHARES_KEY);
     }

@@ -127,7 +127,7 @@ collection may import the core.
 |---|---|---|
 | Windows roles and lab defaults out of the collection | A1 | done: win_workman v0.3.0, collection v0.7.0 |
 | The collection in this repository, one version | A2 | done: v0.8.0; win_edulab takes the collection from here |
-| Core: spike on shared folders and drive mapping, go/no-go | A3 | built and tried (shared folders, drive mapping, `addcctl` package); generator and decision left |
+| Core: spike on shared folders and drive mapping, go/no-go | A3 | done: go; shared folders and drive mapping in `addcctl`, TypeScript types generated |
 | Core: every other operation | A4 | planned |
 | MCP server on the DC | A5 | planned |
 | Roadmap rewritten for the new layout | A6 | planned |

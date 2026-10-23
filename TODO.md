@@ -76,7 +76,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: the go/no-go of A3, then the rest of A3 (the generator).
+4. Next step: section A4.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -148,7 +148,7 @@ at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
       `samba_tool` shown in Cockpit, one made in Cockpit read and changed by
       `samba_tool`; `sysvolcheck` clean
 
-## A3. Core: spike on shared folders and drive mapping — v0.9.0
+## A3. Core: spike on shared folders and drive mapping (done) — v0.9.0
 
 The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 `ansible/plugins/module_utils/samba_share.py`). Ends with a decision.
@@ -167,8 +167,11 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
       (`smbconf`, one transaction), `sam.ldb` with the system session, NSS
       through `pwd`/`grp`
 - [x] The schemas of these operations (`addcctl schema`), validated on input
-- [ ] The generator of TypeScript types, Ansible `argument_specs` and MCP
-      tools from the schemas, with a CI check that its output is up to date
+- [x] The generator of the TypeScript types from the schemas
+      (`scripts/addcctl-types.mjs`, `make schema`; CI checks that
+      `src/lib/addcctl-schema.ts` is up to date; `addcctl()` takes the input
+      type of its operation); the Ansible `argument_specs` and
+      the MCP tools join it when their consumers exist (A4 modules, A5)
 - [x] Tests: `unittest` (`core/tests`, in `make check` and CI) with a fake DC
 - [x] Debian source package with two binaries, `addcctl` (private modules
       in `/usr/lib/addcctl`, man page) and `cockpit-samba-dc` depending on
@@ -180,7 +183,9 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 - [x] On the test DC: the times below; a share made by `samba_tool` and by
       the page; `sysvolcheck` clean; the mapped drive at a Windows logon
       (`student1` sees "Classe (S:)")
-- [ ] **Go/no-go**, with the measures: on to A4, or stop at A2
+- [x] **Go/no-go**, with the measures: go, decided on 2026-10-23 (one
+      implementation, saves about twice as fast, concurrent writers
+      serialized, the chain to a Windows logon works)
 
 Measures on the test DC (2 vCPU), through the page:
 

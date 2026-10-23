@@ -49,7 +49,7 @@ Layout: `src/app.tsx` the tabs, `src/components/` pages and
 (`exec.ts` spawn wrappers, smb.conf parameters and the base DN; `samba.ts`
 users, groups, computers, home directories; `addcctl.ts` the call to the
 core; `shares.ts` shared folders and drive mapping, through it;
-`parsers.ts`, `validators.ts`, `cache.ts`, `hooks.ts`, `concurrency.ts`),
+`parsers.ts`, `validators.ts`, `cache.ts`, `hooks.ts`, `concurrency.ts`; `addcctl-schema.ts` is generated),
 `core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
 operations and their JSON Schemas, `dc.py` everything that reads or writes
 the DC, `shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`; `tests/`,
@@ -150,6 +150,7 @@ lists use `useSingleLoad` and `usePagination` from `src/lib/hooks.ts`.
 make build | watch      # bundle into dist/, watch mode
 make check              # unit tests: npm test (node --test, cockpit mock) and core/tests (unittest)
 npx tsc --noEmit        # type check (CI runs it before the build)
+make schema             # src/lib/addcctl-schema.ts from the core's schemas (CI checks it)
 make pot                # extract strings into src/locales/*/translation.json
 make po-compile         # po/it.po → src/locales/it/translation.json
 make deb                # Debian package in build/ (Debian 13 container, lintian)
