@@ -8,7 +8,6 @@ import {
     listGroups, listUsers, getGroupDetails,
 } from "../../src/lib/samba.ts";
 import { createShare, updateShare, listShares } from "../../src/lib/shares.ts";
-import { listDriveMappings } from "../../src/lib/drivemaps.ts";
 import { getBaseDN } from "../../src/lib/exec.ts";
 
 const run = (args: string[], input?: string): Promise<string> =>
@@ -54,7 +53,8 @@ async function main(): Promise<void> {
             comment: "", browseable: true, automount: { letter: "S", label: "Docs" },
             access: [{ name: "t-group", kind: "group", level: "read" }, { name: "teacher1", kind: "user", level: "write" }],
         });
-        assert.deepEqual([...await listDriveMappings()], [["t-docs", { letter: "S", label: "Docs" }]]);
+        assert.deepEqual((await listShares()).filter(s => s.automount).map(s => [s.name.toLowerCase(), s.automount]),
+            [["t-docs", { letter: "S", label: "Docs" }]]);
         await run(["sh", "-c", "echo hello > /srv/samba/shares/t-docs/readme.txt && chmod 644 /srv/samba/shares/t-docs/readme.txt"]);
     });
 

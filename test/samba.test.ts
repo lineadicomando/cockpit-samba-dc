@@ -225,25 +225,23 @@ describe("DN resolution", () => {
 });
 
 describe("renames", () => {
-    const netConf = "[docs]\n\tpath = /srv/samba/shares/docs\n\tvalid users = @\"SCHOOL\\Teachers\" \"SCHOOL\\mrossi\"\n";
     function handler(call: SpawnCall): string {
-        if (isCmd(call, "testparm")) return "SCHOOL\n";
-        if (isCmd(call, "net", "conf", "list")) return netConf;
+        if (isCmd(call, "addcctl")) return JSON.stringify({ changed: true, shares: ["docs"], commands: [], check: false });
         if (isCmd(call, "ldbsearch")) return call.args.includes("defaultNamingContext") ? ROOT_DSE : "";
         return "";
     }
-    const validUsers = () => calls.find(c => isCmd(c, "net", "conf", "setparm") && c.args[4] === "valid users")?.args[5];
+    const renameInput = () => JSON.parse(calls.find(c => isCmd(c, "addcctl", "share", "rename-principal"))?.input ?? "null");
 
     it("renaming a user updates the shares that list it", async () => {
         setSpawnHandler(handler);
         await modifyUser("mrossi", { newUsername: "mario.rossi" });
-        assert.equal(validUsers(), '@"SCHOOL\\Teachers" "SCHOOL\\mario.rossi"');
+        assert.deepEqual(renameInput(), { kind: "user", old: "mrossi", new: "mario.rossi" });
     });
 
     it("renaming a group updates the shares that list it", async () => {
         setSpawnHandler(handler);
         await renameGroup("Teachers", "Docenti");
-        assert.equal(validUsers(), '@"SCHOOL\\Docenti" "SCHOOL\\mrossi"');
+        assert.deepEqual(renameInput(), { kind: "group", old: "Teachers", new: "Docenti" });
         // Samba 4.22 takes the new name as an option, not a second argument
         assert.deepEqual(calls.find(c => isCmd(c, "samba-tool", "group", "rename"))?.args,
             ["samba-tool", "group", "rename", "Teachers", "--samaccountname=Docenti"]);
@@ -252,12 +250,12 @@ describe("renames", () => {
     it("other edits leave the shares alone", async () => {
         setSpawnHandler(handler);
         await modifyUser("mrossi", { email: "m@school.internal" });
-        assert.ok(!calls.some(c => isCmd(c, "net")));
+        assert.ok(!calls.some(c => isCmd(c, "addcctl")));
     });
 
     it("reports a share update failure as happening after the rename", async () => {
         setSpawnHandler(call => {
-            if (isCmd(call, "net", "conf", "setparm")) throw new Error("registry locked");
+            if (isCmd(call, "addcctl")) throw new Error("registry locked");
             return handler(call);
         });
         await assert.rejects(renameGroup("Teachers", "Docenti"), /Renamed "Teachers" to "Docenti", but updating its shared folders failed: registry locked/);

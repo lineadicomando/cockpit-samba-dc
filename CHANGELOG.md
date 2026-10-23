@@ -8,6 +8,32 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- `addcctl`, a new Debian package: the command that runs the operations of
+  the DC as JSON, used by the page and by the Ansible collection, for now for
+  the shared folders and the drive mapping (`addcctl schema`, `man addcctl`).
+  `cockpit-samba-dc` depends on it.
+
+### Changed
+
+- The page creates and edits shared folders through `addcctl`: about twice
+  as fast to save (on the test DC, 0.7 s instead of 1.5 s to create one with
+  a mapped drive, 0.5 s instead of 1.25 s to change it).
+- Collection: `samba_share` and `samba_share_info` run `addcctl`, which
+  `samba_dc_build` installs; a share and its mapping changed from the page
+  and from Ansible at the same moment no longer lose an update.
+
+### Breaking
+
+- Collection: `samba_dc_build` installs two packages, `addcctl` and the page;
+  `samba_dc_build_cockpit_install: none` installs `addcctl` alone. The
+  variables `samba_dc_build_cockpit_package_url`, `…_package_checksum` and
+  `…_package_file` are replaced by `samba_dc_build_cockpit_release_url` and
+  the list `samba_dc_build_cockpit_package_files`.
+- Collection: `shares_dir` and `sam_ldb_path` of `samba_share` and
+  `samba_share_info` accept only their defaults.
+
 ## [0.8.0] - 2026-10-23
 
 ### Added

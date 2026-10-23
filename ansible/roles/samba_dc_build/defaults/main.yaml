@@ -68,20 +68,19 @@ samba_dc_build_extra_packages:
 samba_dc_build_firewall_ssh_sources: []
 samba_dc_build_firewall_cockpit_sources: []
 
-# cockpit-samba-dc web UI: package (the .deb of a release), source (a git
-# revision built on the DC) or none.
+# cockpit-samba-dc: package (addcctl and the Cockpit page, the Debian
+# packages of a release), none (addcctl alone: the modules need it) or source
+# (both built from a git revision on the DC).
 samba_dc_build_cockpit_install: package
 # The release to install: the version of this collection, which make release
 # keeps equal to it (scripts/release.mjs).
 samba_dc_build_cockpit_version: "0.8.0"
-samba_dc_build_cockpit_package_url: >-
-  https://github.com/lineadicomando/cockpit-samba-dc/releases/download/v{{ samba_dc_build_cockpit_version
-  }}/cockpit-samba-dc_{{ samba_dc_build_cockpit_version }}_all.deb
-# The .sha256 published next to the package
-samba_dc_build_cockpit_package_checksum: "sha256:{{ samba_dc_build_cockpit_package_url }}.sha256"
-# A .deb on the controller instead of the download, for sites without
-# Internet access
-samba_dc_build_cockpit_package_file: ""
+# Where the packages and their .sha256 files are
+samba_dc_build_cockpit_release_url: >-
+  https://github.com/lineadicomando/cockpit-samba-dc/releases/download/v{{ samba_dc_build_cockpit_version }}
+# .deb files on the controller instead of the download, for sites without
+# Internet access: addcctl, and cockpit-samba-dc with package
+samba_dc_build_cockpit_package_files: []
 samba_dc_build_cockpit_package_dir: /var/cache/cockpit-samba-dc
 # source only
 samba_dc_build_cockpit_repo: https://github.com/lineadicomando/cockpit-samba-dc.git

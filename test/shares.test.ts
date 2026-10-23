@@ -1,186 +1,105 @@
-// Runs shares.ts against the spawn() test double (see cockpit-loader.mjs).
+// Runs shares.ts against the spawn() test double (see cockpit-loader.mjs):
+// the model lives in addcctl (core/), tested there; here, what the page
+// sends to it and how it caches.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, renameSharePrincipal, isManagedPath } from "../src/lib/shares.ts";
+import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, renameSharePrincipal } from "../src/lib/shares.ts";
 
-const NET_CONF = [
-    "[home]",
-    "\tpath = /srv/samba/home",
-    "\tread only = no",
-    "",
-    "[docs]",
-    "\tpath = /srv/samba/shares/docs",
-    "\tread only = no",
-    "\tvalid users = @\"SCHOOL\\Teachers\" @\"SCHOOL\\Students\" \"SCHOOL\\mrossi\"",
-    "\tread list = @\"SCHOOL\\Students\"",
-    "\tcomment = Documents",
-    "\tbrowseable = no",
-    "",
-    "[manual]",
-    "\tpath = /data/manual",
-    "",
-].join("\n");
+// Verbatim shape of "addcctl share list"
+const LIST = JSON.stringify({ shares: [{
+    name: "docs", path: "/srv/samba/shares/docs", comment: "Documents", browseable: true,
+    access: [{ name: "Teachers", kind: "group", level: "write" }, { name: "mrossi", kind: "user", level: "read" }],
+    drive: { letter: "P", label: "Docs" },
+}, {
+    name: "lab", path: "/srv/samba/shares/lab", comment: "", browseable: false,
+    access: [{ name: "Students", kind: "group", level: "read" }], drive: null,
+}] });
 
-function isCmd(call: SpawnCall, ...prefix: string[]): boolean {
-    return prefix.every((p, i) => call.args[i] === p);
-}
+const isCore = (call: SpawnCall, action: string) => call.args.join(" ") === `addcctl share ${action}`;
+const input = (action: string) => JSON.parse(calls.find(c => isCore(c, action))!.input!);
 
-// Answers like the DC: every principal resolves except those in "unknown".
-function handler(unknown: string[] = []) {
-    return (call: SpawnCall): string => {
-        if (isCmd(call, "testparm")) return "SCHOOL\n";
-        if (isCmd(call, "ldbsearch") && call.args.includes("base") && call.args.includes("")) {
-            return "dn: \ndefaultNamingContext: DC=school,DC=internal\n";
-        }
-        if (isCmd(call, "net", "conf", "list")) return NET_CONF;
-        if (isCmd(call, "getent")) {
-            const name = call.args[2].split("\\")[1];
-            if (unknown.includes(name.toLowerCase())) throw new Error("exit status 2");
-            return `${call.args[2]}:*:3000022:3000022::/home:/bin/false\n`;
-        }
-        return "";
-    };
-}
-
-function setparm(param: string): string | undefined {
-    return calls.find(c => isCmd(c, "net", "conf", "setparm") && c.args[4] === param)?.args[5];
-}
-
-function setfaclSpec(flag: "-x" | "-m"): string[] {
-    const call = calls.find(c => isCmd(c, "setfacl"));
-    const i = call?.args.indexOf(flag) ?? -1;
-    return i >= 0 ? call!.args[i + 1].split(",") : [];
+function core(answers: Record<string, string> = {}) {
+    setSpawnHandler(call => {
+        const action = call.args[2];
+        if (call.args[0] !== "addcctl") throw new Error(`unexpected ${call.args.join(" ")}`);
+        if (action in answers) return answers[action];
+        if (action === "list") return LIST;
+        return JSON.stringify({ changed: true, commands: [], check: false });
+    });
 }
 
 describe("listShares", () => {
-    it("returns only shares under the managed directory, with access levels", async () => {
-        setSpawnHandler(handler());
+    it("reads addcctl share list, with the drive as automount", async () => {
+        core();
+        await deleteShare("none", false); // drops the cache of an earlier test
         const shares = await listShares();
-        assert.equal(shares.length, 1);
-        assert.deepEqual(shares[0], {
-            name: "docs",
-            path: "/srv/samba/shares/docs",
-            comment: "Documents",
-            browseable: false, automount: null,
-            access: [
-                { name: "Teachers", kind: "group", level: "write" },
-                { name: "Students", kind: "group", level: "read" },
-                { name: "mrossi", kind: "user", level: "write" },
-            ],
-        });
+        assert.deepEqual(shares.map(s => [s.name, s.automount]), [["docs", { letter: "P", label: "Docs" }], ["lab", null]]);
+        assert.equal(shares[0].access[1].level, "read");
+        assert.deepEqual(calls.find(c => isCore(c, "list"))?.input, "{}");
+    });
+
+    it("caches the list until a mutation", async () => {
+        core();
+        await deleteShare("none", false);
+        await listShares();
+        await listShares();
+        assert.equal(calls.filter(c => isCore(c, "list")).length, 1);
+        await updateShare("docs", { comment: "", browseable: true, automount: null,
+            access: [{ name: "Teachers", kind: "group", level: "write" }] });
+        await listShares();
+        assert.equal(calls.filter(c => isCore(c, "list")).length, 2);
     });
 });
 
 describe("createShare", () => {
-    it("creates the directory, POSIX ACL and registry share", async () => {
-        setSpawnHandler(handler());
-        await createShare("Progetti", {
-            comment: "",
-            browseable: true, automount: null,
-            access: [
-                { name: "Teachers", kind: "group", level: "write" },
-                { name: "mrossi", kind: "user", level: "read" },
-            ],
-        });
-        const path = "/srv/samba/shares/Progetti";
-        assert.ok(calls.some(c => c.args.join(" ") === `chmod 2770 ${path}`));
-        const add = setfaclSpec("-m");
-        for (const e of ["g::---", "d:o::---", "g:SCHOOL\\Teachers:rwX", "d:g:SCHOOL\\Teachers:rwX", "u:SCHOOL\\mrossi:r-X"]) {
-            assert.ok(add.includes(e), `missing ACL entry ${e}`);
-        }
-        const addshare = calls.find(c => isCmd(c, "net", "conf", "addshare"));
-        assert.deepEqual(addshare?.args, ["net", "conf", "addshare", "Progetti", path, "writeable=y", "guest_ok=n"]);
-        assert.equal(setparm("valid users"), '@"SCHOOL\\Teachers" "SCHOOL\\mrossi"');
-        assert.equal(setparm("read list"), '"SCHOOL\\mrossi"');
-        assert.equal(setparm("inherit acls"), "yes");
-        assert.ok(calls.some(c => isCmd(c, "net", "conf", "delparm") && c.args[4] === "comment"));
+    it("sends the share to addcctl share set, on stdin", async () => {
+        core();
+        await createShare("Projects", { comment: "P", browseable: true, automount: { letter: "Q", label: "" },
+            access: [{ name: "Staff", kind: "group", level: "write" }] });
+        assert.deepEqual(input("set"), { name: "Projects", comment: "P", browseable: true,
+            drive: { letter: "Q", label: "" }, access: [{ name: "Staff", kind: "group", level: "write" }] });
     });
 
-    it("rejects existing (case-insensitive), reserved and option-like names before touching the disk", async () => {
-        setSpawnHandler(handler());
-        const data = { comment: "", browseable: true, automount: null, access: [{ name: "Teachers", kind: "group" as const, level: "write" as const }] };
+    it("refuses a share that exists, an invalid name, an empty access list", async () => {
+        core();
+        const data = { comment: "", browseable: true, automount: null, access: [{ name: "Staff", kind: "group" as const, level: "read" as const }] };
         await assert.rejects(createShare("DOCS", data), /already exists/);
-        await assert.rejects(createShare("sysvol", data), /Invalid share name/);
-        await assert.rejects(createShare("-x", data), /Invalid share name/);
-        await assert.rejects(createShare("../etc", data), /Invalid share name/);
-        assert.ok(!calls.some(c => isCmd(c, "mkdir") || isCmd(c, "setfacl")));
+        await assert.rejects(createShare("home", data), /Invalid share name/);
+        await assert.rejects(createShare("x", { ...data, access: [] }), /at least one user or group/);
+        await assert.rejects(createShare("x", { ...data, access: [{ name: "-x", kind: "user", level: "read" }] }), /Invalid account name/);
+        assert.ok(!calls.some(c => isCore(c, "set")));
     });
 
-    it("refuses a share without any user or group", async () => {
-        setSpawnHandler(handler());
-        await assert.rejects(createShare("empty", { comment: "", browseable: true, automount: null, access: [] }), /at least one/);
-        assert.equal(calls.length, 0);
-    });
-
-    it("reports unknown principals before changing permissions", async () => {
-        setSpawnHandler(handler(["ghost"]));
-        await assert.rejects(
-            createShare("x", { comment: "", browseable: true, automount: null, access: [{ name: "ghost", kind: "user", level: "read" }] }),
-            /Unknown user or group: ghost/,
-        );
-        assert.ok(!calls.some(c => isCmd(c, "setfacl") || isCmd(c, "net", "conf", "addshare")));
+    it("passes the core's error on as it is", async () => {
+        setSpawnHandler(call => {
+            if (call.args[2] === "list") return JSON.stringify({ shares: [] });
+            throw new Error("Unknown user or group: ghost");
+        });
+        await assert.rejects(createShare("new", { comment: "", browseable: true, automount: null,
+            access: [{ name: "ghost", kind: "user", level: "read" }] }), /^Error: Unknown user or group: ghost$/);
     });
 });
 
-describe("updateShare", () => {
-    it("clears both u: and g: entries of old and new principals, then re-adds the current ones", async () => {
-        setSpawnHandler(handler());
-        await updateShare("docs", {
-            comment: "Documents",
-            browseable: false, automount: null,
-            access: [{ name: "Teachers", kind: "group", level: "read" }],
-        });
-        const remove = setfaclSpec("-x");
-        for (const n of ["teachers", "students", "mrossi"]) {
-            for (const tag of ["u", "g", "d:u", "d:g"]) {
-                assert.ok(remove.includes(`${tag}:SCHOOL\\${n}`), `missing removal ${tag}:${n}`);
-            }
-        }
-        assert.ok(setfaclSpec("-m").includes("g:SCHOOL\\Teachers:r-X"));
-        const setfacl = calls.find(c => isCmd(c, "setfacl"));
-        assert.equal(setfacl?.args[setfacl.args.length - 1], "/srv/samba/shares/docs");
-        assert.equal(setparm("valid users"), '@"SCHOOL\\Teachers"');
-        assert.equal(setparm("read list"), '@"SCHOOL\\Teachers"');
-    });
-
-    it("skips removing principals that no longer exist in the domain", async () => {
-        setSpawnHandler(handler(["mrossi"]));
-        await updateShare("docs", {
-            comment: "",
-            browseable: true, automount: null,
-            access: [{ name: "Teachers", kind: "group", level: "write" }],
-        });
-        assert.ok(!setfaclSpec("-x").some(e => e.includes("mrossi")));
-        assert.ok(calls.some(c => isCmd(c, "net", "conf", "delparm") && c.args[4] === "read list"));
-    });
-
-    it("does not manage shares outside the shares directory", async () => {
-        setSpawnHandler(handler());
-        const data = { comment: "", browseable: true, automount: null, access: [{ name: "Teachers", kind: "group" as const, level: "write" as const }] };
-        await assert.rejects(updateShare("manual", data), /not found/);
-        await assert.rejects(updateShare("home", data), /not found/);
-        assert.ok(!calls.some(c => isCmd(c, "setfacl")));
-    });
-});
-
-describe("deleteShare", () => {
-    it("keeps the data unless asked to delete it", async () => {
-        setSpawnHandler(handler());
-        await deleteShare("docs", false);
-        assert.ok(calls.some(c => c.args.join(" ") === "net conf delshare docs"));
-        assert.ok(!calls.some(c => isCmd(c, "rm")));
-
-        setSpawnHandler(handler());
+describe("updateShare and deleteShare", () => {
+    it("removes the mapping with drive null, deletes with the data flag", async () => {
+        core();
+        await updateShare("docs", { comment: "", browseable: false, automount: null,
+            access: [{ name: "Teachers", kind: "group", level: "write" }] });
+        assert.equal(input("set").drive, null);
+        assert.equal(input("set").browseable, false);
         await deleteShare("docs", true);
-        const rm = calls.find(c => isCmd(c, "rm"));
-        assert.deepEqual(rm?.args, ["rm", "-rf", "--one-file-system", "--", "/srv/samba/shares/docs"]);
+        assert.deepEqual(input("delete"), { name: "docs", delete_data: true });
     });
+});
 
-    it("never removes paths of unmanaged shares", async () => {
-        setSpawnHandler(handler());
-        await assert.rejects(deleteShare("manual", true), /not found/);
-        assert.ok(!calls.some(c => isCmd(c, "rm") || isCmd(c, "net", "conf", "delshare")));
+describe("renameSharePrincipal", () => {
+    it("asks addcctl to follow the rename, and skips a no-op", async () => {
+        core();
+        await renameSharePrincipal("user", "mrossi", "mrossi");
+        assert.equal(calls.length, 0);
+        await renameSharePrincipal("user", "mrossi", "mario.rossi");
+        assert.deepEqual(input("rename-principal"), { kind: "user", old: "mrossi", new: "mario.rossi" });
     });
 });
 
@@ -204,37 +123,6 @@ describe("effectiveShareAccess", () => {
         const r = effectiveShareAccess(share, "mrossi", ["Students"]);
         assert.equal(r?.level, "read");
         assert.equal(r?.via.length, 2);
-    });
-});
-
-describe("renameSharePrincipal", () => {
-    it("rewrites the renamed group in valid users and read list only", async () => {
-        setSpawnHandler(handler());
-        await renameSharePrincipal("group", "students", "Alunni");
-        assert.equal(setparm("valid users"), '@"SCHOOL\\Teachers" @"SCHOOL\\Alunni" "SCHOOL\\mrossi"');
-        assert.equal(setparm("read list"), '@"SCHOOL\\Alunni"');
-        assert.ok(calls.every(c => !isCmd(c, "net", "conf", "setparm") || c.args[3] === "docs"));
-        assert.ok(!calls.some(c => isCmd(c, "setfacl")));
-    });
-
-    it("matches the kind: a group rename leaves a same-named user alone", async () => {
-        setSpawnHandler(handler());
-        await renameSharePrincipal("group", "mrossi", "x");
-        assert.ok(!calls.some(c => isCmd(c, "net", "conf", "setparm")));
-
-        setSpawnHandler(handler());
-        await renameSharePrincipal("user", "MRossi", "mario.rossi");
-        assert.equal(setparm("valid users"), '@"SCHOOL\\Teachers" @"SCHOOL\\Students" "SCHOOL\\mario.rossi"');
-    });
-});
-
-describe("isManagedPath", () => {
-    it("accepts only direct children of the shares directory", () => {
-        assert.ok(isManagedPath("/srv/samba/shares/docs"));
-        for (const p of ["/srv/samba/shares", "/srv/samba/shares/", "/srv/samba/shares/.", "/srv/samba/shares/..",
-            "/srv/samba/shares/../home", "/srv/samba/shares/a/b", "/srv/samba/shares/docs/", "/srv/samba/sharesX/a"]) {
-            assert.ok(!isManagedPath(p), p);
-        }
     });
 });
 

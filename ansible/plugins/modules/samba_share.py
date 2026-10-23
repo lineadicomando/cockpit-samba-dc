@@ -111,17 +111,22 @@ options:
     default: false
   shares_dir:
     description:
-      - Directory holding the shared folders. Must match the one used by
-        cockpit-samba-dc for the two to manage the same shares.
+      - Directory holding the shared folders. Kept for compatibility; only the
+        default is accepted, the directory addcctl manages.
     type: path
     default: /srv/samba/shares
   sam_ldb_path:
-    description: Samba directory database.
+    description:
+      - Samba directory database. Kept for compatibility; only the default is
+        accepted.
     type: path
     default: /var/lib/samba/private/sam.ldb
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
+  - Runs C(addcctl share set) or C(addcctl share delete), the core of
+    cockpit-samba-dc, which the C(addcctl) Debian package installs on the DC
+    (the samba_dc_build role does). Check mode is C(addcctl --check).
   - Requires C(registry shares = yes) in C(smb.conf) (set by the samba_dc_build
     role), C(setfacl) from the C(acl) package, and domain accounts resolvable
     through NSS (winbind), since the POSIX ACL refers to their uid and gid.
@@ -129,9 +134,8 @@ notes:
     rest of the tree is assumed to match too. A difference rewrites the ACL of
     the whole tree.
   - Clients pick up drive mapping changes at the next logon or C(gpupdate).
-  - The Cockpit plugin serializes its own GPO writes, but nothing serializes
-    them against this module, so avoid changing drive mappings from both at
-    the same moment.
+  - addcctl runs one change at a time on the DC, so this module and the
+    Cockpit page may change drive mappings at the same moment.
 """
 
 EXAMPLES = r"""
@@ -207,59 +211,38 @@ commands:
   type: list
   elements: str
   returned: always
-  sample: ["net conf addshare Projects /srv/samba/shares/Projects writeable=y guest_ok=n"]
+  sample: ["mkdir -p -- /srv/samba/shares/Projects", "registry: create share [Projects]"]
 """
 
-import os
-
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.samba_share import (
-    SambaShares,
-    access_key,
-    format_user_list,
-    is_managed_path,
-    normalize_drive_letter,
-    parse_smb_bool,
-    validate_share_name,
-)
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, check_fixed_paths
 
 
-def merge_access(current, requested, mode):
-    """Access list resulting from applying requested to current."""
-    if mode == "replace":
-        merged = []
-        for entry in requested:
-            merged = [e for e in merged if e["name"].lower() != entry["name"].lower()] + [entry]
-        return merged
-    if mode == "remove":
-        drop = set(e["name"].lower() for e in requested)
-        return [e for e in current if e["name"].lower() not in drop]
-    merged = [dict(e) for e in current]
-    for entry in requested:
-        for e in merged:
-            if e["name"].lower() == entry["name"].lower():
-                e["level"] = entry["level"]
-                if entry.get("kind"):
-                    e["kind"] = entry["kind"]
-                break
-        else:
-            merged.append(entry)
-    return merged
+def build_request(params, current_drive=None):
+    """The input of `addcctl share set` for the module's parameters.
+    current_drive: the share's mapping, needed to change only its label."""
+    request = {"name": params["name"], "access_mode": params["access_mode"]}
+    if params["access"] is not None:
+        request["access"] = [
+            dict((k, v) for k, v in entry.items() if v is not None) for entry in params["access"]
+        ]
+    if params["comment"] is not None:
+        request["comment"] = params["comment"]
+    if params["browseable"] is not None:
+        request["browseable"] = params["browseable"]
+    if params["drive_letter"] == "":
+        request["drive"] = None
+    elif params["drive_letter"] is not None:
+        request["drive"] = {"letter": params["drive_letter"]}
+        if params["drive_label"]:
+            request["drive"]["label"] = params["drive_label"]
+    elif params["drive_label"] and current_drive:
+        request["drive"] = {"letter": current_drive["letter"], "label": params["drive_label"]}
+    return request
 
 
-def resolve_access(module, shares, access):
-    """Canonical names and kinds from the directory, plus each SID."""
-    found = shares.resolve_principals([e["name"] for e in access])
-    unknown = [e["name"] for e in access if e["name"].lower() not in found]
-    if unknown:
-        module.fail_json(msg="Unknown user or group: %s" % ", ".join(unknown))
-    resolved = []
-    for entry in access:
-        principal = found[entry["name"].lower()]
-        if entry.get("kind") and entry["kind"] != principal["kind"]:
-            module.fail_json(msg="%s is a %s, not a %s" % (principal["name"], principal["kind"], entry["kind"]))
-        resolved.append(dict(principal, level=entry["level"]))
-    return resolved
+def present(share):
+    return dict(share, state="present") if share else {"state": "absent"}
 
 
 def run_module():
@@ -288,114 +271,25 @@ def run_module():
         supports_check_mode=True,
     )
     p = module.params
-    shares = SambaShares(module, p["shares_dir"], p["sam_ldb_path"])
-
-    violation = validate_share_name(p["name"])
-    if violation:
-        module.fail_json(msg="Invalid share name %r: %s" % (p["name"], violation))
-
-    section, params = shares.find_section(p["name"])
-    if section is not None and not is_managed_path(params.get("path", ""), shares.shares_dir):
-        module.fail_json(
-            msg="Share %s exists with path %r, outside %s: it is not managed by this module"
-                % (section, params.get("path", ""), shares.shares_dir))
-
-    gpo, entries = shares.drive_entries()
-    before = shares.describe(section, params, shares.drive_mappings(entries)) if section else None
-    diff_before = dict(before, state="present") if before else {"state": "absent"}
+    check_fixed_paths(module)
 
     if p["state"] == "absent":
-        if before is None:
-            module.exit_json(changed=False, commands=[], diff={"before": diff_before, "after": diff_before})
-        if before["drive"]:
-            shares.set_drive_mapping(section, [], None)
-        shares.change(["net", "conf", "delshare", section])
-        if p["delete_data"] and os.path.exists(before["path"]):
-            shares.change(["rm", "-rf", "--one-file-system", "--", before["path"]])
-        module.exit_json(changed=True, commands=shares.commands,
-                         diff={"before": diff_before, "after": {"state": "absent"}})
+        result = call(module, "share", "delete", {"name": p["name"], "delete_data": p["delete_data"]},
+                      check=module.check_mode)
+        module.exit_json(changed=result["changed"], commands=result.get("commands", []),
+                         diff={"before": present(result["diff"]["before"]), "after": {"state": "absent"}})
 
-    # state == present
-    name = section or p["name"]
-    path = before["path"] if before else "%s/%s" % (shares.shares_dir, name)
-    current_access = before["access"] if before else []
-
-    if p["access"] is None:
-        if before is None:
-            module.fail_json(msg="access is required to create share %s" % name)
-        desired = current_access
-    else:
-        if before is None and p["access_mode"] == "remove":
-            module.fail_json(msg="Share %s does not exist" % name)
-        desired = merge_access(current_access, p["access"], p["access_mode"])
-    if not desired:
-        module.fail_json(msg="A shared folder needs at least one user or group")
-    resolved = resolve_access(module, shares, desired)
-    access = [{"name": e["name"], "kind": e["kind"], "level": e["level"]} for e in resolved]
-
-    # Drive mapping, checked before touching anything so that a letter clash
-    # does not leave a share created without its mapping.
-    current_drive = before["drive"] if before else None
-    if p["drive_letter"] is None:
-        drive = current_drive
-    elif p["drive_letter"] == "":
-        drive = None
-    else:
-        drive = {"letter": normalize_drive_letter(p["drive_letter"])}
-        drive["label"] = p["drive_label"] or (current_drive or {}).get("label") or name
-        shares.check_drive_letter(name, drive["letter"], entries)
-    if drive is not None and p["drive_letter"] is None and p["drive_label"]:
-        drive = dict(drive, label=p["drive_label"])
-
-    changed = shares.ensure_root(path)
-    changed = shares.ensure_acl(path, access, current_access) or changed
-
-    if before is None:
-        shares.change(["net", "conf", "addshare", name, path, "writeable=y", "guest_ok=n"])
-        changed = True
-        current_params = {"path": path, "read only": "no", "guest ok": "no"}
-    else:
-        current_params = params
-
-    wanted = {"inherit acls": "yes"}
-    if access_key(access) != access_key(current_access):
-        readers = [e for e in access if e["level"] == "read"]
-        wanted["valid users"] = format_user_list(access, shares.workgroup)
-        wanted["read list"] = format_user_list(readers, shares.workgroup) if readers else None
-    if p["comment"] is not None:
-        wanted["comment"] = p["comment"] or None
-    changed = shares.set_params(name, current_params, wanted) or changed
-
-    browseable = p["browseable"]
-    if browseable is None and before is None:
-        browseable = True
-    if browseable is not None:
-        current_browseable = parse_smb_bool(
-            current_params.get("browseable", current_params.get("browsable")), True)
-        if "browseable" not in current_params or current_browseable != browseable:
-            shares.change(["net", "conf", "setparm", name, "browseable", "yes" if browseable else "no"])
-            changed = True
-    else:
-        browseable = before["browseable"]
-
-    # Also when only the access list changed: the mapping targets it.
-    if drive is not None or current_drive is not None:
-        changed = shares.set_drive_mapping(name, resolved, drive) or changed
-
-    comment = p["comment"] if p["comment"] is not None else (before or {}).get("comment", "")
-    after = {
-        "name": name,
-        "path": path,
-        "comment": comment,
-        "browseable": browseable,
-        "access": access,
-        "drive": drive,
-    }
+    current_drive = None
+    if p["drive_letter"] is None and p["drive_label"]:
+        listed = call(module, "share", "list", {})["shares"]
+        current = [s for s in listed if s["name"].lower() == p["name"].lower()]
+        current_drive = current[0]["drive"] if current else None
+    result = call(module, "share", "set", build_request(p, current_drive), check=module.check_mode)
     module.exit_json(
-        changed=changed,
-        share=after,
-        commands=shares.commands,
-        diff={"before": diff_before, "after": dict(after, state="present")},
+        changed=result["changed"],
+        share=result["share"],
+        commands=result.get("commands", []),
+        diff={"before": present(result["diff"]["before"]), "after": present(result["diff"]["after"])},
     )
 
 

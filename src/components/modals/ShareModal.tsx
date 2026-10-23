@@ -7,8 +7,7 @@ import {
     FormHelperText, HelperText, HelperTextItem,
     Button, Alert,
 } from "@patternfly/react-core";
-import { createShare, updateShare } from "../../lib/shares.ts";
-import { DRIVE_LETTERS } from "../../lib/drivemaps.ts";
+import { createShare, updateShare, DRIVE_LETTERS } from "../../lib/shares.ts";
 import { SHARES_DIR } from "../../lib/exec.ts";
 import { validateShareName, shareNameViolationMessage } from "../../lib/validators.ts";
 import type { SharedFolder, ShareAccess } from "../../lib/types.ts";

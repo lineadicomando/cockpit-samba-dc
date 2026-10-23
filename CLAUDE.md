@@ -13,9 +13,13 @@ runs on the DC itself and drives the local tools (`samba-tool`, `ldbsearch`,
 `ansible/` holds the Ansible collection `lineadicomando.samba_dc`, which
 provisions the DC (`samba_dc_build`, installing this module's package) and
 manages the same objects from playbooks, plus an MCP server that runs them.
-It has the version of the repository. Until the shared core of
-`docs/architecture.md` exists, the module and the collection each implement
-what they create on the server: a change there is made on both sides.
+It has the version of the repository.
+
+`core/` holds `addcctl`, the shared core of `docs/architecture.md`: a Python
+command on the DC that runs one operation per call, JSON in and out. The
+page and the collection call it for the shared folders and the drive
+mapping; for the rest (users, groups, computers, home directories) each still
+has its own code, so a change there is made on both sides until A4.
 
 Documents, each with one job; do not repeat one in another:
 
@@ -43,9 +47,13 @@ clones the repository.
 Layout: `src/app.tsx` the tabs, `src/components/` pages and
 `src/components/modals/`, `src/lib/` everything that talks to the system
 (`exec.ts` spawn wrappers, smb.conf parameters and the base DN; `samba.ts`
-users, groups, computers, home directories; `shares.ts` shared folders;
-`drivemaps.ts` the drive-mapping GPO; `parsers.ts`, `validators.ts`,
-`cache.ts`, `hooks.ts`, `concurrency.ts`), `test/` unit tests with a cockpit
+users, groups, computers, home directories; `addcctl.ts` the call to the
+core; `shares.ts` shared folders and drive mapping, through it;
+`parsers.ts`, `validators.ts`, `cache.ts`, `hooks.ts`, `concurrency.ts`),
+`core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
+operations and their JSON Schemas, `dc.py` everything that reads or writes
+the DC, `shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`; `tests/`,
+`bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
 `po/` and `src/locales/` translations, `scripts/` build and release
 helpers (`version.mjs` reads the version from the git tag, `debian.mjs`
@@ -59,7 +67,12 @@ own `README.md` for its users).
 ## Non-negotiable rules
 
 They keep a web page that runs commands as root on a domain controller safe.
-A change that breaks one of them needs the user's explicit agreement.
+A change that breaks one of them needs the user's explicit agreement. They
+bind `core/` in the same way: there commands are argv lists through
+`Runner` (`runner.py`), secrets go on stdin, names are checked before they
+reach a command (`share_name_violation`, `_check_principal_names`), LDAP
+values go through `ldb.binary_encode`, and recursive changes run only on
+`is_managed_path`.
 
 1. **No shell.** Spawn with argv arrays through `runAsRoot` /
    `runAsRootWithInput` in `src/lib/exec.ts` (`superuser: "require"`); never
@@ -82,7 +95,7 @@ A change that breaks one of them needs the user's explicit agreement.
    domain user: a share always keeps at least one entry, and nothing removes
    entries automatically (deleted accounts stay listed).
 7. **Every mutation invalidates the caches it affects** (`cache.invalidate`
-   in `samba.ts`, `shares.ts`, `drivemaps.ts`). The cache is shared between
+   in `samba.ts`, `shares.ts`). The cache is shared between
    modules, so a mutation in one invalidates entries of the others.
 
 ## Stack and conventions
@@ -135,7 +148,7 @@ lists use `useSingleLoad` and `usePagination` from `src/lib/hooks.ts`.
 
 ```
 make build | watch      # bundle into dist/, watch mode
-make check              # unit tests (npm test: node --test with the cockpit mock)
+make check              # unit tests: npm test (node --test, cockpit mock) and core/tests (unittest)
 npx tsc --noEmit        # type check (CI runs it before the build)
 make pot                # extract strings into src/locales/*/translation.json
 make po-compile         # po/it.po → src/locales/it/translation.json
@@ -151,6 +164,10 @@ Releases are made only when the user asks; pushing the tag publishes them.
 
 ## Tests
 
+- The core's tests (`core/tests`, `unittest`, no dependency) run the
+  operations against a fake DC (`FakeDc`, `FakeRunner`) and check the
+  registry changes and the commands recorded; what only Samba shows is tried
+  on the test DC (`lab.sh deploy`, then `addcctl` as root).
 - Unit tests run `src/lib/` against `test/mocks/cockpit.ts`: a test sets a
   handler with `setSpawnHandler`, which answers each spawned argv, and checks
   the recorded `calls` (argv and stdin). Answer with output in the verbatim

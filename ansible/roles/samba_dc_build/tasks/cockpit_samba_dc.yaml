@@ -1,27 +1,34 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 ---
-# The Cockpit page of cockpit-samba-dc, the project this collection belongs to.
-# package: the .deb of a release, checksum verified (default); source: a git
-# revision built on the DC, for development; none: not installed.
+# cockpit-samba-dc, the project this collection belongs to: addcctl, the core
+# the modules call, and the Cockpit page. package: both from the Debian
+# packages of a release, checksum verified (default); none: addcctl alone;
+# source: both built from a git revision on the DC, for development.
 - name: Check the cockpit-samba-dc install mode
   ansible.builtin.assert:
     that:
       - samba_dc_build_cockpit_install in ['package', 'source', 'none']
-      - samba_dc_build_cockpit_install != 'package'
-        or samba_dc_build_cockpit_package_file | default('', true) | length > 0
+      - samba_dc_build_cockpit_install == 'source'
+        or samba_dc_build_cockpit_package_files | default([], true) | length > 0
         or samba_dc_build_cockpit_version is match('^\d+\.\d+\.\d+$')
     fail_msg: >-
       samba_dc_build_cockpit_install must be package, source or none (current:
-      {{ samba_dc_build_cockpit_install }}). With package,
-      samba_dc_build_cockpit_version is a release version, X.Y.Z
-      (current: {{ samba_dc_build_cockpit_version }}); a git revision goes into
+      {{ samba_dc_build_cockpit_install }}). With package or none,
+      samba_dc_build_cockpit_version is a release version, X.Y.Z (current:
+      {{ samba_dc_build_cockpit_version }}); a git revision goes into
       samba_dc_build_cockpit_source_version, with samba_dc_build_cockpit_install: source.
     quiet: true
 
-- name: Install cockpit-samba-dc from its Debian package
-  when: samba_dc_build_cockpit_install == 'package'
+# addcctl, the core the modules of this collection call, always; the Cockpit
+# page with package. In this order: the page depends on addcctl of its version.
+- name: Install the Debian packages of the release
+  when: samba_dc_build_cockpit_install in ['package', 'none']
+  vars:
+    samba_dc_build_cockpit_packages: >-
+      {{ ['addcctl'] + (['cockpit-samba-dc'] if samba_dc_build_cockpit_install == 'package' else []) }}
+    samba_dc_build_cockpit_local: "{{ samba_dc_build_cockpit_package_files | default([], true) | length > 0 }}"
   block:
-    - name: Directory for the cockpit-samba-dc package
+    - name: Directory for the packages
       ansible.builtin.file:
         path: "{{ samba_dc_build_cockpit_package_dir }}"
         state: directory
@@ -29,36 +36,40 @@
         group: root
         mode: "0755"
 
-    - name: Download the cockpit-samba-dc package of the release
+    - name: Download the packages of the release, checked against their .sha256
       ansible.builtin.get_url:
-        url: "{{ samba_dc_build_cockpit_package_url }}"
-        dest: "{{ samba_dc_build_cockpit_package_dir }}/{{ samba_dc_build_cockpit_package_url | basename }}"
-        checksum: "{{ samba_dc_build_cockpit_package_checksum }}"
+        url: "{{ samba_dc_build_cockpit_release_url }}/{{ item }}_{{ samba_dc_build_cockpit_version }}_all.deb"
+        dest: "{{ samba_dc_build_cockpit_package_dir }}/{{ item }}_{{ samba_dc_build_cockpit_version }}_all.deb"
+        checksum: "sha256:{{ samba_dc_build_cockpit_release_url }}/{{ item }}_{{ samba_dc_build_cockpit_version }}_all.deb.sha256"
         owner: root
         group: root
         mode: "0644"
+      loop: "{{ samba_dc_build_cockpit_packages }}"
       register: samba_dc_build_cockpit_download
-      when: samba_dc_build_cockpit_package_file | default('', true) | length == 0
+      when: not samba_dc_build_cockpit_local
 
-    - name: Copy the local cockpit-samba-dc package
+    - name: Copy the local packages
       ansible.builtin.copy:
-        src: "{{ samba_dc_build_cockpit_package_file }}"
-        dest: "{{ samba_dc_build_cockpit_package_dir }}/{{ samba_dc_build_cockpit_package_file | basename }}"
+        src: "{{ item }}"
+        dest: "{{ samba_dc_build_cockpit_package_dir }}/{{ item | basename }}"
         owner: root
         group: root
         mode: "0644"
+      loop: "{{ samba_dc_build_cockpit_package_files | default([], true) }}"
       register: samba_dc_build_cockpit_copy
-      when: samba_dc_build_cockpit_package_file | default('', true) | length > 0
+      when: samba_dc_build_cockpit_local
 
-    # apt compares the package version with the installed one, so a rerun of
-    # the same release changes nothing. The package removes a copy installed
-    # by hand under /usr/share/cockpit/samba-dc (its preinst).
-    - name: Install the cockpit-samba-dc package
+    # apt compares each package's version with the installed one, so a rerun
+    # of the same release changes nothing. cockpit-samba-dc removes a copy
+    # installed by hand under /usr/share/cockpit/samba-dc (its preinst).
+    - name: Install the packages
       ansible.builtin.apt:
-        deb: >-
-          {{ (samba_dc_build_cockpit_copy.dest
-              if samba_dc_build_cockpit_package_file | default('', true) | length > 0
-              else samba_dc_build_cockpit_download.dest) }}
+        deb: "{{ samba_dc_build_cockpit_package_dir }}/{{ item }}"
+      loop: >-
+        {{ (samba_dc_build_cockpit_package_files | map('basename') | sort | list)
+           if samba_dc_build_cockpit_local
+           else (samba_dc_build_cockpit_packages
+                 | map('regex_replace', '$', '_' ~ samba_dc_build_cockpit_version ~ '_all.deb') | list) }}
 
     - name: Remove the working copy of a former build from source
       ansible.builtin.file:
@@ -77,10 +88,10 @@
           - make
         state: present
 
-    # make install writes where the package would: the two must not mix.
-    - name: Remove the cockpit-samba-dc package before installing from source
+    # make install writes where the packages would: the two must not mix.
+    - name: Remove the packages before installing from source
       ansible.builtin.apt:
-        name: cockpit-samba-dc
+        name: [cockpit-samba-dc, addcctl]
         state: absent
 
     # Built as root from a remote repository: keep the working copy out of the

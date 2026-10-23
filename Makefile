@@ -30,12 +30,15 @@ devel-install: build ## Symlink dist/ into local cockpit directory
 devel-uninstall: ## Remove local cockpit symlink
 	rm -f $(LOCAL_COCKPIT_DIR)/$(PKG_NAME)
 
-install: build ## Copy dist/ into /usr/share/cockpit (system-wide, needs root)
+install: build ## Copy dist/ into /usr/share/cockpit and addcctl into /usr/lib/addcctl, /usr/bin (needs root)
 	install -d $(INSTALL_DIR)
 	cp -a $(DIST_DIR)/. $(INSTALL_DIR)/
+	install -d /usr/lib/addcctl/addcctl
+	install -m 644 core/addcctl/*.py /usr/lib/addcctl/addcctl/
+	install -m 755 core/bin/addcctl /usr/bin/addcctl
 
-uninstall: ## Remove the system-wide install from /usr/share/cockpit
-	rm -rf $(INSTALL_DIR)
+uninstall: ## Remove what install copied
+	rm -rf $(INSTALL_DIR) /usr/lib/addcctl /usr/bin/addcctl
 
 check: ## Run unit tests (the page and the core)
 	npm test

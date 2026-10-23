@@ -23,17 +23,19 @@ options:
         are returned when unset.
     type: str
   shares_dir:
-    description: Directory holding the shared folders.
+    description: Directory holding the shared folders. Kept for compatibility, only the default is accepted.
     type: path
     default: /srv/samba/shares
   sam_ldb_path:
-    description: Samba directory database, read to find the drive mapping GPO.
+    description: Samba directory database. Kept for compatibility, only the default is accepted.
     type: path
     default: /var/lib/samba/private/sam.ldb
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
   - Supports check mode; it never changes anything.
+  - Runs C(addcctl share list), the core of cockpit-samba-dc (Debian package
+    C(addcctl), installed by the samba_dc_build role).
 """
 
 EXAMPLES = r"""
@@ -87,7 +89,7 @@ shares:
 """
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.samba_share import SambaShares
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, check_fixed_paths
 
 
 def run_module():
@@ -99,8 +101,8 @@ def run_module():
         ),
         supports_check_mode=True,
     )
-    shares = SambaShares(module, module.params["shares_dir"], module.params["sam_ldb_path"])
-    result = shares.list_shares()
+    check_fixed_paths(module)
+    result = call(module, "share", "list", {})["shares"]
     if module.params["name"] is not None:
         result = [s for s in result if s["name"].lower() == module.params["name"].lower()]
     module.exit_json(changed=False, shares=result)

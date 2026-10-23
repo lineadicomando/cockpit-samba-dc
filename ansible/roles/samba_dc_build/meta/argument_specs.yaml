@@ -98,31 +98,33 @@ argument_specs:
         default: []
       samba_dc_build_cockpit_install:
         description:
-          - How to install the cockpit-samba-dc page. V(package) installs the
-            Debian package of a release, checksum verified; V(source) builds a
-            git revision on the DC (needs nodejs and npm, for development);
-            V(none) installs nothing.
+          - How to install cockpit-samba-dc. V(package) installs the Debian
+            packages of a release, C(addcctl) (the core the modules of this
+            collection call) and C(cockpit-samba-dc) (the Cockpit page),
+            checksum verified; V(none) installs C(addcctl) alone; V(source)
+            builds both from a git revision on the DC (needs nodejs and npm,
+            for development).
         type: str
         choices: [package, source, none]
         default: package
       samba_dc_build_cockpit_version:
         description:
-          - Release of cockpit-samba-dc to install with O(samba_dc_build_cockpit_install=package),
+          - Release of cockpit-samba-dc to install with V(package) or V(none),
             as X.Y.Z. Defaults to the version of this collection.
         type: str
-        default: "0.2.1"
-      samba_dc_build_cockpit_package_url:
-        description: URL of the Debian package; defaults to the GitHub release of O(samba_dc_build_cockpit_version).
+        default: "0.8.0"
+      samba_dc_build_cockpit_release_url:
+        description: Where the packages of the release and their C(.sha256) files are; defaults to the GitHub release.
         type: str
-      samba_dc_build_cockpit_package_checksum:
-        description: Checksum of the package, in the form accepted by M(ansible.builtin.get_url); defaults to the C(.sha256) file of the release.
-        type: str
-      samba_dc_build_cockpit_package_file:
-        description: Path on the controller of a Debian package to install instead of the download, for sites without Internet access.
-        type: path
-        default: ""
+      samba_dc_build_cockpit_package_files:
+        description:
+          - Debian packages on the controller to install instead of the
+            download, for sites without Internet access.
+        type: list
+        elements: path
+        default: []
       samba_dc_build_cockpit_package_dir:
-        description: Directory on the DC where the package is kept.
+        description: Directory on the DC where the packages are kept.
         type: path
         default: /var/cache/cockpit-samba-dc
       samba_dc_build_cockpit_repo:

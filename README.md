@@ -44,8 +44,9 @@ On the server, a Samba Active Directory domain controller with:
 - Samba 4.22, with `samba-tool` at `/usr/bin/samba-tool` (the page is shown
   only when it is there)
 - `ldbsearch` and `ldbmodify` (package `ldb-tools`), `net` and `testparm`
-  (`samba-common-bin`), `setfacl` (`acl`); the Debian package depends on
-  all of them
+  (`samba-common-bin`), `setfacl` (`acl`), Python 3 with Samba's bindings
+  (`python3-samba`, for `addcctl`); the Debian packages depend on all of
+  them
 - `registry shares = yes` (or `include = registry`) in the `[global]`
   section of `smb.conf`, for the home and shared-folder shares that the
   module creates with `net conf`. Samba's default is `no`, also on a domain
@@ -62,23 +63,28 @@ To build from the sources:
 
 ## Installation
 
-On Debian 13, install the package attached to each release on the
-[Releases page](https://github.com/lineadicomando/cockpit-samba-dc/releases)
-(from the release after 0.1.0), `cockpit-samba-dc_X.Y.Z_all.deb`; apt brings
-in what it needs (`cockpit-bridge`, `samba-ad-dc`, `ldb-tools`, `acl`):
+On Debian 13, install the two packages attached to each release on the
+[Releases page](https://github.com/lineadicomando/cockpit-samba-dc/releases):
+`addcctl_X.Y.Z_all.deb`, the command the page runs on the DC for the shared
+folders and the drive mapping (also used by the Ansible collection), and
+`cockpit-samba-dc_X.Y.Z_all.deb`, the page, which depends on `addcctl` of the
+same version. apt brings in what they need (`cockpit-bridge`, `samba-ad-dc`,
+`python3-samba`, `ldb-tools`, `acl`):
 
 ```bash
-sudo apt install ./cockpit-samba-dc_X.Y.Z_all.deb
+sudo apt install ./addcctl_X.Y.Z_all.deb ./cockpit-samba-dc_X.Y.Z_all.deb
 ```
 
-Upgrade the same way, with the newer package; `sudo apt remove
-cockpit-samba-dc` removes the module. On first install the package replaces
+Upgrade the same way, with the newer packages; `sudo apt remove
+cockpit-samba-dc addcctl` removes them. On first install the package replaces
 a copy made by hand in `/usr/share/cockpit/samba-dc` (`make install` or the
 tarball below). A copy in a user's `~/.local/share/cockpit/samba-dc` (`make
 devel-install`) still hides the installed module from that user: remove it.
 
 Each release also has the built module, `cockpit-samba-dc-X.Y.Z.tar.gz`, for
-other distributions; it needs no Node.js on the server:
+other distributions; it needs no Node.js on the server, but its shared
+folders need `addcctl` (the package, or `sudo make install` from the
+sources):
 
 ```bash
 sudo rm -rf /usr/share/cockpit/samba-dc
@@ -95,7 +101,20 @@ sudo make install
 ```
 
 Either way the module is in `/usr/share/cockpit/samba-dc`, and the
-installed version is shown next to the page title.
+installed version is shown next to the page title. `make install` also
+installs `addcctl` (`/usr/lib/addcctl` and `/usr/bin/addcctl`).
+
+### addcctl
+
+`addcctl` runs one operation per call, as root, reading a JSON object on
+standard input and writing one on standard output; `addcctl schema` lists the
+operations with the JSON Schema of their input, `--check` reports what an
+operation would change without changing it, and `man addcctl` describes it.
+It reads the configuration and the directory locally (Samba's loadparm,
+`sam.ldb`), so it needs no domain credentials, and runs one change at a time,
+so the page and the Ansible collection can be used at the same moment. It is
+the core the plan in `docs/architecture.md` grows: for now it handles the
+shared folders and the drive mapping.
 
 ## Ansible collection
 
@@ -232,8 +251,8 @@ and groups that can access it. The module keeps a dedicated GPO,
 Preferences `Drives.xml` holds one drive per mapped folder, targeted at the
 folder's users and groups. The GPO is created on first use directly in the
 local `sam.ldb` and sysvol, so no domain credentials are needed; after each
-change the GPO version is increased. A rewritten file keeps the NT ACL of the
-one it replaces; the sysvol ACLs are reset (`samba-tool ntacl sysvolreset`)
+change the GPO version is increased. The GPO is written by `addcctl`, one
+change at a time. A rewritten file keeps the NT ACL of the one it replaces; the sysvol ACLs are reset (`samba-tool ntacl sysvolreset`)
 only when the module writes a new file, as when it creates the GPO.
 
 Drive mapping applies to Windows clients; drive letters E–Z are available

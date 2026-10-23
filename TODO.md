@@ -76,7 +76,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section A3, the core spike.
+4. Next step: the go/no-go of A3, then the rest of A3 (the generator).
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -148,7 +148,7 @@ at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
       `samba_tool` shown in Cockpit, one made in Cockpit read and changed by
       `samba_tool`; `sysvolcheck` clean
 
-## A3. Core: spike on shared folders and drive mapping
+## A3. Core: spike on shared folders and drive mapping — v0.9.0
 
 The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 `ansible/plugins/module_utils/samba_share.py`). Ends with a decision.
@@ -158,28 +158,38 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
       `requirements.yaml` on `git+…/cockpit-samba-dc.git#/ansible/` at
       v0.8.0, its symlink under `ansible_collections/` and `.mcp.json` on
       `ansible/`
+- [x] `addcctl` (`core/`): `share list|get|set|delete|rename-principal`
+      and the drive mapping, from the collection's model (idempotent,
+      check mode, diff) and the page's (paths exactly under
+      `/srv/samba/shares`, sysvol files keeping their NT ACL); a lock
+      serializes the changes. Through the samba Python bindings, tried on
+      the target: loadparm (also `registry shares`), the registry shares
+      (`smbconf`, one transaction), `sam.ldb` with the system session, NSS
+      through `pwd`/`grp`
+- [x] The schemas of these operations (`addcctl schema`), validated on input
+- [ ] The generator of TypeScript types, Ansible `argument_specs` and MCP
+      tools from the schemas, with a CI check that its output is up to date
+- [x] Tests: `unittest` (`core/tests`, in `make check` and CI) with a fake DC
+- [x] Debian source package with two binaries, `addcctl` (private modules
+      in `/usr/lib/addcctl`, man page) and `cockpit-samba-dc` depending on
+      it; lintian clean; `lab.sh deploy` and the release handle both
+- [x] `shares.ts` calls the core (`drivemaps.ts` is gone, 508 lines less);
+      `samba_share` and `samba_share_info` too (`module_utils/samba_share.py`
+      is gone), failing clearly when `addcctl` is missing; `samba_dc_build`
+      installs it, also with `none`
+- [x] On the test DC: the times below; a share made by `samba_tool` and by
+      the page; `sysvolcheck` clean; the mapped drive at a Windows logon
+      (`student1` sees "Classe (S:)")
+- [ ] **Go/no-go**, with the measures: on to A4, or stop at A2
 
-- [ ] Python package and command `addcctl` (`core/`) with `share
-      list|get|set|delete` and drive mapping, as in `docs/architecture.md`,
-      "The core"; check on the target what the samba Python bindings cover
-      (`SamDB`, the registry shares of `net conf`) and fall back to the
-      tools where they do not
-- [ ] The schemas of these operations, and the generator of TypeScript
-      types, Ansible `argument_specs` and MCP tools, with a CI check that the
-      generated files are up to date
-- [ ] pytest tests; verbatim tool outputs as fixtures shared with the
-      TypeScript tests (`test/fixtures/`)
-- [ ] Debian source package with two binaries: `addcctl`, and
-      `cockpit-samba-dc` depending on it (`= ${binary:Version}`); lintian
-      clean
-- [ ] `shares.ts` and `drivemaps.ts`, and the `samba_share` and
-      `samba_share_info` modules, call the core; the modules fail with a
-      clear message when `addcctl` is missing
-- [ ] On the test DC: time to list and to save (cold and warm) against
-      today's; a share made in Cockpit, changed with Ansible, and back; the
-      mapped drive at a Windows logon
-- [ ] **Go/no-go**, written here with the measures: on to A4, or stop at A2
-      and keep two implementations
+Measures on the test DC (2 vCPU), through the page:
+
+| | before (src/lib) | addcctl |
+|---|---|---|
+| refresh the list of shared folders | 210–320 ms | 215–270 ms |
+| create one with a mapped drive | 1.46–1.58 s | 0.70–0.71 s |
+| change its drive letter | 1.18–1.32 s | 0.45–0.60 s |
+| one `addcctl` call from a shell (start, read, answer) | | ≈185 ms |
 
 ## A4. Core: every other operation
 
