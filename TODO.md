@@ -34,10 +34,8 @@ Updated on 2026-10-23.
 - Debian package (section 2, commit `f403bef`): `make deb` builds it in a
   Debian 13 container and runs `lintian`; `lab.sh deploy` installs it on
   the test DC. Tried on the test DC (install over a hand-made copy,
-  upgrade, remove). Not yet run on GitHub: the first push runs the "Debian
-  package" step of `ci.yml` (Docker on the runner, where the build was only
-  tried here through podman's emulation); the first release with a `.deb`
-  is the next tag.
+  upgrade, remove); the "Debian package" step of `ci.yml` passed on GitHub
+  on 2026-10-23. The first release with a `.deb` is the next tag.
 - Before that: a review of the code base and its fixes (commit `c28e04c`),
   checked on the test DC and Windows client; what was left open is in
   section 0.
@@ -51,9 +49,8 @@ To resume:
 
 1. Read `CLAUDE.md`, then run `npm install && make check && npx tsc
    --noEmit`.
-2. If the commits since `v0.1.0` are pushed, check that the "Debian
-   package" step of the last CI run on GitHub passed
-   (`gh run list --workflow ci.yml`).
+2. Check that the last CI run on GitHub passed (`gh run list --workflow
+   ci.yml`).
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).

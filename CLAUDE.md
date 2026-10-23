@@ -162,5 +162,7 @@ Releases are made only when the user asks; pushing the tag publishes them.
   environments or of a developer's machines, in files or commit messages.
 - License: `LGPL-2.1-or-later`.
 - CI: `.github/workflows/ci.yml` (Node.js 22: `npm ci`, type check, build,
-  tests).
+  tests, then `make deb-package` in a Debian 13 container with `lintian`);
+  `.github/workflows/release.yml` on `v*` tags publishes the tarball and the
+  `.deb`.
 - Never commit, push or create remote repositories unless asked.
