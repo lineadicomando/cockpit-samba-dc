@@ -53,23 +53,26 @@ jobs:
           node scripts/release.mjs notes "$version" > release-notes.md
           echo "ARCHIVE=$archive" >> "$GITHUB_ENV"
 
-      # The same dist/ as the tarball, packaged and checked with lintian in
-      # a Debian 13 container.
+      # The same dist/ as the tarball, packaged with addcctl and checked
+      # with lintian in a Debian 13 container.
       - name: Debian package
         env:
           CONTAINER: docker
         run: |
           make deb-package
-          deb=$(basename build/cockpit-samba-dc_*_all.deb)
           want=$(node scripts/debian.mjs version)
-          got=$(dpkg-deb -f "build/$deb" Version)
-          if [ "$got" != "$want" ]; then
-            echo "$deb has version $got, expected $want" >&2
-            exit 1
-          fi
-          cp "build/$deb" .
-          sha256sum "$deb" > "$deb.sha256"
-          echo "DEB=$deb" >> "$GITHUB_ENV"
+          for p in cockpit-samba-dc addcctl; do
+            deb=$(basename build/${p}_*_all.deb)
+            got=$(dpkg-deb -f "build/$deb" Version)
+            if [ "$got" != "$want" ]; then
+              echo "$deb has version $got, expected $want" >&2
+              exit 1
+            fi
+            cp "build/$deb" .
+            sha256sum "$deb" > "$deb.sha256"
+          done
+          echo "DEB=$(basename build/cockpit-samba-dc_*_all.deb)" >> "$GITHUB_ENV"
+          echo "CORE=$(basename build/addcctl_*_all.deb)" >> "$GITHUB_ENV"
 
       - name: Ansible collection
         run: |
@@ -90,5 +93,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" $prerelease \
             --title "cockpit-samba-dc ${GITHUB_REF_NAME#v}" \
             --notes-file release-notes.md \
-            "$ARCHIVE" "$ARCHIVE.sha256" "$DEB" "$DEB.sha256" \
+            "$ARCHIVE" "$ARCHIVE.sha256" "$DEB" "$DEB.sha256" "$CORE" "$CORE.sha256" \
             "$COLLECTION" "$COLLECTION.sha256"

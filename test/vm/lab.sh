@@ -13,7 +13,7 @@
 #   lab.sh wait dc|win                 wait until SSH answers
 #   lab.sh ssh dc|win [COMMAND]        SSH as the admin account (PowerShell on win)
 #   lab.sh root COMMAND                COMMAND as root on the DC; stdin is passed on
-#   lab.sh deploy                      build the Debian package, install it on the DC
+#   lab.sh deploy                      build the Debian packages, install them on the DC
 #   lab.sh tunnel [PORT]               Cockpit of the DC on http://127.0.0.1:PORT (9091)
 #   lab.sh ansible PLAYBOOK [ARGS...]  ansible-playbook against the VMs (groups
 #                                      samba_dc and windows), with the collection
@@ -128,16 +128,22 @@ case $cmd in
         # removed by the package itself (debian/preinst).
         (cd "$VM_ROOT" && make --no-print-directory --silent deb >/dev/null) ||
             die "make deb failed: run it in $VM_ROOT to see why"
-        debs=("$VM_ROOT"/build/cockpit-samba-dc_*_all.deb)
-        [[ ${#debs[@]} -eq 1 && -f ${debs[0]} ]] || die "expected one package in build/"
-        echo "package: ${debs[0]##*/}"
-        "$0" root 'set -e
+        # The two packages of the source, installed together: cockpit-samba-dc
+        # depends on addcctl of the same version.
+        debs=()
+        for p in cockpit-samba-dc addcctl; do
+            found=("$VM_ROOT"/build/${p}_*_all.deb)
+            [[ ${#found[@]} -eq 1 && -f ${found[0]} ]] || die "expected one $p package in build/"
+            debs+=("${found[0]##*/}")
+        done
+        echo "packages: ${debs[*]}"
+        tar -C "$VM_ROOT/build" -cf - "${debs[@]}" | "$0" root 'set -e
             rm -rf /usr/share/cockpit/samba-ad-dc /home/*/.local/share/cockpit/samba-dc /home/*/.local/share/cockpit/samba-ad-dc
-            deb=$(mktemp --suffix=.deb); trap "rm -f $deb" EXIT
-            cat > "$deb"; chmod 644 "$deb"
-            DEBIAN_FRONTEND=noninteractive apt-get install -y -q --reinstall --allow-downgrades "$deb" >/dev/null
-            dpkg-query -W -f="installed: \${Package} \${Version}\n" cockpit-samba-dc
-            sha256sum /usr/share/cockpit/samba-dc/index.js' < "${debs[0]}"
+            dir=$(mktemp -d); trap "rm -rf $dir" EXIT
+            tar -C "$dir" -xf -; chmod 755 "$dir"; chmod 644 "$dir"/*.deb
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -q --reinstall --allow-downgrades "$dir"/*.deb >/dev/null
+            dpkg-query -W -f="installed: \${Package} \${Version}\n" cockpit-samba-dc addcctl
+            sha256sum /usr/share/cockpit/samba-dc/index.js'
         sha256sum "$VM_ROOT/dist/index.js" | sed 's/^/local:  /'
         echo "reload the Cockpit page (F5) to load the new bundle" ;;
     ansible)

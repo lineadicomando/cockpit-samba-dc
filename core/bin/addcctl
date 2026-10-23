@@ -1,0 +1,10 @@
+#!/usr/bin/python3
+# SPDX-License-Identifier: LGPL-2.1-or-later
+import sys
+
+# The package installs the Python modules privately, out of the system path
+sys.path.insert(0, "/usr/lib/addcctl")
+
+from addcctl.cli import main  # noqa: E402
+
+main()

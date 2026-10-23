@@ -8,6 +8,7 @@ __pycache__/
 build/
 debian/changelog
 debian/cockpit-samba-dc/
+debian/addcctl/
 debian/.debhelper/
 debian/debhelper-build-stamp
 debian/files

@@ -1,0 +1,219 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+"""The local DC: smb.conf, registry shares, sam.ldb and NSS.
+
+Everything is read locally, as root: the configuration through Samba's
+loadparm, the directory from sam.ldb with the system session, never with a
+network query or domain credentials. The samba Python bindings are imported
+on first use, so the pure parts of addcctl load without them (tests).
+"""
+import grp
+import pwd
+
+from .errors import AddcError
+
+SAM_LDB = "/var/lib/samba/private/sam.ldb"
+
+
+class Dc:
+    def __init__(self, runner):
+        self.runner = runner
+        self._lp = None
+        self._samdb = None
+        self._registry = None
+        self._posix_ids = {}
+
+    # -- smb.conf
+
+    @property
+    def lp(self):
+        if self._lp is None:
+            from samba.param import LoadParm
+            self._lp = LoadParm()
+            self._lp.load_default()
+        return self._lp
+
+    def param(self, name, section=None):
+        value = self.lp.get(name, section) if section else self.lp.get(name)
+        if value in (None, ""):
+            raise AddcError('Cannot determine "%s" from smb.conf' % name)
+        return value
+
+    @property
+    def workgroup(self):
+        return self.param("workgroup")
+
+    @property
+    def netbios_name(self):
+        return self.param("netbios name")
+
+    @property
+    def realm(self):
+        return self.param("realm")
+
+    @property
+    def sysvol(self):
+        return self.param("path", "sysvol")
+
+    # -- registry shares (what "net conf" edits)
+
+    @property
+    def registry(self):
+        if self._registry is None:
+            from samba.samba3 import param as s3param
+            from samba.samba3 import smbconf
+            s3param.get_context().load_default()
+            self._registry = smbconf.init_reg(None)
+        return self._registry
+
+    def shares(self):
+        """{registry name: {lowercased parameter: value}}."""
+        result = {}
+        for name in self.registry.share_names():
+            _, params = self.registry.get_share(name)
+            result[name] = {k.lower(): v for k, v in params}
+        return result
+
+    def update_share(self, name, set_params, delete_params=(), create=False):
+        """Apply a share's changes in one registry transaction."""
+        if create:
+            self.runner.record("registry: create share [%s]" % name)
+        for param, value in set_params.items():
+            self.runner.record("registry: [%s] %s = %s" % (name, param, value))
+        for param in delete_params:
+            self.runner.record("registry: [%s] delete %s" % (name, param))
+        if self.runner.check:
+            return
+        reg = self.registry
+        reg.transaction_start()
+        try:
+            if create:
+                reg.create_share(name)
+            for param, value in set_params.items():
+                reg.set_parameter(name, param, value)
+            for param in delete_params:
+                reg.delete_parameter(name, param)
+        except Exception as e:
+            reg.transaction_cancel()
+            raise AddcError("Cannot change share %s: %s" % (name, e)) from None
+        reg.transaction_commit()
+
+    def delete_share(self, name):
+        self.runner.record("registry: delete share [%s]" % name)
+        if not self.runner.check:
+            self.registry.delete_share(name)
+
+    # -- sam.ldb
+
+    @property
+    def samdb(self):
+        if self._samdb is None:
+            from samba.auth import system_session
+            from samba.samdb import SamDB
+            self._samdb = SamDB(url=SAM_LDB, session_info=system_session(), lp=self.lp)
+        return self._samdb
+
+    @property
+    def domain_dn(self):
+        return str(self.samdb.domain_dn())
+
+    def resolve_principals(self, names):
+        """{lowercased name: {name, kind, sid}} of the names in the directory."""
+        if not names:
+            return {}
+        import ldb
+        from samba.dcerpc import security
+        from samba.ndr import ndr_unpack
+        expression = "(|%s)" % "".join("(sAMAccountName=%s)" % ldb.binary_encode(n) for n in names)
+        found = {}
+        for msg in self.samdb.search(base=self.domain_dn, scope=ldb.SCOPE_SUBTREE, expression=expression,
+                                     attrs=["sAMAccountName", "objectSid", "objectClass"]):
+            sam = str(msg["sAMAccountName"][0])
+            classes = [str(c).lower() for c in msg["objectClass"]]
+            found[sam.lower()] = {
+                "name": sam,
+                "kind": "group" if "group" in classes else "user",
+                "sid": str(ndr_unpack(security.dom_sid, msg["objectSid"][0])),
+            }
+        return found
+
+    def find_gpo(self, display_name):
+        """{guid, dn, version} of the GPO with that display name, or None."""
+        import ldb
+        res = self.samdb.search(
+            base="CN=Policies,CN=System,%s" % self.domain_dn, scope=ldb.SCOPE_ONELEVEL,
+            expression="(&(objectClass=groupPolicyContainer)(displayName=%s))" % ldb.binary_encode(display_name),
+            attrs=["cn", "versionNumber"])
+        for msg in res:
+            try:
+                version = int(str(msg["versionNumber"][0])) if "versionNumber" in msg else 0
+            except ValueError:
+                version = 0
+            return {"guid": str(msg["cn"][0]), "dn": str(msg.dn), "version": version}
+        return None
+
+    def add_gpo(self, guid, display_name, user_extension_names):
+        """The objects "samba-tool gpo create" writes, linked to the domain
+        root; written to sam.ldb directly, so no domain credentials."""
+        dn = "CN=%s,CN=Policies,CN=System,%s" % (guid, self.domain_dn)
+        domain = self.realm.lower()
+        self.runner.record("sam.ldb: add GPO %s" % dn)
+        if not self.runner.check:
+            self.samdb.add({
+                "dn": dn,
+                "objectClass": ["top", "container", "groupPolicyContainer"],
+                "displayName": display_name,
+                "gPCFileSysPath": "\\\\%s\\sysvol\\%s\\Policies\\%s" % (domain, domain, guid),
+                "flags": "0",
+                "versionNumber": "0",
+                "gPCFunctionalityVersion": "2",
+                "showInAdvancedViewOnly": "TRUE",
+                "gPCUserExtensionNames": user_extension_names,
+            })
+            for child in ("User", "Machine"):
+                self.samdb.add({"dn": "CN=%s,%s" % (child, dn), "objectClass": ["top", "container"],
+                                "showInAdvancedViewOnly": "TRUE"})
+        return {"guid": guid, "dn": dn, "version": 0}
+
+    def ensure_gpo_linked(self, gpo_dn):
+        """Link the GPO to the domain root unless it already is: checked on
+        every write, so that a link that failed once is made later."""
+        import ldb
+        res = self.samdb.search(base=self.domain_dn, scope=ldb.SCOPE_BASE, attrs=["gPLink"])
+        old = str(res[0]["gPLink"][0]) if res and "gPLink" in res[0] else ""
+        if ("[ldap://%s;" % gpo_dn).lower() in old.lower():
+            return
+        self._replace(self.domain_dn, "gPLink", "%s[LDAP://%s;0]" % (old, gpo_dn))
+
+    def set_gpo_version(self, gpo_dn, version):
+        self._replace(gpo_dn, "versionNumber", str(version))
+
+    def _replace(self, dn, attribute, value):
+        self.runner.record("sam.ldb: %s %s = %s" % (dn, attribute, value))
+        if self.runner.check:
+            return
+        import ldb
+        msg = ldb.Message()
+        msg.dn = ldb.Dn(self.samdb, dn)
+        msg[attribute] = ldb.MessageElement(value, ldb.FLAG_MOD_REPLACE, attribute)
+        self.samdb.modify(msg)
+
+    # -- NSS
+
+    def posix_ids(self, name):
+        """{"u": uid, "g": gid} of a domain principal through NSS (winbind);
+        a missing mapping is absent. Users usually map to both, well-known
+        groups such as "Domain Users" only to a gid."""
+        key = name.lower()
+        if key not in self._posix_ids:
+            qualified = "%s\\%s" % (self.workgroup, name)
+            ids = {}
+            try:
+                ids["u"] = str(pwd.getpwnam(qualified).pw_uid)
+            except KeyError:
+                pass
+            try:
+                ids["g"] = str(grp.getgrnam(qualified).gr_gid)
+            except KeyError:
+                pass
+            self._posix_ids[key] = ids
+        return self._posix_ids[key]

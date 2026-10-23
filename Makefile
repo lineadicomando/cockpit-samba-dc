@@ -37,8 +37,9 @@ install: build ## Copy dist/ into /usr/share/cockpit (system-wide, needs root)
 uninstall: ## Remove the system-wide install from /usr/share/cockpit
 	rm -rf $(INSTALL_DIR)
 
-check: ## Run unit tests
+check: ## Run unit tests (the page and the core)
 	npm test
+	cd core && python3 -m unittest discover -s tests
 
 pot: ## Extract translatable strings from src/ → src/locales/en/translation.json + src/locales/it/translation.json (skeleton)
 	npm run pot

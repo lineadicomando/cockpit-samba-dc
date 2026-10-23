@@ -30,6 +30,10 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Run the tests of the core (addcctl)
+        run: python3 -m unittest discover -s tests
+        working-directory: core
+
       - name: Debian package
         env:
           CONTAINER: docker

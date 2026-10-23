@@ -13,6 +13,7 @@ Package: cockpit-samba-dc
 Architecture: all
 Depends: ${misc:Depends},
          acl,
+         addcctl (= ${binary:Version}),
          cockpit-bridge (>= 337),
          ldb-tools,
          samba-ad-dc (>= 2:4.22),
@@ -25,3 +26,22 @@ Description: Cockpit module to manage a Samba Active Directory domain controller
  It drives the local Samba tools (samba-tool, ldbsearch, net conf) as
  root through Cockpit and reads the directory from the local sam.ldb, so
  it needs no domain credentials.
+
+Package: addcctl
+Architecture: all
+Depends: ${misc:Depends},
+         acl,
+         python3,
+         python3-samba,
+         samba-ad-dc (>= 2:4.22),
+         samba-common-bin,
+Description: operations of a Samba Active Directory domain controller, as JSON
+ A command that runs on the domain controller, as root, and performs one
+ operation per call: shared folders with their POSIX ACLs and the network
+ drives mapped at logon through a Group Policy Object. It reads a JSON
+ object on standard input and writes one on standard output.
+ .
+ It reads the directory from the local sam.ldb and the configuration from
+ smb.conf, so it needs no domain credentials. It is the core of
+ cockpit-samba-dc, used by its Cockpit page, its Ansible collection and
+ its MCP server.

@@ -1,0 +1,58 @@
+.TH ADDCCTL 1 "" "addcctl" "User Commands"
+.SH NAME
+addcctl \- operations of a Samba Active Directory domain controller, as JSON
+.SH SYNOPSIS
+.B addcctl
+.I object action
+.RB [ \-\-check ]
+.RI < input.json
+.br
+.B addcctl schema
+.SH DESCRIPTION
+.B addcctl
+runs on a Samba AD domain controller, as root, and performs one operation:
+it reads a JSON object on standard input and writes a JSON object on
+standard output. It reads the configuration through Samba's loadparm and the
+directory from the local sam.ldb, so it needs no domain credentials.
+.PP
+It is the core of cockpit-samba-dc: the Cockpit page, the Ansible collection
+lineadicomando.samba_dc and the MCP server call it.
+.PP
+.B addcctl schema
+prints every operation with the JSON Schema of its input.
+.SH OPTIONS
+.TP
+.B \-\-check
+Report what the operation would change, in the "commands" field of the
+output, and change nothing.
+.SH OPERATIONS
+.TP
+.B share list
+The shared folders under /srv/samba/shares, with their access list and drive
+mapping.
+.TP
+.B share get
+One shared folder: {"name": ...}.
+.TP
+.B share set
+Create a shared folder, or bring it to the given settings: name, access,
+access_mode, comment, browseable, drive. Settings left out keep their value.
+.TP
+.B share delete
+Remove a shared folder and its drive mapping; with "delete_data", its folder
+too.
+.TP
+.B share rename\-principal
+Follow the rename of a user or group in the shared folders that list it.
+.SH EXIT STATUS
+0 on success; 1 when the operation fails; 2 for an unknown operation or an
+input that is not valid. On failure the output is {"error": message} and the
+message is also written to standard error.
+.SH EXAMPLES
+.nf
+echo '{"name": "Projects", "access": [{"name": "Staff", "level": "write"}],
+       "drive": {"letter": "P"}}' | addcctl share set \-\-check
+.fi
+.SH SEE ALSO
+.BR samba\-tool (8),
+.BR net (8)

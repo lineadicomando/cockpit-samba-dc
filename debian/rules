@@ -22,6 +22,10 @@ override_dh_auto_test:
 override_dh_auto_install:
 	install -d debian/cockpit-samba-dc/usr/share/cockpit/samba-dc
 	cp -r dist/. debian/cockpit-samba-dc/usr/share/cockpit/samba-dc/
+	# addcctl: private Python modules, out of the system path
+	install -d debian/addcctl/usr/lib/addcctl/addcctl debian/addcctl/usr/bin
+	install -m 644 core/addcctl/*.py debian/addcctl/usr/lib/addcctl/addcctl/
+	install -m 755 core/bin/addcctl debian/addcctl/usr/bin/addcctl
 
 # CHANGELOG.md is not a Debian changelog: install it as a document.
 override_dh_installchangelogs:
