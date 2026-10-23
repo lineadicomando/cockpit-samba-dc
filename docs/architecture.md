@@ -120,7 +120,7 @@ collection may import the core.
 
 | Step | `TODO.md` | State |
 |---|---|---|
-| Windows roles and lab defaults out of the collection | A1 | planned |
+| Windows roles and lab defaults out of the collection | A1 | done in the three repositories, releases pending |
 | The collection in this repository, one version | A2 | planned |
 | Core: spike on shared folders and drive mapping, go/no-go | A3 | planned |
 | Core: every other operation | A4 | planned |

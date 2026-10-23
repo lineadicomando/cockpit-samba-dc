@@ -83,23 +83,26 @@ In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
 `ansible-win_edulab`; nothing changes in this repository.
 `docs/architecture.md`, "Boundaries".
 
-- [ ] **win_workman: a `domain` management role** merging `samba_win_join`
+- [x] **win_workman: a `domain` management role** merging `samba_win_join`
       and `samba_win_status`, as win_workman's `CLAUDE.md` asks (schema in
       `vars/`, `act_join`, `act_leave`, `act_status`, default `status`,
       `meta/mcp.yaml`, docs and catalog rows); variables
       `win_workman_domain_*`; the DNS step of win_edulab's
       `playbooks/samba_dc_join.yaml` moves into `act_join`
       (`win_workman_domain_dns_servers`); dependency `microsoft.ad`
-- [ ] Try it on this project's Windows client with the test DC (skill
-      `vm-lab`): status, leave, join again, then a domain logon
-- [ ] **win_edulab**: `samba_dc_join.yaml` and the `samba_win_join_*`
+- [x] Try it on this project's Windows client with the test DC (skill
+      `vm-lab`): status, leave (the computer account is disabled, not
+      deleted), join again, secure channel verified (`nltest /sc_verify`);
+      win_edulab's `samba_dc_join.yaml` idempotent on the joined client
+- [x] **win_edulab**: `samba_dc_join.yaml` and the `samba_win_join_*`
       variables become the task `domain-join` and `win_workman_domain_*`;
       membership status through the win-workman MCP; its skills and docs
-- [ ] **The collection**: remove the two roles,
+- [x] **The collection**: remove the two roles,
       `playbooks/samba_win_status.yaml`, the `samba_win_status` MCP tool and
       the dependencies `microsoft.ad` and `ansible.windows`; the MCP
-      `inventory` no longer defaults to `school` (required, or
-      `ANSIBLE_MCP_INVENTORY`); no `lab_win` fallback; examples with
+      `inventory` no longer defaults to `school` (named by the call, or by
+      `ANSIBLE_MCP_DEFAULT_INVENTORY` or `ANSIBLE_MCP_INVENTORY` in the
+      server's environment); no `lab_win` fallback; examples with
       neutral group names; README and `galaxy.yml` describe what the
       Cockpit page does (no DNS or service controls)
 - [ ] Releases of win_workman and of the collection (breaking: roles
