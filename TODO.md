@@ -75,7 +75,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section A1.
+4. Next step: section A2.
 
 ## A1. Windows roles and lab defaults out of the collection
 
@@ -105,8 +105,9 @@ In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
       server's environment); no `lab_win` fallback; examples with
       neutral group names; README and `galaxy.yml` describe what the
       Cockpit page does (no DNS or service controls)
-- [ ] Releases of win_workman and of the collection (breaking: roles
-      removed); win_edulab pinned to both tags instead of `main`
+- [x] Releases of win_workman (v0.3.0) and of the collection (v0.7.0, which
+      also carries the untagged 0.6.0); win_edulab pinned to both tags
+      instead of `main`; CI green on both collections
 
 ## A2. The collection in this repository — v0.3.0
 
