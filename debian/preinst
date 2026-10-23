@@ -1,0 +1,16 @@
+#!/bin/sh
+set -e
+
+# A copy installed by hand in the same directory (make install, the release
+# tarball, test/vm/lab.sh deploy) holds files that no package owns, such as
+# the fonts of an older build, which dpkg would leave behind: remove it
+# before the package is unpacked for the first time.
+case "$1" in
+    install)
+        rm -rf /usr/share/cockpit/samba-dc
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0

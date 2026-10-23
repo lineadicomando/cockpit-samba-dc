@@ -1,0 +1,27 @@
+Source: cockpit-samba-dc
+Section: admin
+Priority: optional
+Maintainer: Alessandro Gagliano <alessandro.gagliano@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/lineadicomando/cockpit-samba-dc
+Vcs-Browser: https://github.com/lineadicomando/cockpit-samba-dc
+Vcs-Git: https://github.com/lineadicomando/cockpit-samba-dc.git
+
+Package: cockpit-samba-dc
+Architecture: all
+Depends: ${misc:Depends},
+         acl,
+         cockpit-bridge (>= 337),
+         ldb-tools,
+         samba-ad-dc (>= 2:4.22),
+         samba-common-bin,
+Description: Cockpit module to manage a Samba Active Directory domain controller
+ A Cockpit page that runs on the domain controller and manages users,
+ groups, computers, home directories and shared folders, with network
+ drives mapped at logon through a Group Policy Object.
+ .
+ It drives the local Samba tools (samba-tool, ldbsearch, net conf) as
+ root through Cockpit and reads the directory from the local sam.ldb, so
+ it needs no domain credentials.

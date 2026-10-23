@@ -13,7 +13,7 @@
 #   lab.sh wait dc|win                 wait until SSH answers
 #   lab.sh ssh dc|win [COMMAND]        SSH as the admin account (PowerShell on win)
 #   lab.sh root COMMAND                COMMAND as root on the DC; stdin is passed on
-#   lab.sh deploy                      build and install the module on the DC
+#   lab.sh deploy                      build the Debian package, install it on the DC
 #   lab.sh tunnel [PORT]               Cockpit of the DC on http://127.0.0.1:PORT (9091)
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
@@ -116,14 +116,22 @@ case $cmd in
             SSHPASS=$DC_ADMIN_PASSWORD sshpass -e ssh "${SSH_OPTS[@]}" "$DC_ADMIN_USER@$DC_HOST" \
                 "sudo -S -p '' sh -c $(printf '%q' "$*")" ;;
     deploy)
-        # Into /usr/share/cockpit, the copy every user gets; copies left in a
-        # user's ~/.local (or under the pre-rename name) would shadow it.
-        (cd "$VM_ROOT" && npm run --silent build >/dev/null)
-        tar -C "$VM_ROOT/dist" -cf - . | "$0" root 'set -e
-            rm -rf /usr/share/cockpit/samba-dc /usr/share/cockpit/samba-ad-dc /home/*/.local/share/cockpit/samba-dc /home/*/.local/share/cockpit/samba-ad-dc
-            mkdir -p /usr/share/cockpit/samba-dc
-            tar -C /usr/share/cockpit/samba-dc --no-same-owner -m -xf -
-            sha256sum /usr/share/cockpit/samba-dc/index.js'
+        # The Debian package, as an administrator would install it. Copies
+        # left in a user's ~/.local (or under the pre-rename name) would
+        # shadow it; a copy made by hand in /usr/share/cockpit/samba-dc is
+        # removed by the package itself (debian/preinst).
+        (cd "$VM_ROOT" && make --no-print-directory --silent deb >/dev/null) ||
+            die "make deb failed: run it in $VM_ROOT to see why"
+        debs=("$VM_ROOT"/build/cockpit-samba-dc_*_all.deb)
+        [[ ${#debs[@]} -eq 1 && -f ${debs[0]} ]] || die "expected one package in build/"
+        echo "package: ${debs[0]##*/}"
+        "$0" root 'set -e
+            rm -rf /usr/share/cockpit/samba-ad-dc /home/*/.local/share/cockpit/samba-dc /home/*/.local/share/cockpit/samba-ad-dc
+            deb=$(mktemp --suffix=.deb); trap "rm -f $deb" EXIT
+            cat > "$deb"; chmod 644 "$deb"
+            DEBIAN_FRONTEND=noninteractive apt-get install -y -q --reinstall --allow-downgrades "$deb" >/dev/null
+            dpkg-query -W -f="installed: \${Package} \${Version}\n" cockpit-samba-dc
+            sha256sum /usr/share/cockpit/samba-dc/index.js' < "${debs[0]}"
         sha256sum "$VM_ROOT/dist/index.js" | sed 's/^/local:  /'
         echo "reload the Cockpit page (F5) to load the new bundle" ;;
     tunnel)

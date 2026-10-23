@@ -8,6 +8,11 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- Debian package (`cockpit-samba-dc_X.Y.Z_all.deb`) attached to each release,
+  for Debian 13.
+
 ## [0.1.0] - 2026-10-22
 
 ### Added

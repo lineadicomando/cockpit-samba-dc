@@ -7,9 +7,8 @@ releases (e.g. `ou create` → `ou add`, `computer create` → `computer add`).
 
 Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
-Order: section 2 (Debian package) is next, then the features from section
-3 on. Section 0 collects the follow-ups of the last review, small enough to
-take up at any time.
+Order: the features from section 3 on. Section 0 collects the follow-ups of
+the last review, small enough to take up at any time.
 
 Each feature item (sections 3–8) also needs what `CLAUDE.md` lists under
 "Adding things" (validators, parsers and tests, cache invalidation,
@@ -18,7 +17,7 @@ translations, README and `CHANGELOG.md` entries) and a check on the test DC
 
 ## Where things stand
 
-Updated on 2026-10-22.
+Updated on 2026-10-23.
 
 - Features: users, groups, computers, home directories (H:), shared folders
   with POSIX ACLs and drive mapping through the "Cockpit - Mapped drives"
@@ -27,8 +26,13 @@ Updated on 2026-10-22.
   comes from the git tag (`scripts/version.mjs`, shown next to the page
   title); `make release VERSION=x.y.z` dates `CHANGELOG.md`, commits and
   tags; pushing the tag runs `.github/workflows/release.yml`, which
-  publishes the built module as `cockpit-samba-dc-X.Y.Z.tar.gz`. Rule and
-  procedure: README, "Versions and releases". No Debian package yet.
+  publishes the built module as `cockpit-samba-dc-X.Y.Z.tar.gz` and
+  `cockpit-samba-dc_X.Y.Z_all.deb`. Rule and procedure: README, "Versions
+  and releases".
+- Debian package (section 2): `debian/` packages the built `dist/`; `make
+  deb` builds it in a Debian 13 container and runs `lintian`; `lab.sh
+  deploy` installs it on the test DC. Its first run on GitHub is at the
+  next tag.
 - Before that: a review of the code base and its fixes (commit `c28e04c`),
   checked on the test DC and Windows client; what was left open is in
   section 0.
@@ -39,8 +43,8 @@ Updated on 2026-10-22.
 
 To resume: read `CLAUDE.md`, run `npm install && make check && npx tsc
 --noEmit`; for anything touching `src/lib/`, follow the workflow of skill
-`vm-lab` (`test/vm/lab.sh reset`, `start dc`, `deploy`). Next step: the
-first decision of section 2, how the package gets its `node_modules`.
+`vm-lab` (`test/vm/lab.sh reset`, `start dc`, `deploy`). Next step:
+section 3, account lockout and expiry.
 
 ## 0. Follow-ups of the October 2026 review
 
@@ -102,36 +106,35 @@ workflow publishes. The first release is `v0.1.0`.
 - [ ] Update the "Supported versions" table in `SECURITY.md` when it stops
       being just `0.x`
 
-## 2. Debian package (top priority)
+## 2. Debian package (done)
 
-The version comes from section 1 (the git tag). Today the module is
-installed with `sudo make install`, from the release tarball (README,
-"Installation") or, on the test DC, with `test/vm/lab.sh deploy`; there is
-no `debian/` directory and no `deb` target.
+Done: the package carries the `dist/` built by `make build` (or by the
+release workflow), since a Debian build environment does not download npm
+dependencies. README, "Installation" and "Versions and releases".
 
-- [ ] **Add a tracked `debian/` directory**
-  - [ ] `control` — binary package `cockpit-samba-dc`, `Architecture: all`,
-        `Depends:` on `cockpit`, `samba` and `acl` (check the exact package
-        names and minimum versions on Debian 13)
-  - [ ] `changelog` — generated or bumped from the git tag, not written by hand
-  - [ ] `rules` — build with `make build`, install into
+- [x] **Add a tracked `debian/` directory**
+  - [x] `control` — binary package `cockpit-samba-dc`, `Architecture: all`,
+        `Depends:` `cockpit-bridge (>= 337)`, `samba-ad-dc (>= 2:4.22)`,
+        `samba-common-bin`, `ldb-tools`, `acl` (checked on Debian 13)
+  - [x] `changelog` — generated from the git tag (`scripts/debian.mjs`), not tracked
+  - [x] `rules` — copy the built `dist/` into
         `/usr/share/cockpit/samba-dc`
-  - [ ] `copyright` (LGPL-2.1-or-later) and `source/format`
-- [ ] **Decide how `node_modules` is provided at build time** — the build
+  - [x] `copyright` (LGPL-2.1-or-later) and `source/format`
+- [x] **Decide how `node_modules` is provided at build time** — the build
       needs npm dependencies, which a clean Debian build environment does not
-      download; either package the `dist/` that the release workflow already
-      builds (the tarball of each GitHub release), or document that the
-      package is built with network access
-- [ ] **Add a `deb` target to the tracked `Makefile`**, and have `lab.sh`
+      download; the package carries the `dist/` built beforehand, the same
+      one as the release tarball
+- [x] **Add a `deb` target to the tracked `Makefile`**, and have `lab.sh`
       install the package on the test DC instead of copying `dist/`
-- [ ] **Clean upgrade path** — the package must replace a previous
+- [x] **Clean upgrade path** — the package must replace a previous
       `make install` or `lab.sh deploy` in the same directory without
       leaving stale files
-- [ ] **Build the `.deb` in CI** and attach it to the GitHub release, in
-      `.github/workflows/release.yml` next to the tarball
-- [ ] **Check the result** — `lintian`, then install, upgrade and remove on
+- [x] **Build the `.deb` in CI** and attach it to the GitHub release, in
+      `.github/workflows/release.yml` next to the tarball (also built and
+      linted by `ci.yml` on every push)
+- [x] **Check the result** — `lintian`, then install, upgrade and remove on
       the test DC (skill `vm-lab`)
-- [ ] Update the README installation section with the `.deb` instructions
+- [x] Update the README installation section with the `.deb` instructions
 - [?] RPM package for Fedora/RHEL-based servers — future implementation to be
       decided
 

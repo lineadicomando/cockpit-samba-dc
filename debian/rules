@@ -1,0 +1,31 @@
+#!/usr/bin/make -f
+# The package carries the module as `make build` leaves it in dist/: the
+# build needs npm dependencies, which a Debian build environment does not
+# download, so dist/ is built beforehand (`make deb`, or the release
+# workflow) and only copied here.
+
+# Where the .deb goes; `make deb` sets it to build/.
+DEB_OUT ?= ..
+
+%:
+	dh $@
+
+# The upstream Makefile would delete dist/, rebuild it with Node.js and run
+# the unit tests: none of that belongs to packaging.
+override_dh_auto_clean:
+
+override_dh_auto_build:
+	@test -f dist/manifest.json || { echo "dist/ is missing: run make build first, or make deb" >&2; exit 1; }
+
+override_dh_auto_test:
+
+override_dh_auto_install:
+	install -d debian/cockpit-samba-dc/usr/share/cockpit/samba-dc
+	cp -r dist/. debian/cockpit-samba-dc/usr/share/cockpit/samba-dc/
+
+# CHANGELOG.md is not a Debian changelog: install it as a document.
+override_dh_installchangelogs:
+	dh_installchangelogs -XCHANGELOG.md
+
+override_dh_builddeb:
+	dh_builddeb --destdir=$(DEB_OUT) -- -Zxz

@@ -17,7 +17,7 @@ test/vm/lab.sh reset                  # both back to lab_baseline, shut off
 test/vm/lab.sh resources dc win       # would they fit on the host now?
 test/vm/lab.sh start dc               # refuses when the host is short
 test/vm/lab.sh wait dc                # until SSH answers
-test/vm/lab.sh deploy                 # build, install in /usr/share/cockpit/samba-dc
+test/vm/lab.sh deploy                 # make deb, install the package on the DC
 test/vm/lab.sh root 'samba-tool user list' </dev/null
 test/vm/lab.sh ssh win 'Get-ComputerInfo -Property CsDomain'
 test/vm/lab.sh stop win
@@ -114,8 +114,10 @@ afterwards (`reset` removes it too). At the end: log out ("Sessione" →
   task (see `build-win.sh`).
 - `qga.py VM [--stdin] CMD…` runs a command in the DC through the guest
   agent, with no network (the Windows client has no agent).
-- `deploy` also removes copies in users' `~/.local/share/cockpit` and under
-  the pre-rename name `samba-ad-dc`, which would shadow the installed one.
+- `deploy` builds the Debian package (`make deb`, a podman container) and
+  installs it with apt, which also replaces a copy made by hand; it removes
+  copies in users' `~/.local/share/cockpit` and under the pre-rename name
+  `samba-ad-dc`, which would shadow the installed one.
   Compare the two checksums it prints; then reload the Cockpit page (F5).
 - Wait for a condition, not a fixed time: `until lab.sh ssh win '…' | grep
   -q …; do sleep 5; done`.

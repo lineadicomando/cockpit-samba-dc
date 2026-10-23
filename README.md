@@ -41,36 +41,44 @@ Cockpit module for managing a Samba Active Directory Domain Controller via `samb
 - `setfacl` (package `acl`) on the server, for shared-folder permissions
 - Node.js ≥ 18 on the development machine
 - npm (bundled with Node.js)
+- podman or docker, to build the Debian package (`make deb`)
 
 ## Installation
 
+On Debian 13, install the package attached to each release on the
+[Releases page](https://github.com/lineadicomando/cockpit-samba-dc/releases)
+(from the release after 0.1.0), `cockpit-samba-dc_X.Y.Z_all.deb`; apt brings
+in what it needs (`cockpit-bridge`, `samba-ad-dc`, `ldb-tools`, `acl`):
+
 ```bash
-
-# Clone repository
-git clone https://github.com/lineadicomando/cockpit-samba-dc.git
-cd cockpit-samba-dc
-
-# Install dependencies
-npm install
-
-# Build and install into production Cockpit extensions directory
-sudo make install
+sudo apt install ./cockpit-samba-dc_X.Y.Z_all.deb
 ```
 
-This installs the module to:
-`/usr/share/cockpit/samba-dc`
+Upgrade the same way, with the newer package; `sudo apt remove
+cockpit-samba-dc` removes the module. On first install the package replaces
+a copy made by hand in `/usr/share/cockpit/samba-dc` (`make install` or the
+tarball below). A copy in a user's `~/.local/share/cockpit/samba-dc` (`make
+devel-install`) still hides the installed module from that user: remove it.
 
-Each release on the
-[Releases page](https://github.com/lineadicomando/cockpit-samba-dc/releases)
-also has the built module, `cockpit-samba-dc-X.Y.Z.tar.gz`, which needs no
-Node.js on the server:
+Each release also has the built module, `cockpit-samba-dc-X.Y.Z.tar.gz`, for
+other distributions; it needs no Node.js on the server:
 
 ```bash
 sudo rm -rf /usr/share/cockpit/samba-dc
 sudo tar -C /usr/share/cockpit -xzf cockpit-samba-dc-X.Y.Z.tar.gz
 ```
 
-The installed version is shown next to the page title.
+Or build it from the sources:
+
+```bash
+git clone https://github.com/lineadicomando/cockpit-samba-dc.git
+cd cockpit-samba-dc
+npm install
+sudo make install
+```
+
+Either way the module is in `/usr/share/cockpit/samba-dc`, and the
+installed version is shown next to the page title.
 
 ## Development
 
@@ -89,6 +97,9 @@ make devel-install
 
 # Run unit tests
 make check
+
+# Debian package in build/ (Debian 13 container: podman or docker)
+make deb
 
 # Watch mode (auto-rebuild on save)
 make watch
@@ -120,7 +131,17 @@ git push origin main vX.Y.Z   # the tag starts the release workflow
 
 The release workflow checks the tag against `package.json` and
 `CHANGELOG.md`, builds and tests, and publishes a GitHub release with the
-built module and the changelog entries as notes.
+built module (tarball and Debian package) and the changelog entries as
+notes.
+
+The Debian package carries the `dist/` that `make build` produced: the
+build needs npm dependencies, which a Debian build environment does not
+download, so `debian/rules` only copies `dist/` into place. `make deb`
+builds `dist/`, writes `debian/changelog` from the tag (it is not tracked),
+and packages it in a Debian 13 container, where `lintian` checks the
+result; on Debian with `debhelper`, `make deb-changelog deb-binary` does the
+same without a container. A build between releases gets a version such as
+`0.2.0+3.gabc1234`, which sorts after `0.2.0` and before the next release.
 
 ## Files and shares on the server
 

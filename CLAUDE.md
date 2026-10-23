@@ -34,7 +34,9 @@ users, groups, computers, home directories; `shares.ts` shared folders;
 `cache.ts`, `hooks.ts`, `concurrency.ts`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
 `po/` and `src/locales/` translations, `scripts/` build and release
-helpers (`version.mjs` reads the version from the git tag).
+helpers (`version.mjs` reads the version from the git tag, `debian.mjs`
+turns it into the Debian version and `debian/changelog`), `debian/` the
+Debian package of the built `dist/`.
 
 ## Non-negotiable rules
 
@@ -108,6 +110,7 @@ make check              # unit tests (npm test: node --test with the cockpit moc
 npx tsc --noEmit        # type check (CI runs it before the build)
 make pot                # extract strings into src/locales/*/translation.json
 make po-compile         # po/it.po → src/locales/it/translation.json
+make deb                # Debian package in build/ (Debian 13 container, lintian)
 make devel-install      # symlink dist/ into ~/.local/share/cockpit/samba-dc
 sudo make install       # copy dist/ into /usr/share/cockpit/samba-dc
 make release VERSION=x.y.z  # commit and tag a release (README, "Versions and releases")

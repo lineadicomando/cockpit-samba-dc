@@ -5,3 +5,12 @@ Makefile.local
 CLAUDE.local.md
 .env
 __pycache__/
+build/
+debian/changelog
+debian/cockpit-samba-dc/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars
+debian/*.debhelper
+debian/*.debhelper.log
