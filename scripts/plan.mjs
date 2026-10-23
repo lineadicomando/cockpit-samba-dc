@@ -53,7 +53,8 @@ export function planRelease({ changelog, todo, released, requested }) {
     } else if (planned.length === 1 && planned[0] !== base) {
         problems.push(`TODO.md plans v${planned[0]}, the release would be v${base}` +
             (computed ? ` (CHANGELOG.md gives v${computed})` : "") +
-            ": change the plan in TODO.md, or the kinds of change in CHANGELOG.md");
+            ": change the plan in TODO.md or the kinds of change in CHANGELOG.md" +
+            (requested ? "" : `, or give VERSION=${planned[0]} if the plan goes higher on purpose`));
     } else if (planned.length === 0 && numbers(base)[2] === 0) {
         problems.push(`v${base} has new features but TODO.md does not plan it: end the heading of its sections with "— v${base}"`);
     }

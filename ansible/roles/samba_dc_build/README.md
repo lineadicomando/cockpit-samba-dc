@@ -12,7 +12,7 @@ Full provisioning of a **Samba 4 Active Directory Domain Controller** on Debian 
 6. **Firewall** — configures nftables, opening only the ports required by AD (DNS, Kerberos, LDAP, RPC, SMB) plus SSH and Cockpit (9090)
 7. **Services** — enables `samba-ad-dc` and `cockpit`, configures chrony as authoritative NTP for the domain
 8. **Admin user** — creates/configures the AD administrator account
-9. **Cockpit plugin** — installs [cockpit-samba-dc](https://github.com/lineadicomando/cockpit-samba-dc) for browser-based domain management
+9. **Cockpit plugin** — installs [cockpit-samba-dc](https://github.com/lineadicomando/cockpit-samba-dc) for browser-based domain management, from the Debian package of the release that matches this collection
 
 Networking is configured **before** the domain is provisioned, and the address is
 passed explicitly to `samba-tool domain provision` (`--host-ip`): the provisioning
@@ -54,9 +54,15 @@ Host-specific variables are mandatory and must be defined in `host_vars/<hostnam
 | `samba_dc_build_extra_packages` | see `defaults/` | Convenience tooling; safe to set to `[]` |
 | `samba_dc_build_firewall_ssh_sources` | `[]` | Source networks allowed to reach SSH (empty = any) |
 | `samba_dc_build_firewall_cockpit_sources` | `[]` | Source networks allowed to reach Cockpit (empty = any) |
-| `samba_dc_build_cockpit_repo` | upstream URL | Git repository of the Cockpit plugin |
-| `samba_dc_build_cockpit_version` | `HEAD` | Git revision to build; pin it for reproducible builds |
-| `samba_dc_build_cockpit_src` | `/usr/local/src/cockpit-samba-dc` | Working copy path for the plugin build |
+| `samba_dc_build_cockpit_install` | `package` | `package`: the Debian package of a release, checksum verified; `source`: a git revision built on the DC (development); `none` |
+| `samba_dc_build_cockpit_version` | this collection's version | Release installed by `package` (`X.Y.Z`) |
+| `samba_dc_build_cockpit_package_url` | the GitHub release | URL of the package |
+| `samba_dc_build_cockpit_package_checksum` | the release's `.sha256` | Checksum, as `ansible.builtin.get_url` takes it |
+| `samba_dc_build_cockpit_package_file` | `""` | A `.deb` on the controller instead of the download (sites without Internet access) |
+| `samba_dc_build_cockpit_package_dir` | `/var/cache/cockpit-samba-dc` | Where the package is kept on the DC |
+| `samba_dc_build_cockpit_repo` | upstream URL | Git repository built by `source` |
+| `samba_dc_build_cockpit_source_version` | `main` | Git revision built by `source` |
+| `samba_dc_build_cockpit_src` | `/usr/local/src/cockpit-samba-dc` | Working copy of `source`; removed by `package` |
 
 ### The administrator password
 

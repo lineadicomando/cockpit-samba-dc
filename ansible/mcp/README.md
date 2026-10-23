@@ -55,7 +55,7 @@ fails asking for one.
   "mcpServers": {
     "samba-dc": {
       "command": "python3",
-      "args": ["/path/to/ansible-collection-samba_dc/mcp/server.py"],
+      "args": ["/path/to/cockpit-samba-dc/ansible/mcp/server.py"],
       "env": {
         "ANSIBLE_PROJECT_ROOT": "/path/to/your/ansible/project",
         "ANSIBLE_MCP_INVENTORY": "/path/to/your/ansible/project/inventory.yaml"

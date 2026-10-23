@@ -1,9 +1,9 @@
 # lineadicomando.samba_dc
 
-[![GitHub tag](https://img.shields.io/github/v/tag/lineadicomando/ansible-collection-samba_dc?label=version)](https://github.com/lineadicomando/ansible-collection-samba_dc/tags)
+[![GitHub tag](https://img.shields.io/github/v/tag/lineadicomando/cockpit-samba-dc?label=version)](https://github.com/lineadicomando/cockpit-samba-dc/releases)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](./LICENSE)
-[![CI](https://github.com/lineadicomando/ansible-collection-samba_dc/actions/workflows/ci.yml/badge.svg)](https://github.com/lineadicomando/ansible-collection-samba_dc/actions/workflows/ci.yml)
-[![GitHub issues](https://badgen.net/github/open-issues/lineadicomando/ansible-collection-samba_dc)](https://github.com/lineadicomando/ansible-collection-samba_dc/issues)
+[![CI](https://github.com/lineadicomando/cockpit-samba-dc/actions/workflows/ci.yml/badge.svg)](https://github.com/lineadicomando/cockpit-samba-dc/actions/workflows/ci.yml)
+[![GitHub issues](https://badgen.net/github/open-issues/lineadicomando/cockpit-samba-dc)](https://github.com/lineadicomando/cockpit-samba-dc/issues)
 
 Ansible collection that provisions a **Samba 4 Active Directory Domain Controller** on Debian Trixie and makes it manageable from a browser — no CLI required for day-to-day operations.
 
@@ -78,9 +78,39 @@ Read-only actions (`list`, `show`, `listmembers`, `listobjects`) never change st
 
 ## Installation
 
-```bash
-ansible-galaxy collection install lineadicomando.samba_dc
+The collection lives in the `ansible/` directory of
+[cockpit-samba-dc](https://github.com/lineadicomando/cockpit-samba-dc) and
+shares its version: release `vX.Y.Z` of the repository is collection
+`X.Y.Z`, and its `samba_dc_build` installs the Cockpit page of the same
+release. It is not published on Ansible Galaxy; install it from git, pinned
+to a release:
+
+```yaml
+# requirements.yml
+collections:
+  - name: git+https://github.com/lineadicomando/cockpit-samba-dc.git#/ansible/
+    type: git
+    version: v0.8.0
 ```
+
+```bash
+ansible-galaxy collection install -r requirements.yml
+```
+
+Each GitHub release also carries the built collection,
+`lineadicomando-samba_dc-X.Y.Z.tar.gz`, for `ansible-galaxy collection
+install <file>`.
+
+### Coming from ansible-collection-samba_dc
+
+Up to 0.7.0 the collection had its own repository,
+`ansible-collection-samba_dc`, which is no longer updated. Point
+`requirements.yml` at the `ansible/` directory of cockpit-samba-dc as above,
+and the MCP client configuration at `ansible/mcp/server.py` in a checkout of
+it. In `samba_dc_build`, `samba_dc_build_cockpit_version` is now the release
+of the Cockpit page to install (`X.Y.Z`); a git revision to build goes into
+`samba_dc_build_cockpit_source_version`, with
+`samba_dc_build_cockpit_install: source`.
 
 ### Coming from 0.6.0: Windows roles moved to win_workman
 
@@ -111,7 +141,7 @@ redirect from the old name:
 
 - replace `lineadicomando.samba_ad_dc.` with `lineadicomando.samba_dc.` in the
   FQCN of roles, modules and playbooks; their own names did not change
-- point `requirements.yaml` at `ansible-collection-samba_dc` and remove the
+- point `requirements.yaml` at this collection (see "Installation") and remove the
   installed `ansible_collections/lineadicomando/samba_ad_dc`
 - in the MCP client configuration the server is `samba-dc` and its script lives
   under the new repository path

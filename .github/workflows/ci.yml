@@ -34,3 +34,55 @@ jobs:
         env:
           CONTAINER: docker
         run: make deb-package
+
+  # The Ansible collection, in ansible/
+  ansible-lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install ansible-core and ansible-lint
+        run: pip install "ansible-core~=2.20.0" "ansible-lint~=26.4"
+
+      - name: Install collection dependencies
+        run: ansible-galaxy collection install community.general
+
+      - name: Run ansible-lint
+        run: ansible-lint
+        working-directory: ansible
+
+  ansible-test:
+    name: Ansible ${{ matrix.test }} (ansible-core ${{ matrix.ansible }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ["2.19", "2.20"]
+        test: [sanity, units]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: src
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core~=${{ matrix.ansible }}.0"
+
+      # ansible-test wants the collection in an
+      # ansible_collections/<namespace>/<name> directory.
+      - name: Place the collection
+        run: |
+          mkdir -p ansible_collections/lineadicomando
+          cp -a src/ansible ansible_collections/lineadicomando/samba_dc
+
+      - name: Run ansible-test ${{ matrix.test }}
+        run: ansible-test ${{ matrix.test }} --docker --color
+        working-directory: ansible_collections/lineadicomando/samba_dc

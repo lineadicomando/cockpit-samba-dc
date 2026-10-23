@@ -22,7 +22,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      - name: Check the tag against package.json and CHANGELOG.md
+      - name: Check the tag against package.json, the collection and CHANGELOG.md
         run: node scripts/release.mjs verify "$GITHUB_REF_NAME"
 
       - name: Install dependencies
@@ -71,6 +71,16 @@ jobs:
           sha256sum "$deb" > "$deb.sha256"
           echo "DEB=$deb" >> "$GITHUB_ENV"
 
+      - name: Ansible collection
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          pip install "ansible-core~=2.20.0"
+          ansible-galaxy collection build ansible --output-path .
+          collection="lineadicomando-samba_dc-$version.tar.gz"
+          test -f "$collection" || { echo "expected $collection" >&2; ls *.tar.gz >&2; exit 1; }
+          sha256sum "$collection" > "$collection.sha256"
+          echo "COLLECTION=$collection" >> "$GITHUB_ENV"
+
       - name: Publish the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,4 +90,5 @@ jobs:
           gh release create "$GITHUB_REF_NAME" $prerelease \
             --title "cockpit-samba-dc ${GITHUB_REF_NAME#v}" \
             --notes-file release-notes.md \
-            "$ARCHIVE" "$ARCHIVE.sha256" "$DEB" "$DEB.sha256"
+            "$ARCHIVE" "$ARCHIVE.sha256" "$DEB" "$DEB.sha256" \
+            "$COLLECTION" "$COLLECTION.sha256"

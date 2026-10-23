@@ -20,9 +20,9 @@ tags:
   - cockpit
   - windows
   - debian
-repository: https://github.com/lineadicomando/ansible-collection-samba_dc
-homepage: https://github.com/lineadicomando/ansible-collection-samba_dc
-issues: https://github.com/lineadicomando/ansible-collection-samba_dc/issues
+repository: https://github.com/lineadicomando/cockpit-samba-dc
+homepage: https://github.com/lineadicomando/cockpit-samba-dc
+issues: https://github.com/lineadicomando/cockpit-samba-dc/issues
 
 dependencies:
   community.general: ">=7.0.0"

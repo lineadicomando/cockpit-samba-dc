@@ -5,5 +5,5 @@ exclude_paths:
   - .ansible/ # locally installed copy of this collection
 
 skip_list:
-  - latest[git]  # cockpit-samba-dc is intentionally pulled from main branch
-  - galaxy[no-changelog]  # the git history is the changelog
+  - latest[git]  # samba_dc_build_cockpit_install: source builds a branch on purpose
+  - galaxy[no-changelog]  # the changes are in CHANGELOG.md at the repository root

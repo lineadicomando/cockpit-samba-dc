@@ -1,13 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SEMVER, buildVersion, versionFromDescribe } from "../scripts/version.mjs";
 import { changelogSection, releaseChangelog, changeKinds, nextVersion } from "../scripts/changelog.mjs";
 import { todoSections, plannedVersions, openItems } from "../scripts/todo.mjs";
 import { planRelease, compareVersions } from "../scripts/plan.mjs";
+import { galaxyVersion, setGalaxyVersion, cockpitVersion, setCockpitVersion } from "../scripts/collection.mjs";
 
 const CHANGELOG = `# Changelog
 
@@ -190,7 +191,8 @@ const TODO = `# TODO
 
 ## 4. Password policy
 
-- [ ] Edit the policy
+- [ ] Edit the policy, with
+      every field
 
 | [?] | \`drs\` | Left out |
 `;
@@ -214,6 +216,7 @@ describe("TODO.md plan", () => {
     it("lists the open items of a planned version, nested ones too", () => {
         assert.deepEqual(openItems(TODO, "0.2.0"), ["3. Lockout: Bulk action"]);
         assert.deepEqual(openItems(TODO, "0.1.0"), []);
+        assert.deepEqual(todoSections(TODO)[3].open, ["Edit the policy, with every field"]);
     });
 });
 
@@ -271,5 +274,30 @@ describe("compareVersions", () => {
     it("compares numerically", () => {
         assert.ok(compareVersions("0.10.0", "0.9.1") > 0);
         assert.equal(compareVersions("1.0.0-rc.1", "1.0.0"), 0);
+    });
+});
+
+describe("collection version", () => {
+    const galaxy = "namespace: lineadicomando\nname: samba_dc\nversion: 0.7.0\nreadme: README.md\n";
+    const defaults = "samba_dc_build_cockpit_install: package\n# comment\nsamba_dc_build_cockpit_version: \"0.2.1\"\nother: 1\n";
+
+    it("reads and writes galaxy.yml", () => {
+        assert.equal(galaxyVersion(galaxy), "0.7.0");
+        const out = setGalaxyVersion(galaxy, "0.3.0");
+        assert.equal(out, galaxy.replace("version: 0.7.0", "version: 0.3.0"));
+    });
+
+    it("reads and writes the release samba_dc_build installs", () => {
+        assert.equal(cockpitVersion(defaults), "0.2.1");
+        assert.equal(setCockpitVersion(defaults, "0.3.0"), defaults.replace('"0.2.1"', '"0.3.0"'));
+    });
+
+    it("matches the files of the repository", () => {
+        assert.match(galaxyVersion(readFileSync("ansible/galaxy.yml", "utf8")), /^\d+\.\d+\.\d+$/);
+        assert.match(cockpitVersion(readFileSync("ansible/roles/samba_dc_build/defaults/main.yaml", "utf8")), /^\d+\.\d+\.\d+$/);
+    });
+
+    it("refuses a file without a version line", () => {
+        assert.throws(() => galaxyVersion("name: x\n"), /no version line/);
     });
 });

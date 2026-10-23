@@ -96,15 +96,44 @@ argument_specs:
         type: list
         elements: str
         default: []
+      samba_dc_build_cockpit_install:
+        description:
+          - How to install the cockpit-samba-dc page. V(package) installs the
+            Debian package of a release, checksum verified; V(source) builds a
+            git revision on the DC (needs nodejs and npm, for development);
+            V(none) installs nothing.
+        type: str
+        choices: [package, source, none]
+        default: package
+      samba_dc_build_cockpit_version:
+        description:
+          - Release of cockpit-samba-dc to install with O(samba_dc_build_cockpit_install=package),
+            as X.Y.Z. Defaults to the version of this collection.
+        type: str
+        default: "0.2.1"
+      samba_dc_build_cockpit_package_url:
+        description: URL of the Debian package; defaults to the GitHub release of O(samba_dc_build_cockpit_version).
+        type: str
+      samba_dc_build_cockpit_package_checksum:
+        description: Checksum of the package, in the form accepted by M(ansible.builtin.get_url); defaults to the C(.sha256) file of the release.
+        type: str
+      samba_dc_build_cockpit_package_file:
+        description: Path on the controller of a Debian package to install instead of the download, for sites without Internet access.
+        type: path
+        default: ""
+      samba_dc_build_cockpit_package_dir:
+        description: Directory on the DC where the package is kept.
+        type: path
+        default: /var/cache/cockpit-samba-dc
       samba_dc_build_cockpit_repo:
-        description: Git repository of the cockpit-samba-dc plugin.
+        description: Git repository built with O(samba_dc_build_cockpit_install=source).
         type: str
         default: https://github.com/lineadicomando/cockpit-samba-dc.git
-      samba_dc_build_cockpit_version:
-        description: Git revision to build. Pin to a tag or commit for reproducible builds.
+      samba_dc_build_cockpit_source_version:
+        description: Git revision built with O(samba_dc_build_cockpit_install=source).
         type: str
-        default: HEAD
+        default: main
       samba_dc_build_cockpit_src:
-        description: Working copy path for the plugin build.
+        description: Working copy path for a build from source; removed when the package is installed.
         type: path
         default: /usr/local/src/cockpit-samba-dc

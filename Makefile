@@ -47,7 +47,7 @@ po-compile: ## Compile po/it.po → src/locales/it/translation.json
 	npm run po-compile
 
 next-version: ## Version of the next release, from CHANGELOG.md checked against TODO.md
-	node scripts/release.mjs next
+	node scripts/release.mjs next "$(VERSION)"
 
 release: ## Commit and tag the next release (VERSION=x.y.z only to go higher); nothing is pushed
 	node scripts/release.mjs prepare "$(VERSION)"

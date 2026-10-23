@@ -1,13 +1,14 @@
 // Release helper.
 //
-//   node scripts/release.mjs next          (make next-version)
+//   node scripts/release.mjs next [X.Y.Z]  (make next-version [VERSION=X.Y.Z])
 //       The version of the next release: computed from the kinds of change
 //       under [Unreleased] in CHANGELOG.md, checked against the plan in
 //       TODO.md (see scripts/plan.mjs).
 //   node scripts/release.mjs prepare [X.Y.Z]   (make release [VERSION=X.Y.Z])
 //       On a clean main, when the plan has no problems: run the checks, date
 //       the Unreleased changes in CHANGELOG.md, set the version in
-//       package.json, commit, tag vX.Y.Z. Nothing is pushed. X.Y.Z, when
+//       package.json and in the Ansible collection (scripts/collection.mjs),
+//       commit, tag vX.Y.Z. Nothing is pushed. X.Y.Z, when
 //       given, may only be higher than the computed version (e.g. 1.0.0).
 //   node scripts/release.mjs verify vX.Y.Z
 //       The tag matches package.json and CHANGELOG.md (release workflow).
@@ -18,6 +19,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { changelogSection, releaseChangelog } from "./changelog.mjs";
 import { SEMVER, packageVersion } from "./version.mjs";
 import { planRelease } from "./plan.mjs";
+import { GALAXY, COCKPIT_DEFAULTS, galaxyVersion, setGalaxyVersion, cockpitVersion, setCockpitVersion } from "./collection.mjs";
 
 const CHANGELOG = "CHANGELOG.md";
 const TODO = "TODO.md";
@@ -52,8 +54,8 @@ function plan(requested) {
     });
 }
 
-function next() {
-    const p = plan(undefined);
+function next(requested) {
+    const p = plan(requested);
     console.log(`last release: v${p.current}`);
     console.log(`CHANGELOG.md: ${p.computed ? `v${p.computed}` : "-"}`);
     console.log(`TODO.md plan: ${p.planned.length ? p.planned.map((v) => `v${v}`).join(", ") : "-"}`);
@@ -62,7 +64,7 @@ function next() {
         for (const problem of p.problems) console.log(`  - ${problem}`);
         process.exit(1);
     }
-    console.log(`ready: make release (v${p.version})`);
+    console.log(`ready: make release${requested ? ` VERSION=${requested}` : ""} (v${p.version})`);
 }
 
 function prepare(requested) {
@@ -88,11 +90,13 @@ function prepare(requested) {
     run("npm", ["test"], { stdio: "inherit" });
 
     writeFileSync(CHANGELOG, changelog);
+    writeFileSync(GALAXY, setGalaxyVersion(readFileSync(GALAXY, "utf8"), version));
+    writeFileSync(COCKPIT_DEFAULTS, setCockpitVersion(readFileSync(COCKPIT_DEFAULTS, "utf8"), version));
     if (packageVersion(".") !== version) {
         // Updates package.json and package-lock.json together.
         run("npm", ["version", version, "--no-git-tag-version"], { stdio: "ignore" });
     }
-    run("git", ["add", CHANGELOG, "package.json", "package-lock.json"]);
+    run("git", ["add", CHANGELOG, "package.json", "package-lock.json", GALAXY, COCKPIT_DEFAULTS]);
     run("git", ["commit", "--quiet", "-m", `Release ${tag}`]);
     run("git", ["tag", "--annotate", tag, "-m", `cockpit-samba-dc ${version}`]);
     console.log(`release: committed and tagged ${tag}. Publish with:\n  git push origin main ${tag}`);
@@ -104,6 +108,10 @@ function verify(tag) {
     checkVersion(version);
     const pkg = packageVersion(".");
     if (pkg !== version) fail(`package.json has version ${pkg}, the tag ${tag}`);
+    const galaxy = galaxyVersion(readFileSync(GALAXY, "utf8"));
+    if (galaxy !== version) fail(`${GALAXY} has version ${galaxy}, the tag ${tag}`);
+    const cockpit = cockpitVersion(readFileSync(COCKPIT_DEFAULTS, "utf8"));
+    if (cockpit !== version) fail(`${COCKPIT_DEFAULTS} installs cockpit-samba-dc ${cockpit}, the tag is ${tag}`);
     const notes = changelogSection(readFileSync(CHANGELOG, "utf8"), version);
     if (!notes) fail(`CHANGELOG.md has no entries for ${version}`);
 }
@@ -117,9 +125,9 @@ function notes(version) {
 
 const [command, arg] = process.argv.slice(2);
 switch (command) {
-    case "next": next(); break;
+    case "next": next(arg); break;
     case "prepare": prepare(arg); break;
     case "verify": verify(arg); break;
     case "notes": notes(arg); break;
-    default: fail("usage: release.mjs next | prepare [X.Y.Z] | verify vX.Y.Z | notes X.Y.Z");
+    default: fail("usage: release.mjs next [X.Y.Z] | prepare [X.Y.Z] | verify vX.Y.Z | notes X.Y.Z");
 }

@@ -5,7 +5,9 @@
 [![CI](https://github.com/lineadicomando/cockpit-samba-dc/actions/workflows/ci.yml/badge.svg)](https://github.com/lineadicomando/cockpit-samba-dc/actions/workflows/ci.yml)
 [![open issues](https://badgen.net/github/open-issues/lineadicomando/cockpit-samba-dc)](https://github.com/lineadicomando/cockpit-samba-dc/issues)
 
-Cockpit module for managing a Samba Active Directory Domain Controller via `samba-tool`.
+Cockpit module for managing a Samba Active Directory Domain Controller via
+`samba-tool`, and the Ansible collection `lineadicomando.samba_dc` that
+provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.md)).
 
 ![Screenshot](docs/screenshot.png)
 
@@ -94,6 +96,27 @@ sudo make install
 
 Either way the module is in `/usr/share/cockpit/samba-dc`, and the
 installed version is shown next to the page title.
+
+## Ansible collection
+
+`ansible/` holds the collection `lineadicomando.samba_dc`: `samba_dc_build`
+provisions a Samba AD DC on Debian 13 and installs this module from its
+Debian package; `samba_tool`, `samba_share` and the other roles and modules
+manage users, groups, home directories and shared folders as the module
+does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
+an MCP server runs these playbooks for an MCP client. It has the version of
+the repository (collection `X.Y.Z` is release `vX.Y.Z`, whose
+`samba_dc_build` installs this module `X.Y.Z`), and is installed from git:
+
+```yaml
+# requirements.yml
+collections:
+  - name: git+https://github.com/lineadicomando/cockpit-samba-dc.git#/ansible/
+    type: git
+    version: v0.8.0
+```
+
+Roles, modules, variables and the MCP server: [`ansible/README.md`](ansible/README.md).
 
 ## Development
 
@@ -228,7 +251,9 @@ on its command line.
 ## License
 
 Same license as the Cockpit project: **GNU LGPL v2.1 or later** (`LGPL-2.1-or-later`).
-See [LICENSE](./LICENSE).
+See [LICENSE](./LICENSE). The Ansible collection in `ansible/` is under the
+**GNU GPL v3 or later** (`GPL-3.0-or-later`, [ansible/LICENSE](ansible/LICENSE));
+each file names its license in an SPDX header.
 
 ## Author
 

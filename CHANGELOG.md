@@ -8,6 +8,22 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- The Ansible collection `lineadicomando.samba_dc`, until 0.7.0 in its own
+  repository, is now in `ansible/` and has the version of the repository;
+  each release also carries the built collection
+  (`lineadicomando-samba_dc-X.Y.Z.tar.gz`).
+
+### Breaking
+
+- Collection: `samba_dc_build` installs the Cockpit page from the Debian
+  package of its own release, checksum verified, instead of building `main`
+  on the DC (`samba_dc_build_cockpit_install: package`, the default;
+  `source` and `none` are the alternatives). `samba_dc_build_cockpit_version`
+  is now that release (`X.Y.Z`); a git revision to build goes into
+  `samba_dc_build_cockpit_source_version`.
+
 ## [0.2.1] - 2026-10-23
 
 ### Fixed

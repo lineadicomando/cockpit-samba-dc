@@ -77,7 +77,7 @@ To resume:
    docker for `make deb` (the build image is made on first use).
 4. Next step: section A2.
 
-## A1. Windows roles and lab defaults out of the collection
+## A1. Windows roles and lab defaults out of the collection (done)
 
 In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
 `ansible-win_edulab`; nothing changes in this repository.
@@ -109,19 +109,24 @@ In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
       also carries the untagged 0.6.0); win_edulab pinned to both tags
       instead of `main`; CI green on both collections
 
-## A2. The collection in this repository — v0.3.0
+## A2. The collection in this repository — v0.8.0
 
-- [ ] Carry over the collection's open `TODO.md` items (the
-      `samba_tool_user` bugs, the sanity ignore files) into section 0, and
-      its changes since its last tag into `CHANGELOG.md`
-- [ ] `git subtree add --prefix=ansible` of the collection's `main`, with
+The first release with the collection is 0.8.0 for both: the collection was
+at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
+(`make release VERSION=0.8.0`).
+
+- [x] Carry over the collection's open `TODO.md` items (the
+      `samba_tool_user` bugs, the sanity ignore files) into section 0; it
+      had no change since its tag v0.7.0
+- [x] `git subtree add --prefix=ansible` of the collection at v0.7.0, with
       its history; `ansible/galaxy.yml` stays at the collection root
-- [ ] One version: `make release` writes it into `ansible/galaxy.yml`,
+- [x] One version: `make release` writes it into `ansible/galaxy.yml`,
       `release.mjs verify` checks it, `release.yml` builds the collection
       tarball (`ansible-galaxy collection build ansible`) and attaches it.
       Not published on Ansible Galaxy for now (to reconsider when the
-      project is more mature)
-- [ ] CI: the collection's jobs (ansible-lint, `ansible-test sanity` and
+      project is more mature). It also writes it into the release that
+      `samba_dc_build` installs (`scripts/collection.mjs`)
+- [x] CI: the collection's jobs (ansible-lint, `ansible-test sanity` and
       `units`, which need an `ansible_collections/lineadicomando/samba_dc`
       path) next to the existing ones
 - [ ] `samba_dc_build` installs the Cockpit page from the release of its own
@@ -129,9 +134,9 @@ In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
       (default), `source` (a git revision built on the DC, for development)
       or `none`; an optional URL or local path for sites without Internet
       access; it removes the working copy `/usr/local/src/cockpit-samba-dc`
-- [ ] Docs: a README section on the collection (installed from
-      `git+https://github.com/lineadicomando/cockpit-samba-dc.git#/ansible`:
-      check the exact `ansible-galaxy` syntax); `ansible/README.md` for
+- [x] Docs: a README section on the collection (installed from
+      `git+https://github.com/lineadicomando/cockpit-samba-dc.git#/ansible/`
+      with `version: vX.Y.Z`, tried with `ansible-galaxy`); `ansible/README.md` for
       Galaxy; the collection's rules in `CLAUDE.md` (ansible-lint as the
       gate, SPDX headers, variable names); one `CHANGELOG.md`; licenses per
       directory (`ansible/LICENSE`)
@@ -236,6 +241,22 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 - [ ] **Integration checks.** `test/vm/review-smoke.ts` covers only the review
       fixes; grow it into a suite run before each release (users, groups,
       home directories, shares, drive mapping), with cleanup of its data.
+- [ ] **Collection: `enable`, `disable` and `setprimarygroup` create a
+      missing user** (`ansible/roles/samba_tool/tasks/user.yaml`: every
+      action but `delete`/`absent` maps to `state: present`), so a typo in
+      the name provisions an account with a random password. Only
+      `create`/`present` may create; the others must fail on a missing user.
+      Goes away with `samba_tool_user` in A4 if that comes first
+- [ ] **Collection: `samba_tool_user` reads any `samba-tool` failure as
+      "no such user"** (`show()`), and goes on to create it: tell the
+      unknown-user message apart and fail with `rc`, `stdout`, `stderr`
+- [ ] **Collection: an empty DN can reach `ldbmodify`** after a user is
+      created and not read back (`set_primary_group()`): fail first, naming
+      the user
+- [ ] **Collection: `RETURN` of `samba_tool_user` documents `commands` as
+      returned only when changed**; it always is
+- [ ] **Collection: sanity ignore files for ansible-core 2.16–2.18**, below
+      `requires_ansible: ">=2.19.0"` and never run by CI: keep or delete
 - [ ] **Rebuild scripts.** `test/vm/build-dc.sh` and `build-win.sh` record
       steps that were run by hand; they have not run end to end yet. Do it
       at the next rebuild of the VMs (the Windows client is an evaluation

@@ -10,6 +10,13 @@ directories and shared folders, with network drives mapped through a GPO. It
 runs on the DC itself and drives the local tools (`samba-tool`, `ldbsearch`,
 `ldbmodify`, `net conf`, `testparm`, `setfacl`) as root through Cockpit.
 
+`ansible/` holds the Ansible collection `lineadicomando.samba_dc`, which
+provisions the DC (`samba_dc_build`, installing this module's package) and
+manages the same objects from playbooks, plus an MCP server that runs them.
+It has the version of the repository. Until the shared core of
+`docs/architecture.md` exists, the module and the collection each implement
+what they create on the server: a change there is made on both sides.
+
 Documents, each with one job; do not repeat one in another:
 
 - `README.md`: what the module does, how to install it, and what it creates
@@ -45,7 +52,9 @@ helpers (`version.mjs` reads the version from the git tag, `debian.mjs`
 turns it into the Debian version and `debian/changelog`, `plan.mjs`
 computes the next one from `CHANGELOG.md` and checks it against `TODO.md`),
 `debian/` the
-Debian package of the built `dist/`.
+Debian package of the built `dist/`, `ansible/` the collection (`roles/`,
+`plugins/modules/` and `module_utils/`, `playbooks/`, `mcp/`, `tests/`; its
+own `README.md` for its users).
 
 ## Non-negotiable rules
 
@@ -94,6 +103,17 @@ A change that breaks one of them needs the user's explicit agreement.
   conversation with the user in Italian.
 - Commits: short imperative subject, as in the history.
 
+The collection (`ansible/`):
+
+- `ansible-lint` with the `production` profile is the gate (`ansible/.ansible-lint`);
+  CI also runs `ansible-test sanity` and `units` on ansible-core 2.19 and 2.20.
+- Every file starts with an SPDX header, `GPL-3.0-or-later`.
+- Role variables carry the role name as prefix (`samba_dc_build_*`);
+  each role documents them in `README.md` and `meta/argument_specs.yaml`.
+- Modules support check mode and diff, run commands as argv lists, and keep
+  secrets out of argv and logs (`no_log`, stdin), as rules 1 and 2 ask of
+  `src/lib/`.
+
 ## Adding things
 
 Each new feature (see `TODO.md`) also needs:
@@ -124,6 +144,7 @@ make devel-install      # symlink dist/ into ~/.local/share/cockpit/samba-dc
 sudo make install       # copy dist/ into /usr/share/cockpit/samba-dc
 make next-version       # next version: CHANGELOG.md checked against the plan in TODO.md
 make release            # commit and tag it (README, "Versions and releases")
+(cd ansible && ansible-lint)  # the collection's gate
 ```
 
 Releases are made only when the user asks; pushing the tag publishes them.
@@ -170,9 +191,10 @@ Releases are made only when the user asks; pushing the tag publishes them.
 - Public on GitHub (`lineadicomando/cockpit-samba-dc`): every commit is
   public history. No secrets, passwords, or details of real (non-test)
   environments or of a developer's machines, in files or commit messages.
-- License: `LGPL-2.1-or-later`.
+- License: `LGPL-2.1-or-later`; `ansible/` is `GPL-3.0-or-later`.
 - CI: `.github/workflows/ci.yml` (Node.js 22: `npm ci`, type check, build,
-  tests, then `make deb-package` in a Debian 13 container with `lintian`);
-  `.github/workflows/release.yml` on `v*` tags publishes the tarball and the
-  `.deb`.
+  tests, then `make deb-package` in a Debian 13 container with `lintian`;
+  the collection's ansible-lint, sanity and unit tests);
+  `.github/workflows/release.yml` on `v*` tags publishes the tarball, the
+  `.deb` and the collection.
 - Never commit, push or create remote repositories unless asked.

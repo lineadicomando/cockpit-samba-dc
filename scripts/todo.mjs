@@ -10,6 +10,7 @@ const OPEN_ITEM = /^\s*- \[ \] (.+)$/;
 export function todoSections(text) {
     const sections = [];
     let current = null;
+    let item = null; // index of the open item a continuation line belongs to
     for (const line of text.split("\n")) {
         const heading = SECTION.exec(line);
         if (heading) {
@@ -20,10 +21,18 @@ export function todoSections(text) {
                 open: [],
             };
             sections.push(current);
+            item = null;
             continue;
         }
-        const item = current && OPEN_ITEM.exec(line);
-        if (item) current.open.push(item[1].replace(/\*\*/g, "").trim());
+        const open = current && OPEN_ITEM.exec(line);
+        if (open) {
+            current.open.push(open[1].replace(/\*\*/g, "").trim());
+            item = current.open.length - 1;
+        } else if (item !== null && /^\s{2,}\S/.test(line) && !/^\s*- \[/.test(line)) {
+            current.open[item] += " " + line.trim().replace(/\*\*/g, "");
+        } else {
+            item = null;
+        }
     }
     return sections;
 }
