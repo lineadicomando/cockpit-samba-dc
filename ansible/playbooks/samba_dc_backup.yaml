@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Dispatcher for Samba DC backup and restore operations.
+# Invokable by FQCN: ansible-playbook lineadicomando.samba_dc.samba_dc_backup
+#
+#   ansible-playbook lineadicomando.samba_dc.samba_dc_backup \
+#     -e '{"target_hosts":"samba_dc","samba_dc_backup_action":"backup",
+#          "samba_dc_backup_targetdir":"/srv/backups"}'
+#
+# target_hosts: limit execution to specific hosts/groups (default: samba_dc)
+
+- name: Samba DC backup/restore dispatcher
+  hosts: "{{ target_hosts | default('samba_dc') }}"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Run samba_dc_backup
+      ansible.builtin.import_role:
+        name: lineadicomando.samba_dc.samba_dc_backup

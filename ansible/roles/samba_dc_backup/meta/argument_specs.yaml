@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+argument_specs:
+  main:
+    short_description: Backup and restore a Samba AD DC
+    description:
+      - Backs up the Samba domain (via samba-tool domain backup) and/or user
+        files (as a tar.gz archive) into a target directory.
+      - Restores a domain from a backup archive produced by the backup action.
+    options:
+      samba_dc_backup_action:
+        description: Operation to perform.
+        type: str
+        required: true
+        choices: [backup, restore]
+
+      # ── Backup ──────────────────────────────────────────────────────────────
+      samba_dc_backup_targetdir:
+        description: Directory where backup archives are written. Required for backup.
+        type: str
+      samba_dc_backup_domain:
+        description: Include a domain backup via samba-tool domain backup.
+        type: bool
+        default: true
+      samba_dc_backup_domain_type:
+        description: Domain backup method.
+        type: str
+        default: offline
+        choices: [online, offline]
+      samba_dc_backup_domain_server:
+        description: DC to contact for online backups.
+        type: str
+        default: localhost
+      samba_dc_backup_domain_username:
+        description: Username for authenticated online backups.
+        type: str
+      samba_dc_backup_domain_password:
+        description: Password for authenticated online backups.
+        type: str
+        no_log: true
+      samba_dc_backup_files:
+        description: Include a tar.gz archive of samba_dc_backup_files_paths.
+        type: bool
+        default: true
+      samba_dc_backup_files_paths:
+        description: List of filesystem paths to include in the files archive.
+        type: list
+        elements: str
+        default: [/home, /srv/samba]
+
+      # ── Restore ─────────────────────────────────────────────────────────────
+      samba_dc_backup_restore_backup_file:
+        description: Domain backup archive to restore from. Required for restore.
+        type: str
+      samba_dc_backup_restore_targetdir:
+        description: Directory where the restored DC is provisioned. Required for restore.
+        type: str
+      samba_dc_backup_restore_newservername:
+        description: Name of the restored server. Required for restore.
+        type: str
+      samba_dc_backup_restore_confirm:
+        description: Safety gate — must be true to allow the destructive restore.
+        type: bool
+        default: false
+
+      # ── Common ──────────────────────────────────────────────────────────────
+      samba_dc_backup_bin:
+        description: Path to the samba-tool executable on the target.
+        type: str
+        default: samba-tool
+      samba_dc_backup_no_log:
+        description: Hide output of tasks that may contain passwords.
+        type: bool
+        default: true

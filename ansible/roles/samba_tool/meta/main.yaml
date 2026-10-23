@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+galaxy_info:
+  author: Alessandro Gagliano
+  description: Manage Samba AD DC objects (users, groups, computers, OUs, home directories, shared folders)
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - trixie
+  galaxy_tags:
+    - samba
+    - activedirectory
+    - kerberos
+    - debian
+    - domaincontroller
+
+dependencies: []

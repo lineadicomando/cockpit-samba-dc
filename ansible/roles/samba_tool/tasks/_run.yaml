@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Generic executor for read-only operations.
+# Requires _samba_tool_argv: list of arguments after the executable.
+# Never changes state -> changed_when: false.
+
+- name: "Run samba-tool command: {{ _samba_tool_argv | join(' ') }}"
+  ansible.builtin.command:
+    argv: "{{ [samba_tool_bin] + _samba_tool_argv }}"
+  register: samba_tool_result
+  changed_when: false
+
+# Deliberately not covered by samba_tool_no_log: returning this output is the
+# whole point of the read-only actions. `samba-tool <object> show` does not
+# print credentials — no password hash is ever emitted.
+- name: Report command output
+  ansible.builtin.debug:
+    var: samba_tool_result.stdout_lines

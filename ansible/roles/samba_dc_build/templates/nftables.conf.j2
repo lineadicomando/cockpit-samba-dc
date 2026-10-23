@@ -1,0 +1,48 @@
+#!/usr/sbin/nft -f
+{{ ansible_managed | comment }}
+
+flush ruleset
+
+table inet filter {
+  chain input {
+    type filter hook input priority 0; policy drop;
+
+    # Accept loopback
+    iif lo accept
+
+    # Allow existing and related connections
+    ct state established,related accept
+
+    # ICMP (ping)
+    ip protocol icmp accept
+    ip6 nexthdr icmpv6 accept
+
+    # Samba AD DC
+    tcp dport {53, 88, 135, 137, 138, 139, 389, 445, 464, 636, 3268, 3269, 49152-65535} accept
+    udp dport {53, 88, 123, 137, 138, 389, 445, 464} accept
+
+    # Cockpit
+{% if samba_dc_build_firewall_cockpit_sources | length > 0 %}
+    ip saddr { {{ samba_dc_build_firewall_cockpit_sources | join(', ') }} } tcp dport 9090 accept
+{% else %}
+    tcp dport 9090 accept
+{% endif %}
+
+    # SSH
+{% if samba_dc_build_firewall_ssh_sources | length > 0 %}
+    ip saddr { {{ samba_dc_build_firewall_ssh_sources | join(', ') }} } tcp dport 22 accept
+{% else %}
+    tcp dport 22 accept
+{% endif %}
+
+    # Reject everything else
+    reject with icmpx type port-unreachable
+  }
+  chain forward {
+    type filter hook forward priority filter;
+  }
+  chain output {
+    type filter hook output priority filter;
+  }
+
+}

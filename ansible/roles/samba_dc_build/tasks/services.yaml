@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Let's make sure samba-ad-dc.service is enabled at startup
+  ansible.builtin.systemd:
+    name: samba-ad-dc.service
+    state: started
+    enabled: true
+
+- name: Cockpit
+  ansible.builtin.systemd:
+    name: cockpit.service
+    state: started
+    enabled: true
+
+- name: Sets the contents of the chrony configuration file (/etc/chrony/chrony.conf)
+  ansible.builtin.copy:
+    content: |
+      # Synchronize the DC's clock with a trusted external server (e.g. pool.ntp.org)
+      # server 0.pool.ntp.org iburst
+      # server 1.pool.ntp.org iburst
+      # server 2.pool.ntp.org iburst
+      server {{ samba_dc_build_ntp_server }} iburst prefer
+
+      pool 0.it.pool.ntp.org iburst
+
+      # Allow local network clients to synchronize with the DC
+      allow {{ samba_dc_build_ntp_allow_network }}
+
+      # Set Samba AD as a reliable time source
+      local stratum 10
+
+      # Give preference to Samba as the authoritative source (DC only)
+      ntpsigndsocket  /var/lib/samba/ntp_signd
+    dest: /etc/chrony/chrony.conf
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify: samba_dc restart chrony
+
+- name: Set owner and permissions for /var/lib/samba/ntp_signd
+  ansible.builtin.file:
+    path: /var/lib/samba/ntp_signd
+    owner: root
+    group: _chrony
+    mode: "0750"
+    state: directory
+
+- name: Activates the chrony service
+  ansible.builtin.systemd:
+    name: chrony
+    state: started
+    enabled: true

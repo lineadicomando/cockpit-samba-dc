@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Set the host name (fqdn)
+  ansible.builtin.hostname:
+    name: "{{ samba_dc_build_fqdn }}"
+    use: debian
+
+# The DC must resolve its own FQDN to the static address, not to the Debian
+# default 127.0.1.1 loopback mapping: samba-tool and Kerberos derive the
+# advertised address from it.
+- name: Remove the 127.0.1.1 loopback mapping
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1\s'
+    state: absent
+
+- name: Map the FQDN to the static address in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^{{ samba_dc_build_address | regex_escape }}\s'
+    line: "{{ samba_dc_build_address }}\t{{ samba_dc_build_fqdn }} {{ samba_dc_build_fqdn.split('.') | first }}"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Upgrade the OS (apt-get safe-upgrade)
+  ansible.builtin.apt:
+    upgrade: safe
+  notify: samba_dc reboot
+
+- name: Installing essential packages on Debian 13
+  ansible.builtin.apt:
+    name: "{{ samba_dc_build_base_packages + samba_dc_build_extra_packages }}"
+    state: present

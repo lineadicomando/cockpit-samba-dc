@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Computer account operations.
+#   read-only : list, show
+#   mutating  : create, delete/absent  (idempotent via existence check)
+
+- name: Validate computer action
+  ansible.builtin.assert:
+    that: samba_tool_action in _samba_tool_computer_actions
+    fail_msg: >-
+      Unsupported computer action '{{ samba_tool_action }}'.
+      Valid: {{ _samba_tool_computer_actions }}.
+    quiet: true
+  vars:
+    _samba_tool_computer_actions:
+      - list
+      - show
+      - create
+      - delete
+      - absent
+
+- name: Read-only computer operations
+  when: samba_tool_action in ['list', 'show']
+  block:
+    - name: Build argv for computer {{ samba_tool_action }}
+      ansible.builtin.set_fact:
+        _samba_tool_argv: >-
+          {{ ['computer', samba_tool_action]
+             + ([samba_tool_args.name] if samba_tool_action == 'show' else []) }}
+
+    - name: Run read-only computer command
+      ansible.builtin.include_tasks: _run.yaml
+
+- name: Ensure computer present or absent
+  ansible.builtin.include_tasks: _ensure.yaml
+  when: samba_tool_action in ['create', 'delete', 'absent']
+  vars:
+    _samba_tool_ensure_object: computer
+    _samba_tool_ensure_name: "{{ samba_tool_args.name }}"
+    _samba_tool_ensure_mode: show
+    _samba_tool_ensure_create: create

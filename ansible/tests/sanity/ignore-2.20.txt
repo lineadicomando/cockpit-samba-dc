@@ -1,0 +1,1 @@
+roles/samba_dc_build/templates/nftables.conf.j2 shebang # keeps the Debian-conventional nft first line

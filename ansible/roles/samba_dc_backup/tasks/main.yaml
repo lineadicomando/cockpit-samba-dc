@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Validate action
+  ansible.builtin.assert:
+    that:
+      - samba_dc_backup_action is string
+      - samba_dc_backup_action in ['backup', 'restore']
+    fail_msg: >-
+      samba_dc_backup_action must be 'backup' or 'restore',
+      got '{{ samba_dc_backup_action }}'.
+    quiet: true
+
+- name: "Dispatch: {{ samba_dc_backup_action }}"
+  ansible.builtin.include_tasks: "{{ samba_dc_backup_action }}.yaml"

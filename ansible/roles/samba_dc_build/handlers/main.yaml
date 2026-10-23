@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Reboot the system
+  ansible.builtin.reboot:
+  listen: samba_dc reboot
+
+- name: Reload nftables
+  ansible.builtin.systemd:
+    name: nftables
+    state: reloaded
+  listen: samba_dc reload nftables
+
+- name: Restart chrony
+  ansible.builtin.systemd:
+    name: chrony
+    state: restarted
+  listen: samba_dc restart chrony

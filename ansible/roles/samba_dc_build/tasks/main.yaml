@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Assert required variables
+  ansible.builtin.import_tasks: assert.yaml
+
+- name: System setup
+  ansible.builtin.import_tasks: system.yaml
+
+- name: Bash customizations
+  ansible.builtin.import_tasks: bash.yaml
+
+# Network first: the domain provisioning registers the DC address in the
+# internal DNS zone, so the static address and the FQDN resolution must
+# already be in place when samba.yaml runs. The resolver switchover is
+# deliberately not part of this step — see resolver.yaml.
+- name: Network configuration
+  ansible.builtin.import_tasks: network.yaml
+
+- name: Samba provisioning
+  ansible.builtin.import_tasks: samba.yaml
+
+- name: Kerberos configuration
+  ansible.builtin.import_tasks: kerberos.yaml
+
+- name: Firewall configuration
+  ansible.builtin.import_tasks: firewall.yaml
+
+- name: Services activation
+  ansible.builtin.import_tasks: services.yaml
+
+- name: Resolver switchover
+  ansible.builtin.import_tasks: resolver.yaml
+
+# Apply the pending reboot (OS upgrade, network, provisioning) before touching
+# the directory, so that account management runs against a settled DC.
+- name: Apply pending reboot before managing directory objects
+  ansible.builtin.meta: flush_handlers
+
+- name: Passwords
+  ansible.builtin.import_tasks: passwords.yaml
+
+- name: Admin user
+  ansible.builtin.import_tasks: admin_user.yaml
+
+- name: Cockpit samba-dc UI
+  ansible.builtin.import_tasks: cockpit_samba_dc.yaml

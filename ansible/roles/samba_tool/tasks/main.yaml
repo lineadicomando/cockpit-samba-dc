@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Validate the requested object
+  ansible.builtin.assert:
+    that:
+      - samba_tool_object is string
+      - samba_tool_object in samba_tool_valid_objects
+    fail_msg: >-
+      samba_tool_object must be one of {{ samba_tool_valid_objects }},
+      got '{{ samba_tool_object }}'.
+    quiet: true
+
+- name: Validate that an action was requested
+  ansible.builtin.assert:
+    that:
+      - samba_tool_action is string
+      - samba_tool_action | length > 0
+    fail_msg: "samba_tool_action is required."
+    quiet: true
+
+# Every action except the bare listings addresses a single object by name.
+# Validating it here keeps the failure readable instead of surfacing as an
+# undefined-attribute template error deep inside a handler.
+- name: Validate that an object name was supplied
+  ansible.builtin.assert:
+    that:
+      - samba_tool_args.name is defined
+      - samba_tool_args.name | string | length > 0
+    fail_msg: >-
+      samba_tool_args.name is required for action '{{ samba_tool_action }}'
+      on object '{{ samba_tool_object }}'.
+    quiet: true
+  when: samba_tool_action != 'list'
+
+- name: "Dispatch to object handler: {{ samba_tool_object }}"
+  ansible.builtin.include_tasks: "{{ samba_tool_object }}.yaml"

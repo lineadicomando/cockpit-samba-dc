@@ -1,0 +1,110 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+argument_specs:
+  main:
+    short_description: Provision a Samba 4 AD Domain Controller on Debian Trixie
+    description:
+      - Installs and provisions a Samba 4 Active Directory Domain Controller,
+        configures Kerberos, static networking, DNS, an nftables firewall,
+        chrony as authoritative NTP source and the cockpit-samba-dc web UI.
+      - All host-specific options are mandatory and are normally supplied from
+        host_vars. The role fails explicitly when one is missing.
+    options:
+      samba_dc_build_realm:
+        description: Kerberos realm in uppercase, e.g. EXAMPLE.COM.
+        type: str
+        required: true
+      samba_dc_build_domain:
+        description: NetBIOS domain name, e.g. EXAMPLE.
+        type: str
+        required: true
+      samba_dc_build_fqdn:
+        description: Fully qualified domain name of the DC, inside the search domain.
+        type: str
+        required: true
+      samba_dc_build_search_domain:
+        description: DNS search domain, e.g. example.com.
+        type: str
+        required: true
+      samba_dc_build_nameserver:
+        description: Nameserver written to /etc/resolv.conf and to the interface configuration.
+        type: str
+        required: true
+      samba_dc_build_address:
+        description:
+          - Static IPv4 address of the DC. Also registered in the internal DNS
+            zone at provisioning time (C(--host-ip)).
+        type: str
+        required: true
+      samba_dc_build_netmask:
+        description: Netmask of the static address, e.g. 255.255.255.0.
+        type: str
+        required: true
+      samba_dc_build_gateway:
+        description: Default gateway.
+        type: str
+        required: true
+      samba_dc_build_dns_forwarder:
+        description:
+          - Upstream resolver the internal Samba DNS forwards non-authoritative
+            queries to. Defaults to the gateway.
+        type: str
+        default: "{{ samba_dc_build_gateway }}"
+      samba_dc_build_ifname:
+        description: Name of the network interface to configure.
+        type: str
+        default: enp1s0
+      samba_dc_build_ntp_server:
+        description: Upstream NTP server chrony synchronizes with.
+        type: str
+        required: true
+      samba_dc_build_ntp_allow_network:
+        description: Network allowed to use the DC as NTP source, in CIDR notation.
+        type: str
+        required: true
+      samba_dc_build_administrator_username:
+        description: Name of the additional AD administrator account to create.
+        type: str
+        default: admin
+      samba_dc_build_administrator_passwd:
+        description:
+          - Password for the AD administrator accounts. Required, with no
+            default — supply it from a vault-encrypted variable.
+        type: str
+        required: true
+      samba_dc_build_force_provision:
+        description:
+          - Force a destructive re-provisioning of an existing domain. When
+            false, provisioning is skipped as soon as a Samba database is found.
+        type: bool
+        default: false
+      samba_dc_build_base_packages:
+        description: Packages required by the DC and by Cockpit.
+        type: list
+        elements: str
+      samba_dc_build_extra_packages:
+        description: Convenience tooling. Safe to set to [] on hardened installations.
+        type: list
+        elements: str
+      samba_dc_build_firewall_ssh_sources:
+        description: Source networks allowed to reach SSH. Empty list means any source.
+        type: list
+        elements: str
+        default: []
+      samba_dc_build_firewall_cockpit_sources:
+        description: Source networks allowed to reach Cockpit (9090). Empty list means any source.
+        type: list
+        elements: str
+        default: []
+      samba_dc_build_cockpit_repo:
+        description: Git repository of the cockpit-samba-dc plugin.
+        type: str
+        default: https://github.com/lineadicomando/cockpit-samba-dc.git
+      samba_dc_build_cockpit_version:
+        description: Git revision to build. Pin to a tag or commit for reproducible builds.
+        type: str
+        default: HEAD
+      samba_dc_build_cockpit_src:
+        description: Working copy path for the plugin build.
+        type: path
+        default: /usr/local/src/cockpit-samba-dc

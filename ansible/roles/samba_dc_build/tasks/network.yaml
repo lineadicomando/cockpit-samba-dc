@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Make sure /etc/network/interfaces loads files from interfaces.d
+  ansible.builtin.lineinfile:
+    path: /etc/network/interfaces
+    line: source /etc/network/interfaces.d/*
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Disable DHCP configuration in /etc/network/interfaces
+  ansible.builtin.lineinfile:
+    path: /etc/network/interfaces
+    regexp: "^iface {{ samba_dc_build_ifname }} inet dhcp"
+    line: "# iface {{ samba_dc_build_ifname }} inet dhcp"
+    state: present
+    backup: true
+  notify: samba_dc reboot
+
+- name: Directory for network interface configuration
+  ansible.builtin.file:
+    path: "/etc/network/interfaces.d"
+    owner: root
+    group: root
+    mode: "0750"
+    state: directory
+
+- name: "Configure the network interface {{ samba_dc_build_ifname }}"
+  ansible.builtin.copy:
+    dest: "/etc/network/interfaces.d/{{ samba_dc_build_ifname }}"
+    content: |
+      iface {{ samba_dc_build_ifname }} inet static
+          address {{ samba_dc_build_address }}
+          netmask {{ samba_dc_build_netmask }}
+          gateway {{ samba_dc_build_gateway }}
+          dns-nameservers {{ samba_dc_build_nameserver }}
+          dns-search {{ samba_dc_build_search_domain }}
+    owner: root
+    group: root
+    mode: "0644"
+  notify: samba_dc reboot

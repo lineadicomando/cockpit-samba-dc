@@ -1,0 +1,85 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  COLLECTION_PATH: ansible_collections/lineadicomando/samba_dc
+
+jobs:
+  lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ansible-core and ansible-lint
+        run: pip install "ansible-core~=2.20.0" "ansible-lint~=26.4"
+
+      - name: Install collection dependencies
+        run: ansible-galaxy collection install community.general
+
+      - name: Run ansible-lint
+        run: ansible-lint
+
+  sanity:
+    name: Sanity (ansible-core ${{ matrix.ansible }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ["2.19", "2.20"]
+    steps:
+      # ansible-test requires the collection to sit in an
+      # ansible_collections/<namespace>/<name> directory.
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.COLLECTION_PATH }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core~=${{ matrix.ansible }}.0"
+
+      - name: Run sanity tests
+        run: ansible-test sanity --docker --color
+        working-directory: ${{ env.COLLECTION_PATH }}
+
+  units:
+    name: Unit tests (ansible-core ${{ matrix.ansible }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ansible: ["2.19", "2.20"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.COLLECTION_PATH }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ansible-core
+        run: pip install "ansible-core~=${{ matrix.ansible }}.0"
+
+      - name: Run unit tests
+        run: ansible-test units --docker --color
+        working-directory: ${{ env.COLLECTION_PATH }}

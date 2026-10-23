@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+galaxy_info:
+  author: Alessandro Gagliano
+  description: Backup and restore a Samba AD DC (domain data and user files)
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - trixie
+  galaxy_tags:
+    - samba
+    - activedirectory
+    - backup
+    - debian
+    - domaincontroller
+
+dependencies: []

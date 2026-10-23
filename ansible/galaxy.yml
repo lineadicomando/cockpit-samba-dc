@@ -1,0 +1,37 @@
+namespace: lineadicomando
+name: samba_dc
+version: 0.7.0
+readme: README.md
+authors:
+  - Alessandro Gagliano <alessandro.gagliano@lineadicomando.it>
+description: >
+  Provision a Samba 4 Active Directory Domain Controller on Debian Trixie and
+  manage it through a browser. The collection installs cockpit-samba-dc, a
+  Cockpit plugin that manages users, groups, computers, home directories and
+  shared folders at
+  https://<dc>:9090 — no CLI required for day-to-day operations.
+license:
+  - GPL-3.0-or-later
+tags:
+  - samba
+  - active_directory
+  - domain_controller
+  - kerberos
+  - cockpit
+  - windows
+  - debian
+repository: https://github.com/lineadicomando/ansible-collection-samba_dc
+homepage: https://github.com/lineadicomando/ansible-collection-samba_dc
+issues: https://github.com/lineadicomando/ansible-collection-samba_dc/issues
+
+dependencies:
+  community.general: ">=7.0.0"
+
+# Keep local build artefacts and the locally installed copy of this collection
+# out of the published tarball.
+build_ignore:
+  - .ansible
+  - .github
+  - "**/__pycache__"
+  - "*.pyc"
+  - tests/output

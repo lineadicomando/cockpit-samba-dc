@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Validate backup parameters
+  ansible.builtin.assert:
+    that:
+      - samba_dc_backup_targetdir is string
+      - samba_dc_backup_targetdir | length > 0
+      - samba_dc_backup_domain_type in ['online', 'offline']
+      - samba_dc_backup_domain or samba_dc_backup_files
+    fail_msg: >-
+      samba_dc_backup_targetdir is required and at least one of
+      samba_dc_backup_domain or samba_dc_backup_files must be true.
+    quiet: true
+
+# Without a password samba-tool prompts for one and the task hangs, so refuse
+# the combination up front.
+- name: Require a password when a backup username is given
+  ansible.builtin.assert:
+    that: samba_dc_backup_domain_password | default('', true) | length > 0
+    fail_msg: >-
+      samba_dc_backup_domain_username is set, so
+      samba_dc_backup_domain_password is required as well.
+    quiet: true
+  when:
+    - samba_dc_backup_domain | bool
+    - samba_dc_backup_domain_username | default('', true) | length > 0
+
+- name: Ensure target directory exists
+  ansible.builtin.file:
+    path: "{{ samba_dc_backup_targetdir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+# ── Domain backup ─────────────────────────────────────────────────────────────
+- name: Domain backup
+  when: samba_dc_backup_domain | bool
+  block:
+    # The password is deliberately absent from argv: it would be world-readable
+    # in /proc for the lifetime of the process, and it would be stored in this
+    # fact for the rest of the play. samba-tool reads it from PASSWD instead.
+    - name: Build domain backup argv
+      ansible.builtin.set_fact:
+        _samba_dc_backup_argv: >-
+          {{ [samba_dc_backup_bin, 'domain', 'backup', samba_dc_backup_domain_type,
+              '--targetdir=' ~ samba_dc_backup_targetdir]
+             + (['--server=' ~ samba_dc_backup_domain_server]
+                if samba_dc_backup_domain_type == 'online' else [])
+             + (['-U' ~ samba_dc_backup_domain_username]
+                if samba_dc_backup_domain_username | default('', true) | length > 0
+                else []) }}
+
+    - name: "Run domain backup ({{ samba_dc_backup_domain_type }})"
+      ansible.builtin.command:
+        argv: "{{ _samba_dc_backup_argv }}"
+      environment: >-
+        {{ {'PASSWD': samba_dc_backup_domain_password}
+           if samba_dc_backup_domain_password | default('', true) | length > 0
+           else {} }}
+      register: samba_dc_backup_domain_result
+      changed_when: true
+      no_log: >-
+        {{ samba_dc_backup_no_log | bool
+           and samba_dc_backup_domain_password | default('', true) | length > 0 }}
+
+# ── Files backup ──────────────────────────────────────────────────────────────
+- name: Files backup
+  when: samba_dc_backup_files | bool
+  block:
+    # now() rather than ansible_date_time, so the role does not depend on facts
+    # being gathered.
+    - name: Set files archive path
+      ansible.builtin.set_fact:
+        _samba_dc_backup_files_archive: >-
+          {{ samba_dc_backup_targetdir }}/files_{{ now(utc=true, fmt='%Y%m%dT%H%M%S') }}.tar.gz
+
+    - name: Archive user files
+      community.general.archive:
+        path: "{{ samba_dc_backup_files_paths }}"
+        dest: "{{ _samba_dc_backup_files_archive }}"
+        format: gz
+        owner: root
+        group: root
+        mode: "0600"
+      register: samba_dc_backup_files_result

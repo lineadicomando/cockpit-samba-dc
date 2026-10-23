@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# vars file for samba_tool — internal constants, not meant to be overridden.
+
+samba_tool_valid_objects:
+  - user
+  - group
+  - computer
+  - ou
+  - home
+  - share

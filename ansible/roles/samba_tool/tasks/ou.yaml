@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Organizational unit operations.
+#   read-only : list, listobjects
+#   mutating  : create, delete/absent  (idempotent via existence check)
+# The OU name is a DN relative to the domain base, e.g. "OU=Staff".
+# `samba-tool ou show` does not exist, so existence is checked against `ou list`.
+
+- name: Validate ou action
+  ansible.builtin.assert:
+    that: samba_tool_action in _samba_tool_ou_actions
+    fail_msg: >-
+      Unsupported ou action '{{ samba_tool_action }}'.
+      Valid: {{ _samba_tool_ou_actions }}.
+    quiet: true
+  vars:
+    _samba_tool_ou_actions:
+      - list
+      - listobjects
+      - create
+      - delete
+      - absent
+
+- name: Read-only ou operations
+  when: samba_tool_action in ['list', 'listobjects']
+  block:
+    - name: Build argv for ou {{ samba_tool_action }}
+      ansible.builtin.set_fact:
+        _samba_tool_argv: >-
+          {{ ['ou', samba_tool_action]
+             + ([samba_tool_args.name] if samba_tool_action == 'listobjects' else []) }}
+
+    - name: Run read-only ou command
+      ansible.builtin.include_tasks: _run.yaml
+
+- name: Ensure ou present or absent
+  ansible.builtin.include_tasks: _ensure.yaml
+  when: samba_tool_action in ['create', 'delete', 'absent']
+  vars:
+    _samba_tool_ensure_object: ou
+    _samba_tool_ensure_name: "{{ samba_tool_args.name }}"
+    _samba_tool_ensure_mode: list
+    _samba_tool_ensure_create: create

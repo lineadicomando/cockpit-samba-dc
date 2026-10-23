@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# The ruleset starts with `flush ruleset`: any pre-existing nftables rule on the
+# host is replaced. Restrict management access with
+# samba_dc_build_firewall_ssh_sources / _cockpit_sources.
+- name: Firewall configuration file (/etc/nftables.conf)
+  ansible.builtin.template:
+    src: nftables.conf.j2
+    dest: /etc/nftables.conf
+    owner: root
+    group: root
+    mode: "0640"
+    backup: true
+    validate: /usr/sbin/nft -c -f %s
+  notify: samba_dc reload nftables
+
+- name: Enables the firewall service
+  ansible.builtin.systemd:
+    name: nftables
+    state: started
+    enabled: true

@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Install cockpit-samba-dc build dependencies
+  ansible.builtin.apt:
+    name:
+      - git
+      - nodejs
+      - npm
+      - make
+    state: present
+
+# Built as root from a remote repository: keep the working copy out of the
+# world-writable /tmp and pin samba_dc_build_cockpit_version to a tag or commit
+# for reproducible, reviewable builds.
+- name: Directory for the cockpit-samba-dc working copy
+  ansible.builtin.file:
+    path: "{{ samba_dc_build_cockpit_src }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+- name: Clone cockpit-samba-dc repository
+  ansible.builtin.git:
+    repo: "{{ samba_dc_build_cockpit_repo }}"
+    dest: "{{ samba_dc_build_cockpit_src }}"
+    version: "{{ samba_dc_build_cockpit_version }}"
+  register: samba_dc_build_cockpit_clone
+
+- name: Check whether the cockpit plugin is already installed
+  ansible.builtin.stat:
+    path: /usr/share/cockpit/samba-dc
+  register: samba_dc_build_cockpit_installed
+
+# npm ci, not npm install: the latter rewrites package-lock.json, and the next
+# run then fails on a working copy with local modifications.
+- name: Install npm dependencies
+  ansible.builtin.command:
+    cmd: npm ci
+    chdir: "{{ samba_dc_build_cockpit_src }}"
+  when: samba_dc_build_cockpit_clone.changed or not samba_dc_build_cockpit_installed.stat.exists
+  changed_when: true
+
+# Rebuild whenever the checkout moved: keying this on the installed path alone
+# would clone new revisions and never install them.
+- name: Build and install cockpit-samba-dc
+  ansible.builtin.command:
+    cmd: make install
+    chdir: "{{ samba_dc_build_cockpit_src }}"
+  when: samba_dc_build_cockpit_clone.changed or not samba_dc_build_cockpit_installed.stat.exists
+  changed_when: true
+
+# The plugin was called cockpit-samba-ad-dc until collection 0.4.0. Left in
+# place, the old install shows up as a second entry in the Cockpit menu.
+# Only once the new one is there: samba_dc_build_cockpit_version pinned to a
+# revision from before the rename still installs under the former name, and
+# removing that would leave the DC with no plugin at all.
+- name: Check that the plugin is installed under its current name
+  ansible.builtin.stat:
+    path: /usr/share/cockpit/samba-dc
+  register: samba_dc_build_cockpit_current
+
+- name: Remove the plugin installed under its former name
+  ansible.builtin.file:
+    path: /usr/share/cockpit/samba-ad-dc
+    state: absent
+  when: samba_dc_build_cockpit_current.stat.exists
+
+- name: Remove the working copy of the plugin under its former name
+  ansible.builtin.file:
+    path: /usr/local/src/cockpit-samba-ad-dc
+    state: absent
+  when: samba_dc_build_cockpit_src | regex_replace('/+$', '') != '/usr/local/src/cockpit-samba-ad-dc'

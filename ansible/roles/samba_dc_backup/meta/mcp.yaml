@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+display_name: Samba DC Backup
+notes: >-
+  Runs on the domain controller with elevated privileges.
+  Backup always produces new archives and is inherently non-idempotent.
+  Restore is destructive — it rebuilds a DC from a backup archive and requires
+  explicit confirmation.
+
+objects:
+  backup:
+    description: >-
+      Full backup of the domain (samba-tool domain backup) and/or user files
+      (tar.gz of samba_dc_backup_files_paths). Both are enabled by default.
+    actions:
+      run:
+        args:
+          - targetdir
+          - domain
+          - domain_type
+          - domain_server
+          - domain_username
+          - domain_password
+          - files
+          - files_paths
+        destructive: false
+        note: >-
+          targetdir is required. domain_type is online|offline (default offline).
+          At least one of domain or files must be true. domain_password is
+          required whenever domain_username is given.
+  restore:
+    description: >-
+      Domain restore (DESTRUCTIVE) via samba-tool domain backup restore.
+      Rebuilds a DC from a backup archive.
+    actions:
+      run:
+        args:
+          - restore_backup_file
+          - restore_targetdir
+          - restore_newservername
+          - restore_confirm
+        destructive: true
+        note: Requires restore_confirm=true.

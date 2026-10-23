@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+samba_dc_backup_action: ~           # backup | restore
+
+# ── Backup options ────────────────────────────────────────────────────────────
+samba_dc_backup_targetdir: ~        # required: directory where archives are written
+
+# Domain backup (samba-tool domain backup)
+samba_dc_backup_domain: true
+samba_dc_backup_domain_type: offline        # online | offline
+samba_dc_backup_domain_server: localhost    # DC to contact (online only)
+samba_dc_backup_domain_username: ~          # credentials (online only, optional)
+samba_dc_backup_domain_password: ~          # credentials (online only, optional)
+
+# Files backup
+samba_dc_backup_files: true
+samba_dc_backup_files_paths:        # paths to archive
+  - /home
+  - /srv/samba                      # homes and shared folders of samba_tool and cockpit-samba-dc
+
+# ── Restore options ───────────────────────────────────────────────────────────
+samba_dc_backup_restore_backup_file: ~      # archive from a domain backup (required)
+samba_dc_backup_restore_targetdir: ~        # directory where the DC is provisioned (required)
+samba_dc_backup_restore_newservername: ~    # name of the restored server (required)
+samba_dc_backup_restore_confirm: false      # must be true to proceed (safety gate)
+
+# ── Common ────────────────────────────────────────────────────────────────────
+samba_dc_backup_bin: samba-tool
+samba_dc_backup_no_log: true

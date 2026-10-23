@@ -1,0 +1,11 @@
+*.pyc
+__pycache__/
+.ansible/
+.ansible-vault-pass.txt
+*.retry
+storage/
+tmp/
+# Ansible vault files (contain secrets, use vault.yaml.example as template)
+vault.yaml
+# macOS copy artifacts
+*\ copy.*

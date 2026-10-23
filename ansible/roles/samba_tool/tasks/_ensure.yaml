@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Generic present/absent reconciler shared by group, computer and ou.
+# The current state is always read before acting, so a create on an existing
+# object — or a delete on a missing one — is a no-op.
+#
+# Requires:
+#   _samba_tool_ensure_object : samba-tool object (group | computer | ou)
+#   _samba_tool_ensure_name   : object name
+#   _samba_tool_ensure_mode   : how existence is determined
+#                               show -> exit status of `<object> show <name>`
+#                               list -> `<object> list` contains the name
+#   _samba_tool_ensure_create : verb used to create the object (add | create)
+
+- name: "Check the current state of {{ _samba_tool_ensure_object ~ ' ' ~ _samba_tool_ensure_name }}"
+  ansible.builtin.command:
+    argv: >-
+      {{ [samba_tool_bin, _samba_tool_ensure_object]
+         + (['show', _samba_tool_ensure_name]
+            if _samba_tool_ensure_mode == 'show' else ['list']) }}
+  register: _samba_tool_ensure_check
+  changed_when: false
+  failed_when: false
+
+- name: Determine whether the object is present
+  ansible.builtin.set_fact:
+    _samba_tool_ensure_exists: >-
+      {{ (_samba_tool_ensure_check.rc == 0)
+         if _samba_tool_ensure_mode == 'show'
+         else (_samba_tool_ensure_name in _samba_tool_ensure_check.stdout_lines) }}
+
+- name: "Create {{ _samba_tool_ensure_object ~ ' ' ~ _samba_tool_ensure_name }}"
+  ansible.builtin.command:
+    argv: >-
+      {{ [samba_tool_bin, _samba_tool_ensure_object,
+          _samba_tool_ensure_create, _samba_tool_ensure_name] }}
+  when:
+    - samba_tool_action in ['add', 'create']
+    - not (_samba_tool_ensure_exists | bool)
+  changed_when: true
+
+- name: "Delete {{ _samba_tool_ensure_object ~ ' ' ~ _samba_tool_ensure_name }}"
+  ansible.builtin.command:
+    argv: >-
+      {{ [samba_tool_bin, _samba_tool_ensure_object,
+          'delete', _samba_tool_ensure_name] }}
+  when:
+    - samba_tool_action in ['delete', 'absent']
+    - _samba_tool_ensure_exists | bool
+  changed_when: true

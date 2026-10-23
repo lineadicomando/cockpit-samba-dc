@@ -1,0 +1,75 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# defaults file for samba_dc_build
+# Host-specific values must be supplied by the inventory (host_vars).
+# No concrete value here — the role fails explicitly if they are missing.
+
+samba_dc_build_realm: ~
+samba_dc_build_domain: ~
+samba_dc_build_fqdn: ~
+samba_dc_build_search_domain: ~
+samba_dc_build_nameserver: ~
+samba_dc_build_address: ~
+samba_dc_build_netmask: ~
+samba_dc_build_gateway: ~
+samba_dc_build_ifname: enp1s0
+samba_dc_build_ntp_server: ~
+samba_dc_build_ntp_allow_network: ~
+
+# Upstream resolver the internal Samba DNS forwards to.
+# Once /etc/resolv.conf points at the DC itself, SAMBA_INTERNAL answers only for
+# the AD zone and returns SERVFAIL for everything else unless a forwarder is
+# set. The gateway is the sensible default on a lab network; override it with
+# the site resolver where the gateway does not serve DNS.
+samba_dc_build_dns_forwarder: "{{ samba_dc_build_gateway }}"
+
+# AD administrator account.
+# There is deliberately no default for the password: supply it from a
+# vault-encrypted variable. Do not reuse the SSH password (ansible_password) —
+# it is a different credential with a different blast radius, and it is not
+# even defined when connecting with a key.
+samba_dc_build_administrator_username: admin
+samba_dc_build_administrator_passwd: ~
+
+# Re-provisioning guard.
+# The domain is only (re-)provisioned when smb.conf does not declare a DC AND
+# no sam.ldb is present. Set this to true to force a destructive
+# re-provisioning of an existing DC — it wipes the Samba databases.
+samba_dc_build_force_provision: false
+
+# Packages installed on the DC.
+# _base is what the DC and Cockpit need; _extra is convenience tooling and can
+# be set to [] on hardened installations.
+samba_dc_build_base_packages:
+  - acl
+  - apt-transport-https
+  - chrony
+  - cockpit
+  - curl
+  - dnsutils
+  - gawk
+  - gnupg
+  - htpdate
+  - lsb-release
+  - pcp
+  - python3-pcp
+  - rsync
+  - sudo
+  - wget
+samba_dc_build_extra_packages:
+  - btop
+  - neovim
+  - net-tools
+  - starship
+  - tcpdump
+  - tmux
+
+# Firewall source restrictions. An empty list means "any source".
+samba_dc_build_firewall_ssh_sources: []
+samba_dc_build_firewall_cockpit_sources: []
+
+# cockpit-samba-dc web UI.
+# Pin _version to a tag or commit for reproducible builds.
+samba_dc_build_cockpit_repo: https://github.com/lineadicomando/cockpit-samba-dc.git
+samba_dc_build_cockpit_version: HEAD
+samba_dc_build_cockpit_src: /usr/local/src/cockpit-samba-dc

@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Shared folders, in the model of cockpit-samba-dc: a registry share under
+# samba_tool_shares_dir, a POSIX ACL on the folder tree and an optional drive
+# mapping through the "Cockpit - Mapped drives" GPO (see the samba_share module).
+#   read-only : list, show           -> samba_share_info
+#   mutating  : create/present       -> access list replaced (when given)
+#               grant                -> entries added, or their level changed
+#               revoke               -> entries removed
+#               delete/absent        -> share removed, data kept unless delete_data
+#
+# Access can be given as args.access (list of {name, kind, level}) and/or as
+# the shorthands args.read and args.write (lists or comma-separated names).
+
+- name: Validate share action
+  ansible.builtin.assert:
+    that: samba_tool_action in _samba_tool_share_actions
+    fail_msg: >-
+      Unsupported share action '{{ samba_tool_action }}'.
+      Valid: {{ _samba_tool_share_actions }}.
+    quiet: true
+  vars:
+    _samba_tool_share_actions:
+      - list
+      - show
+      - create
+      - present
+      - grant
+      - revoke
+      - delete
+      - absent
+
+- name: Read-only share operations
+  when: samba_tool_action in ['list', 'show']
+  block:
+    - name: Read the shared folders
+      lineadicomando.samba_dc.samba_share_info:
+        name: "{{ samba_tool_args.name if samba_tool_action == 'show' else omit }}"
+        shares_dir: "{{ samba_tool_shares_dir }}"
+        sam_ldb_path: "{{ samba_tool_sam_ldb_path }}"
+      register: _samba_tool_share_info
+
+    # Registered under a private name and published here: a skipped task
+    # still registers, and would clobber the result of the other branch.
+    - name: Publish the result
+      ansible.builtin.set_fact:
+        samba_tool_result: "{{ _samba_tool_share_info }}"
+
+    - name: Require the shared folder to exist
+      ansible.builtin.assert:
+        that: samba_tool_result.shares | length > 0
+        fail_msg: "Shared folder '{{ samba_tool_args.name }}' not found under {{ samba_tool_shares_dir }}."
+        quiet: true
+      when: samba_tool_action == 'show'
+
+    - name: Report shared folders
+      ansible.builtin.debug:
+        var: samba_tool_result.shares
+
+- name: Mutating share operations
+  when: samba_tool_action not in ['list', 'show']
+  block:
+    - name: Build the requested access list
+      ansible.builtin.set_fact:
+        _samba_tool_share_access: >-
+          {{ (samba_tool_args.access | default([]))
+             + (_samba_tool_share_read | map('community.general.dict_kv', 'name')
+                | map('combine', {'level': 'read'}) | list)
+             + (_samba_tool_share_write | map('community.general.dict_kv', 'name')
+                | map('combine', {'level': 'write'}) | list) }}
+      vars:
+        _samba_tool_share_read_raw: "{{ samba_tool_args.read | default([]) }}"
+        _samba_tool_share_write_raw: "{{ samba_tool_args.write | default([]) }}"
+        _samba_tool_share_read: >-
+          {{ _samba_tool_share_read_raw
+             if (_samba_tool_share_read_raw is sequence and _samba_tool_share_read_raw is not string)
+             else _samba_tool_share_read_raw.split(',') | map('trim') | select | list }}
+        _samba_tool_share_write: >-
+          {{ _samba_tool_share_write_raw
+             if (_samba_tool_share_write_raw is sequence and _samba_tool_share_write_raw is not string)
+             else _samba_tool_share_write_raw.split(',') | map('trim') | select | list }}
+
+    - name: Require users or groups for grant and revoke
+      ansible.builtin.assert:
+        that: _samba_tool_share_access | length > 0
+        fail_msg: >-
+          share {{ samba_tool_action }} needs the users or groups to act upon,
+          in args.access, args.read or args.write.
+        quiet: true
+      when: samba_tool_action in ['grant', 'revoke']
+
+    - name: "Apply share {{ samba_tool_action ~ ' ' ~ samba_tool_args.name }}"
+      lineadicomando.samba_dc.samba_share:
+        name: "{{ samba_tool_args.name }}"
+        state: "{{ 'absent' if samba_tool_action in ['delete', 'absent'] else 'present' }}"
+        access: "{{ _samba_tool_share_access if _samba_tool_share_access | length > 0 else omit }}"
+        access_mode: >-
+          {{ {'grant': 'append', 'revoke': 'remove'}.get(samba_tool_action, 'replace') }}
+        comment: "{{ samba_tool_args.comment | default(omit) }}"
+        browseable: "{{ samba_tool_args.browseable | default(omit) }}"
+        drive_letter: "{{ samba_tool_args.drive_letter | default(omit) }}"
+        drive_label: "{{ samba_tool_args.drive_label | default(omit) }}"
+        delete_data: "{{ samba_tool_args.delete_data | default(false) }}"
+        shares_dir: "{{ samba_tool_shares_dir }}"
+        sam_ldb_path: "{{ samba_tool_sam_ldb_path }}"
+      register: _samba_tool_share_apply
+
+    - name: Publish the result
+      ansible.builtin.set_fact:
+        samba_tool_result: "{{ _samba_tool_share_apply }}"
+
+    - name: Report the shared folder
+      ansible.builtin.debug:
+        var: samba_tool_result.share
+      when: samba_tool_result.share is defined

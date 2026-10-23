@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Domain restore via `samba-tool domain backup restore`.
+# DESTRUCTIVE: rebuilds a DC from a backup archive.
+
+- name: Refuse restore without explicit confirmation
+  ansible.builtin.assert:
+    that:
+      - samba_dc_backup_restore_confirm | bool
+      - samba_dc_backup_restore_backup_file is string
+      - samba_dc_backup_restore_backup_file | length > 0
+      - samba_dc_backup_restore_targetdir is string
+      - samba_dc_backup_restore_targetdir | length > 0
+      - samba_dc_backup_restore_newservername is string
+      - samba_dc_backup_restore_newservername | length > 0
+    fail_msg: >-
+      domain restore is destructive. It requires
+      samba_dc_backup_restore_backup_file, samba_dc_backup_restore_targetdir,
+      samba_dc_backup_restore_newservername and samba_dc_backup_restore_confirm=true.
+    quiet: true
+
+- name: Run domain restore
+  ansible.builtin.command:
+    argv:
+      - "{{ samba_dc_backup_bin }}"
+      - domain
+      - backup
+      - restore
+      - "--backup-file={{ samba_dc_backup_restore_backup_file }}"
+      - "--targetdir={{ samba_dc_backup_restore_targetdir }}"
+      - "--newservername={{ samba_dc_backup_restore_newservername }}"
+  register: samba_dc_backup_result
+  changed_when: true

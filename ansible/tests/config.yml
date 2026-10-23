@@ -1,0 +1,12 @@
+---
+# Python versions the modules of this collection must run on.
+#
+# Without this file ansible-test assumes the modules have to work on every
+# Python version the running ansible-core supports as a target, which on older
+# cores still includes Python 2.7 and 3.6. `samba_tool_user` uses
+# `from __future__ import annotations`, a syntax error there.
+#
+# The modules only ever run on the domain controller itself, which is a current
+# Debian release, so Python 3.7 is a conservative floor.
+modules:
+  python_requires: ">=3.7"

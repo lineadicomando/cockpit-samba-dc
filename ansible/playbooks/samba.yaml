@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Dispatcher for managing the Samba AD DC.
+# Invokable by FQCN: ansible-playbook lineadicomando.samba_dc.samba
+# The role interface variables are passed as extra-vars (JSON):
+#
+#   ansible-playbook lineadicomando.samba_dc.samba \
+#     -e '{"target_hosts":"samba_dc","samba_tool_object":"user",
+#          "samba_tool_action":"create",
+#          "samba_tool_args":{"name":"alice","password":"..."}}'
+#
+# target_hosts: limit execution to specific hosts/groups (default: samba_dc)
+# Inventories must define a samba_dc group containing the domain controller(s).
+
+- name: Samba AD DC management dispatcher
+  hosts: "{{ target_hosts | default('samba_dc') }}"
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Run samba_tool
+      ansible.builtin.import_role:
+        name: lineadicomando.samba_dc.samba_tool

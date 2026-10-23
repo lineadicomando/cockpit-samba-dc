@@ -1,0 +1,201 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Install Samba and dependencies without interaction
+  ansible.builtin.apt:
+    update_cache: true
+    name:
+      - samba
+      - winbind
+      - libnss-winbind
+      - krb5-user
+      - smbclient
+      - ldb-tools
+      - python3-cryptography
+    state: present
+    install_recommends: true
+    force_apt_get: true
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+
+- name: Hiding Samba and Winbind Services
+  ansible.builtin.systemd:
+    name: "{{ samba_dc_build_svc_item }}"
+    masked: true
+  loop:
+    - winbind
+    - nmbd
+    - smbd
+  loop_control:
+    loop_var: samba_dc_build_svc_item
+
+- name: Check if Samba is already configured as a domain controller
+  ansible.builtin.shell: |
+    set -o pipefail
+    grep -m1 "server role" /etc/samba/smb.conf | cut -d'=' -f2 | xargs
+  args:
+    executable: /bin/bash
+  register: samba_dc_build_smb_check
+  failed_when: false
+  changed_when: false
+
+- name: Check whether the Samba directory database already exists
+  ansible.builtin.stat:
+    path: /var/lib/samba/private/sam.ldb
+  register: samba_dc_build_sam_ldb
+
+# Provisioning is destructive: it wipes every Samba database. Deciding on
+# smb.conf alone is too fragile — an edited or replaced smb.conf would destroy
+# a working domain — so an existing sam.ldb also inhibits it. Overriding the
+# guard is an explicit, documented choice.
+- name: Set operating variables
+  ansible.builtin.set_fact:
+    samba_dc_build_setup: >-
+      {{ samba_dc_build_force_provision | bool
+         or ('active directory domain controller' not in samba_dc_build_smb_check.stdout
+             and not samba_dc_build_sam_ldb.stat.exists) }}
+
+- name: Warn when an existing domain is about to be re-provisioned
+  ansible.builtin.debug:
+    msg: >-
+      samba_dc_build_force_provision is true and a Samba database is present:
+      the existing domain on {{ inventory_hostname }} will be destroyed and
+      re-provisioned.
+  when:
+    - samba_dc_build_force_provision | bool
+    - samba_dc_build_sam_ldb.stat.exists
+
+- name: Stop any active services
+  ansible.builtin.systemd:
+    name: "{{ samba_dc_build_svc_item }}"
+    state: stopped
+  loop:
+    - samba
+    - winbind
+    - nmbd
+    - smbd
+  loop_control:
+    loop_var: samba_dc_build_svc_item
+  when: samba_dc_build_setup | bool
+
+- name: Removes any samba files before provisioning the domain controller
+  ansible.builtin.shell: |
+    set -o pipefail
+    DB_DIRS=$(smbd -b | grep -E "LOCKDIR|STATEDIR|CACHEDIR|PRIVATE_DIR" | cut -d":" -f2)
+    FOUND_FILES=0
+    REMOVED_FILES=0
+
+    for DB_DIR in $DB_DIRS; do
+      for EXT in tdb ldb; do
+        FILES=$(find "$DB_DIR" -maxdepth 1 -type f -name "*.${EXT}" 2>/dev/null)
+        if [[ -n "$FILES" ]]; then
+          FOUND_FILES=1
+          rm -f $FILES
+          REMAINING=$(find "$DB_DIR" -maxdepth 1 -type f -name "*.${EXT}" 2>/dev/null)
+          if [[ -z "$REMAINING" ]]; then
+            REMOVED_FILES=1
+          fi
+        fi
+      done
+    done
+
+    if [[ "$FOUND_FILES" -eq 1 && "$REMOVED_FILES" -eq 1 ]]; then
+      echo "changed"
+    elif [[ "$FOUND_FILES" -eq 1 && "$REMOVED_FILES" -eq 0 ]]; then
+      echo "failed"
+    fi
+  args:
+    executable: /bin/bash
+  register: samba_dc_build_cleanup_result
+  changed_when: "'changed' in samba_dc_build_cleanup_result.stdout"
+  failed_when: "'failed' in samba_dc_build_cleanup_result.stdout"
+  when: samba_dc_build_setup | bool
+
+# The cleanup above only removes *.tdb and *.ldb, so the account state markers
+# would survive a re-provisioning and skip the recreation of the administrator
+# account against the brand-new domain.
+- name: Remove account state markers before provisioning
+  ansible.builtin.file:
+    path: "/var/lib/samba/{{ samba_dc_build_marker_item }}"
+    state: absent
+  loop:
+    - .administrator_password_set
+    - .admin_user_created
+  loop_control:
+    loop_var: samba_dc_build_marker_item
+  when: samba_dc_build_setup | bool
+
+- name: Copy smb.conf to smb.conf.dist if it doesn't already exist
+  ansible.builtin.copy:
+    src: /etc/samba/smb.conf
+    dest: /etc/samba/smb.conf.dist
+    remote_src: true
+    force: false
+    mode: "0644"
+
+- name: Delete the samba configuration file if necessary
+  ansible.builtin.file:
+    path: /etc/samba/smb.conf
+    state: absent
+  when: samba_dc_build_setup | bool
+
+# --host-ip is mandatory here: without it the provisioning resolves the host
+# name to pick the address it registers in the internal DNS zone, which yields
+# the DHCP lease (or a loopback address) instead of the DC's static address.
+- name: Samba domain provisioning
+  ansible.builtin.shell: |
+    samba-tool domain provision \
+      --realm={{ samba_dc_build_realm }} \
+      --domain={{ samba_dc_build_domain }} \
+      --server-role=dc --use-rfc2307 \
+      --dns-backend=SAMBA_INTERNAL \
+      --host-ip={{ samba_dc_build_address }} \
+      --adminpass="$SAMBA_ADMIN_PASS"
+  environment:
+    SAMBA_ADMIN_PASS: "{{ samba_dc_build_administrator_passwd }}"
+  no_log: true
+  when: samba_dc_build_setup | bool
+  args:
+    creates: /etc/samba/smb.conf
+  notify: samba_dc reboot
+
+- name: Set registry shares in smb.conf
+  ansible.builtin.lineinfile:
+    path: /etc/samba/smb.conf
+    insertafter: '^\[global\]'
+    regexp: '^\s*registry shares\s*='
+    line: "\tregistry shares = yes"
+
+# After network.yaml the DC resolves through itself, and SAMBA_INTERNAL is
+# authoritative only for the AD zone: without a forwarder every external name
+# returns SERVFAIL, which breaks apt, git and the domain members that use the
+# DC as their resolver.
+- name: Set the DNS forwarder in smb.conf
+  ansible.builtin.lineinfile:
+    path: /etc/samba/smb.conf
+    insertafter: '^\[global\]'
+    regexp: '^\s*dns forwarder\s*='
+    line: "\tdns forwarder = {{ samba_dc_build_dns_forwarder }}"
+  notify: samba_dc reboot
+
+# libnss-winbind is installed above but is inert until nsswitch.conf routes
+# passwd/group lookups through it. Without this, domain accounts are invisible
+# to the OS and anything that chowns a path to a domain user (home directory
+# provisioning) fails with "user not found".
+- name: Resolve domain accounts through winbind in NSS
+  ansible.builtin.lineinfile:
+    path: /etc/nsswitch.conf
+    regexp: '^{{ samba_dc_build_nss_item }}:'
+    line: "{{ samba_dc_build_nss_item }}:        files systemd winbind"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - passwd
+    - group
+  loop_control:
+    loop_var: samba_dc_build_nss_item
+
+- name: Unmask samba-ad-dc service
+  ansible.builtin.systemd:
+    name: samba-ad-dc
+    masked: false

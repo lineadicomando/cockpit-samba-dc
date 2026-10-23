@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+- name: Enable Starship for interactive Bash shells
+  ansible.builtin.blockinfile:
+    path: /etc/bash.bashrc
+    marker: "# {mark} ANSIBLE MANAGED STARSHIP"
+    block: |
+      if [[ $- == *i* ]] && command -v starship >/dev/null 2>&1; then
+        eval "$(starship init bash)"
+      fi
+
+- name: Make sure your customizations are present in the admin user's .bashrc
+  ansible.builtin.blockinfile:
+    path: "/etc/bash.bashrc"
+    marker: "# {mark} ALIASES"
+    block: |
+      alias ls='ls $LS_OPTIONS'
+      alias ll='ls $LS_OPTIONS -l'
+      alias l='ls $LS_OPTIONS -lA'
+
+- name: Set /etc/bashrc_completion.d dir
+  ansible.builtin.file:
+    path: /etc/bashrc_completion.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Set /etc/bashrc_completion.d/samba-tool
+  ansible.builtin.copy:
+    content: |
+      #!/bin/bash
+
+      _samba_tool_complete() {
+          local cur cmd subcmd
+          COMPREPLY=()
+          cur="${COMP_WORDS[COMP_CWORD]}"
+          cmd="${COMP_WORDS[1]}"
+          subcmd="${COMP_WORDS[2]}"
+
+          # First level: suggest top-level commands
+          if [[ $COMP_CWORD -eq 1 ]]; then
+              local commands=$(samba-tool --help 2>/dev/null |
+                  awk '/Available subcommands:/ {flag=1; next} /For more help/ {flag=0} flag' |
+                  awk '{print $1}')
+              COMPREPLY=( $(compgen -W "$commands" -- "$cur") )
+              return 0
+          fi
+
+          # Second level: suggest subcommands of the selected command
+          if [[ $COMP_CWORD -eq 2 ]]; then
+              local subcommands=$(samba-tool "$cmd" --help 2>/dev/null |
+                  awk '/Available subcommands:/ {flag=1; next} /For more help/ {flag=0} flag' |
+                  awk '{print $1}')
+              COMPREPLY=( $(compgen -W "$subcommands" -- "$cur") )
+              return 0
+          fi
+
+          # Third level and above: suggest available options for the subcommand
+          if [[ $COMP_CWORD -ge 3 ]]; then
+              local options=$(samba-tool "$cmd" "$subcmd" --help 2>/dev/null |
+                  awk '/Options:/ {flag=1; next} /^$/ {flag=0} flag' |
+                  awk '{for (i=1; i<=NF; i++) if ($i ~ /^--/) {match($i, /--[^=]+=?/); print substr($i, RSTART, RLENGTH)}}' |
+                  sort -u)
+              COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+              return 0
+          fi
+      }
+
+      # Bind the completion function to samba-tool
+      complete -F _samba_tool_complete samba-tool
+    dest: /etc/bashrc_completion.d/samba-tool
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Enable samba-tool global completion
+  ansible.builtin.blockinfile:
+    path: /etc/bash.bashrc
+    marker: "# {mark} COMPLETIONS"
+    block: |
+      if [ -d /etc/bashrc_completion.d ]; then
+        # Source each file: `source dir/*` would pass all but the first as
+        # positional parameters to the first one.
+        for _completion in /etc/bashrc_completion.d/*; do
+          [ -r "$_completion" ] && source "$_completion"
+        done
+        unset _completion
+      fi

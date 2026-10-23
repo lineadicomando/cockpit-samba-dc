@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# defaults file for samba_tool
+# Role interface: object + action + arguments.
+# The MCP/dispatcher passes these values as extra-vars.
+
+samba_tool_object: ~          # user | group | computer | ou | home | share
+samba_tool_action: ~          # samba-tool verb: create, delete, list, show, ...
+samba_tool_args: {}           # dictionary of action-specific arguments
+
+# Path to the samba-tool executable on the target.
+samba_tool_bin: samba-tool
+
+# Samba directory database, used by ldbmodify for attributes samba-tool cannot
+# set (primaryGroupID, homeDrive, homeDirectory).
+samba_tool_sam_ldb_path: /var/lib/samba/private/sam.ldb
+
+# Parameters enforced on the home SMB share (object: home, action: provision).
+samba_tool_home_share_params:
+  - {param: browseable, value: "no"}
+  - {param: create mask, value: "0700"}
+  - {param: directory mask, value: "0700"}
+
+# Directory holding the shared folders (object: share). Must match the one
+# used by cockpit-samba-dc for the two to manage the same shares.
+samba_tool_shares_dir: /srv/samba/shares
+
+# When true, hide the output of tasks that may contain passwords.
+samba_tool_no_log: true
