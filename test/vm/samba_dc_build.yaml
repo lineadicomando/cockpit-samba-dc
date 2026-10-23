@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Builds the test DC with the collection of this working tree:
+#   test/vm/lab.sh revert dc baseline && test/vm/lab.sh start dc
+#   test/vm/lab.sh ansible test/vm/samba_dc_build.yaml
+- name: Build the test DC with samba_dc_build
+  hosts: samba_dc
+  become: true
+  gather_facts: true
+  roles:
+    - role: lineadicomando.samba_dc.samba_dc_build

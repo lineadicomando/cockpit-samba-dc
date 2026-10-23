@@ -121,7 +121,7 @@ collection may import the core.
 | Step | `TODO.md` | State |
 |---|---|---|
 | Windows roles and lab defaults out of the collection | A1 | done: win_workman v0.3.0, collection v0.7.0 |
-| The collection in this repository, one version | A2 | in progress: imported, one version and CI; test on the DC, release v0.8.0 left |
+| The collection in this repository, one version | A2 | in progress: imported, one version, CI, tried on the DC; release v0.8.0 and the other repositories left |
 | Core: spike on shared folders and drive mapping, go/no-go | A3 | planned |
 | Core: every other operation | A4 | planned |
 | MCP server on the DC | A5 | planned |

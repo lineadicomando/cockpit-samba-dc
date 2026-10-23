@@ -13,7 +13,7 @@
     fail_msg: >-
       samba_dc_build_cockpit_install must be package, source or none (current:
       {{ samba_dc_build_cockpit_install }}). With package,
-      samba_dc_build_cockpit_version is a release version such as 0.3.0
+      samba_dc_build_cockpit_version is a release version, X.Y.Z
       (current: {{ samba_dc_build_cockpit_version }}); a git revision goes into
       samba_dc_build_cockpit_source_version, with samba_dc_build_cockpit_install: source.
     quiet: true

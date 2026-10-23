@@ -15,6 +15,9 @@
 #   lab.sh root COMMAND                COMMAND as root on the DC; stdin is passed on
 #   lab.sh deploy                      build the Debian package, install it on the DC
 #   lab.sh tunnel [PORT]               Cockpit of the DC on http://127.0.0.1:PORT (9091)
+#   lab.sh ansible PLAYBOOK [ARGS...]  ansible-playbook against the VMs (groups
+#                                      samba_dc and windows), with the collection
+#                                      of this working tree
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 export LC_ALL=C.UTF-8 # virsh and free are parsed below
@@ -137,6 +140,54 @@ case $cmd in
             sha256sum /usr/share/cockpit/samba-dc/index.js' < "${debs[0]}"
         sha256sum "$VM_ROOT/dist/index.js" | sed 's/^/local:  /'
         echo "reload the Cockpit page (F5) to load the new bundle" ;;
+    ansible)
+        # The inventory is written from .env; the passwords stay in the
+        # environment, read by lookup('env'), never in the file.
+        [[ $# -gt 0 ]] || die "ansible needs a playbook"
+        tmp=$(umask 077; mktemp -d)
+        trap 'rm -rf "$tmp"' EXIT
+        mkdir -p "$tmp/ansible_collections/lineadicomando"
+        ln -s "$VM_ROOT/ansible" "$tmp/ansible_collections/lineadicomando/samba_dc"
+        domain=${DOMAIN_REALM,,}
+        cat > "$tmp/hosts.yaml" <<INVENTORY
+all:
+  vars:
+    ansible_ssh_common_args: "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+  children:
+    samba_dc:
+      hosts:
+        dc:
+          ansible_host: $DC_HOST
+          ansible_user: $DC_ADMIN_USER
+          ansible_password: "{{ lookup('env', 'DC_ADMIN_PASSWORD') }}"
+          ansible_become_password: "{{ lookup('env', 'DC_ADMIN_PASSWORD') }}"
+          samba_dc_build_realm: ${DOMAIN_REALM^^}
+          samba_dc_build_domain: $DOMAIN_NETBIOS
+          samba_dc_build_fqdn: ${DC_FQDN:-dc.$domain}
+          samba_dc_build_search_domain: $domain
+          samba_dc_build_nameserver: $GATEWAY
+          samba_dc_build_address: $DC_HOST
+          samba_dc_build_netmask: 255.255.255.0
+          samba_dc_build_gateway: $GATEWAY
+          samba_dc_build_ifname: ${DC_IFNAME:-enp1s0}
+          samba_dc_build_ntp_server: $GATEWAY
+          samba_dc_build_ntp_allow_network: ${DC_HOST%.*}.0/24
+          samba_dc_build_administrator_passwd: "{{ lookup('env', 'DOMAIN_ADMIN_PASSWORD') }}"
+    windows:
+      hosts:
+        win:
+          ansible_host: $WIN_HOST
+          ansible_user: $WIN_ADMIN_USER
+          ansible_password: "{{ lookup('env', 'WIN_ADMIN_PASSWORD') }}"
+          ansible_connection: ssh
+          ansible_shell_type: powershell
+          win_workman_domain_name: $domain
+          win_workman_domain_admin_user: Administrator
+          win_workman_domain_admin_password: "{{ lookup('env', 'DOMAIN_ADMIN_PASSWORD') }}"
+          win_workman_domain_dns_servers: ["$DC_HOST"]
+INVENTORY
+        ANSIBLE_COLLECTIONS_PATH="$tmp:${ANSIBLE_COLLECTIONS_PATH:-$HOME/.ansible/collections:/usr/share/ansible/collections}" \
+            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i "$tmp/hosts.yaml" "$@" ;;
     tunnel)
         port=${1:-9091}
         echo "Cockpit of the DC on http://127.0.0.1:$port (Ctrl-C to close)"

@@ -6,9 +6,11 @@
     state: started
     enabled: true
 
+# The socket, not the service: cockpit.service starts on the first
+# connection and stops when idle, so "started" would start it on every run.
 - name: Cockpit
   ansible.builtin.systemd:
-    name: cockpit.service
+    name: cockpit.socket
     state: started
     enabled: true
 

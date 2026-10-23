@@ -129,7 +129,7 @@ at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
 - [x] CI: the collection's jobs (ansible-lint, `ansible-test sanity` and
       `units`, which need an `ansible_collections/lineadicomando/samba_dc`
       path) next to the existing ones
-- [ ] `samba_dc_build` installs the Cockpit page from the release of its own
+- [x] `samba_dc_build` installs the Cockpit page from the release of its own
       version, checksum verified: `samba_dc_build_cockpit_install: package`
       (default), `source` (a git revision built on the DC, for development)
       or `none`; an optional URL or local path for sites without Internet
@@ -140,9 +140,12 @@ at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
       Galaxy; the collection's rules in `CLAUDE.md` (ansible-lint as the
       gate, SPDX headers, variable names); one `CHANGELOG.md`; licenses per
       directory (`ansible/LICENSE`)
-- [ ] `test/vm` runs Ansible from the host against the test DC:
-      `samba_dc_build` from `baseline` with the package install; `samba_tool`
-      and `samba_share` on shares made in Cockpit, and back
+- [x] `test/vm` runs Ansible from the host against the test DC (`lab.sh
+      ansible`): `samba_dc_build` from `baseline` with the package install
+      (then no change on a second run, once the role manages
+      `cockpit.socket`), a local `.deb`, `source` and back; a share made by
+      `samba_tool` shown in Cockpit, one made in Cockpit read and changed by
+      `samba_tool`; `sysvolcheck` clean
 - [ ] The old repository: a README pointing here (archived at the end of
       the plan, A6); win_edulab: `requirements.yaml`, the symlink under
       `ansible_collections/`, `.mcp.json`

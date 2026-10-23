@@ -21,6 +21,7 @@ test/vm/lab.sh deploy                 # make deb, install the package on the DC
 test/vm/lab.sh root 'samba-tool user list' </dev/null
 test/vm/lab.sh ssh win 'Get-ComputerInfo -Property CsDomain'
 test/vm/lab.sh stop win
+test/vm/lab.sh ansible PLAYBOOK [ARGS]  # the collection of this tree against the VMs
 ```
 
 ## Snapshots
@@ -56,6 +57,24 @@ with `DOMAIN_ADMIN_PASSWORD`. Passwords do not expire.
 - **Test data** (users, groups, shares) gets a recognisable prefix such as
   `t-`, and is removed afterwards, or the VMs are reset. Never touch the
   built-in objects.
+
+## The Ansible collection against the VMs
+
+`lab.sh ansible` runs `ansible-playbook` with an inventory written from
+`.env` (groups `samba_dc`, host `dc`, with the `samba_dc_build_*` variables
+of the test domain; `windows`, host `win`, with `win_workman_domain_*`) and
+the collection of `ansible/` in this working tree. The passwords stay in the
+environment (`lookup('env')`).
+
+```
+test/vm/lab.sh revert dc baseline && test/vm/lab.sh start dc
+test/vm/lab.sh ansible test/vm/samba_dc_build.yaml          # build the DC from scratch
+test/vm/lab.sh ansible lineadicomando.samba_dc.samba \
+    -e '{"samba_tool_object":"share","samba_tool_action":"list"}'
+```
+
+A DC built this way has a new domain: the client's machine account is not
+in it. Revert both VMs (`reset`) when done.
 
 ## Workflow for a change in `src/lib/`
 

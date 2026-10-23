@@ -15,6 +15,12 @@ the README ("Versions and releases"). New entries go under
   each release also carries the built collection
   (`lineadicomando-samba_dc-X.Y.Z.tar.gz`).
 
+### Fixed
+
+- Collection: `samba_dc_build` manages `cockpit.socket` instead of
+  `cockpit.service`, which stops when idle and was started again, reported
+  as a change, on every run.
+
 ### Breaking
 
 - Collection: `samba_dc_build` installs the Cockpit page from the Debian
