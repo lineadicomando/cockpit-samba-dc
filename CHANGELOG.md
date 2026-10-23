@@ -22,6 +22,13 @@ the README ("Versions and releases"). New entries go under
 - The Refresh button of each list reads the server again, instead of data
   cached for up to a minute (a lockout or a change made outside the module
   did not show).
+- The user page shows the shared folders reached through nested groups (a
+  group that is a member of a group listed on the folder).
+- Provisioning a home directory creates the `home` share again if it was
+  removed while the page was open.
+- Changing a drive mapping no longer resets the ACLs of every GPO in sysvol
+  (`samba-tool ntacl sysvolreset`), which is slow on a large sysvol; it runs
+  only when the GPO is created.
 
 ## [0.1.0] - 2026-10-22
 

@@ -151,6 +151,28 @@ describe("home share", () => {
     });
 });
 
+describe("home share removed meanwhile", () => {
+    it("is created again by the next provisioning", async () => {
+        // @ts-expect-error -- the query string is not a path TypeScript can resolve
+        const { provisionHomeDir: provision } = await import("../src/lib/samba.ts?home-removed");
+        let shareExists = false;
+        setSpawnHandler(call => {
+            if (isCmd(call, "testparm")) return "DC\n";
+            if (isCmd(call, "samba-tool", "user", "show")) return `dn: CN=${call.args[3]},CN=Users,DC=school,DC=internal\n`;
+            if (isCmd(call, "net", "conf", "getparm")) {
+                if (!shareExists) throw new Error("share not found");
+                return "/srv/samba/home\n";
+            }
+            if (isCmd(call, "net", "conf", "addshare")) shareExists = true;
+            return "";
+        });
+        await provision("u1");
+        shareExists = false; // "net conf delshare home" by hand
+        await provision("u2");
+        assert.equal(calls.filter(c => isCmd(c, "net", "conf", "addshare")).length, 2);
+    });
+});
+
 describe("DN resolution", () => {
     // CNs differ from account names: samba-tool names users "Given Surname",
     // and groups made with other tools can have any CN.

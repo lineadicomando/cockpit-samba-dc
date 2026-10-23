@@ -125,10 +125,28 @@ function timestamp(): string {
     return new Date().toISOString().slice(0, 19).replace("T", " ");
 }
 
-async function writeRootFile(path: string, content: string): Promise<void> {
-    // Written aside and renamed, so clients never read a half-written file
-    await runAsRootWithInput(["tee", `${path}.tmp`], content);
-    await runAsRoot(["mv", "-f", `${path}.tmp`, path]);
+// Written aside and renamed, so clients never read a half-written file. The
+// new file takes the attributes of the one it replaces: its NT ACL (the
+// security.NTACL xattr) and POSIX ACL, which a file written by root would
+// lack. Returns false when there was nothing to take them from (a new file):
+// the caller then resets the sysvol ACLs.
+async function writeRootFile(path: string, content: string): Promise<boolean> {
+    const tmp = `${path}.tmp`;
+    await runAsRootWithInput(["tee", tmp], content);
+    let attributesKept = true;
+    try {
+        await runAsRoot(["cp", "--attributes-only", "--preserve=mode,ownership,xattr", path, tmp]);
+    } catch {
+        attributesKept = false;
+    }
+    await runAsRoot(["mv", "-f", tmp, path]);
+    return attributesKept;
+}
+
+// Resets the ACLs of every GPO in sysvol from their directory objects: slow
+// on a large sysvol, so only for files written without an NT ACL.
+async function resetSysvolAcls(): Promise<void> {
+    await runAsRoot(["samba-tool", "ntacl", "sysvolreset"]);
 }
 
 function gptIni(version: number): string {
@@ -293,14 +311,19 @@ export function setDriveMapping(shareName: string, access: ShareAccess[], mappin
             return;
         }
 
-        if (!gpo) gpo = await createGpo();
+        let aclsComplete = true;
+        if (!gpo) {
+            gpo = await createGpo();
+            aclsComplete = false;
+        }
         try {
             await ensureGpoLinked(gpo);
             const dir = await gpoDir(gpo.guid);
             const version = gpo.version + USER_VERSION_STEP;
-            await writeRootFile(`${dir}/USER/Preferences/Drives/Drives.xml`,
+            const drivesKept = await writeRootFile(`${dir}/USER/Preferences/Drives/Drives.xml`,
                 buildDrivesXml([...others.map(e => e.xml), ...(entry ? [entry] : [])]));
-            await writeRootFile(`${dir}/GPT.INI`, gptIni(version));
+            const gptKept = await writeRootFile(`${dir}/GPT.INI`, gptIni(version));
+            aclsComplete = aclsComplete && drivesKept && gptKept;
             await runAsRootWithInput(["ldbmodify", "-H", SAM_LDB], [
                 `dn: ${gpo.dn}`,
                 "changetype: modify",
@@ -309,9 +332,9 @@ export function setDriveMapping(shareName: string, access: ShareAccess[], mappin
                 "-",
                 "",
             ].join("\n"));
-            // Files written by root carry no NT ACL; restore the sysvol ACLs
-            // clients expect (otherwise "samba-tool ntacl sysvolcheck" fails).
-            await runAsRoot(["samba-tool", "ntacl", "sysvolreset"]);
+            // A file with no NT ACL breaks "samba-tool ntacl sysvolcheck" and
+            // the ACLs clients expect.
+            if (!aclsComplete) await resetSysvolAcls();
         } finally {
             cache.invalidate(k => k === DRIVES_KEY);
         }

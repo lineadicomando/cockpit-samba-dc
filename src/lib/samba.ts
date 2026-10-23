@@ -484,16 +484,17 @@ async function setHomeDirAttributes(dn: string, homeDrive: string, homeDirectory
     await runAsRootWithInput(["ldbmodify", "-H", SAM_LDB], ldif);
 }
 
-// Shared across concurrent callers: bulk provisioning runs provisionHomeDir in
-// parallel, and without this every call would see the share missing and race
-// on "net conf addshare" (all but one failing with "share already exists").
+// Shared by concurrent callers while it runs: bulk provisioning runs
+// provisionHomeDir in parallel, and without this every call would see the
+// share missing and race on "net conf addshare" (all but one failing with
+// "share already exists"). Dropped once settled, so a share removed later is
+// created again by the next provisioning.
 let homeSharePromise: Promise<void> | null = null;
 
 function ensureHomeShare(): Promise<void> {
     if (!homeSharePromise) {
-        homeSharePromise = createHomeShareIfMissing().catch(e => {
-            homeSharePromise = null; // allow a retry after a failure
-            throw e;
+        homeSharePromise = createHomeShareIfMissing().finally(() => {
+            homeSharePromise = null;
         });
     }
     return homeSharePromise;

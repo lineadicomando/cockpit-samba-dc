@@ -229,8 +229,31 @@ export interface EffectiveShareAccess {
     via: ShareAccess[];
 }
 
-// What a user gets on a share, from direct entries and the groups listed on
-// the user (nested groups are not expanded). Mirrors smbd: a match in
+// The user's groups plus every group that contains one of them, at any
+// depth, as smbd sees them in the user's token. allGroups: the directory's
+// groups with their members by account name (listGroups).
+export function expandNestedGroups(groups: string[], allGroups: { name: string; members: string[] }[]): string[] {
+    const parents = new Map<string, string[]>();
+    for (const g of allGroups) {
+        for (const m of g.members) {
+            const key = m.toLowerCase();
+            parents.set(key, [...(parents.get(key) ?? []), g.name]);
+        }
+    }
+    const seen = new Map(groups.map(g => [g.toLowerCase(), g]));
+    const queue = [...groups];
+    while (queue.length > 0) {
+        for (const parent of parents.get(queue.shift()!.toLowerCase()) ?? []) {
+            if (seen.has(parent.toLowerCase())) continue; // also stops on cycles
+            seen.set(parent.toLowerCase(), parent);
+            queue.push(parent);
+        }
+    }
+    return [...seen.values()];
+}
+
+// What a user gets on a share, from direct entries and the given groups
+// (pass them through expandNestedGroups). Mirrors smbd: a match in
 // "read list" makes the share read-only even if another entry grants write.
 export function effectiveShareAccess(share: SharedFolder, username: string, groups: string[]): EffectiveShareAccess | null {
     const groupSet = new Set(groups.map(g => g.toLowerCase()));

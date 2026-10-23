@@ -2,7 +2,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, renameSharePrincipal, isManagedPath } from "../src/lib/shares.ts";
+import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, renameSharePrincipal, isManagedPath } from "../src/lib/shares.ts";
 
 const NET_CONF = [
     "[home]",
@@ -235,5 +235,32 @@ describe("isManagedPath", () => {
             "/srv/samba/shares/../home", "/srv/samba/shares/a/b", "/srv/samba/shares/docs/", "/srv/samba/sharesX/a"]) {
             assert.ok(!isManagedPath(p), p);
         }
+    });
+});
+
+describe("expandNestedGroups", () => {
+    const groups = [
+        { name: "Staff", members: ["Teachers", "secretary"] },
+        { name: "Teachers", members: ["mrossi"] },
+        { name: "All", members: ["staff", "Students"] },
+        // A cycle, which AD allows
+        { name: "LoopA", members: ["LoopB"] },
+        { name: "LoopB", members: ["LoopA"] },
+    ];
+
+    it("adds the groups that contain the user's groups, at any depth", () => {
+        assert.deepEqual(expandNestedGroups(["Teachers", "Domain Users"], groups).sort(),
+            ["All", "Domain Users", "Staff", "Teachers"]);
+    });
+
+    it("stops on cycles", () => {
+        assert.deepEqual(expandNestedGroups(["LoopA"], groups).sort(), ["LoopA", "LoopB"]);
+    });
+
+    it("gives the access a nested group grants", () => {
+        const share = { name: "docs", path: "/srv/samba/shares/docs", comment: "", browseable: true, automount: null,
+            access: [{ name: "Staff", kind: "group" as const, level: "write" as const }] };
+        assert.equal(effectiveShareAccess(share, "mrossi", ["Teachers"]), null);
+        assert.deepEqual(effectiveShareAccess(share, "mrossi", expandNestedGroups(["Teachers"], groups))?.via, share.access);
     });
 });

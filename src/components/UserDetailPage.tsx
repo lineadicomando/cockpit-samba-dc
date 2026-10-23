@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Breadcrumb, BreadcrumbItem,
@@ -16,8 +16,8 @@ import {
 import { Table, Thead, Tbody, Tr, Th, Td } from "@patternfly/react-table";
 import { UserIcon, UsersIcon } from "@patternfly/react-icons";
 import cockpit from "cockpit";
-import { getUserDetails, refreshUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, getPasswordPolicy, addGroupMembers, removeGroupMembers, setPrimaryGroup as savePrimaryGroup, provisionHomeDir } from "../lib/samba.ts";
-import { listShares, effectiveShareAccess } from "../lib/shares.ts";
+import { getUserDetails, listGroups, refreshUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, getPasswordPolicy, addGroupMembers, removeGroupMembers, setPrimaryGroup as savePrimaryGroup, provisionHomeDir } from "../lib/samba.ts";
+import { listShares, effectiveShareAccess, expandNestedGroups } from "../lib/shares.ts";
 import type { User } from "../lib/types.ts";
 import { usePasswordPolicy, usePasswordGenerator, useSingleLoad } from "../lib/hooks.ts";
 import { checkPasswordAgainstPolicy } from "../lib/passwordUtils.ts";
@@ -446,11 +446,15 @@ function HomeDirSection({ user, onUpdate }: { user: User; onUpdate: (u: User) =>
 // ---------------------------------------------------------------------------
 function SharedFoldersSection({ user }: { user: User }) {
     const { t } = useTranslation();
-    const { items: shares, loading, error } = useSingleLoad(listShares);
+    const { items: shares, loading: sharesLoading, error: sharesError } = useSingleLoad(listShares);
+    const { items: allGroups, loading: groupsLoading, error: groupsError } = useSingleLoad(listGroups);
+    const loading = sharesLoading || groupsLoading;
+    const error = sharesError ?? groupsError;
 
     // Recomputed from user.groups, so it follows edits in the Groups section
+    const groups = useMemo(() => expandNestedGroups(user.groups, allGroups), [user.groups, allGroups]);
     const rows = shares
-        .map(share => ({ share, access: effectiveShareAccess(share, user.username, user.groups) }))
+        .map(share => ({ share, access: effectiveShareAccess(share, user.username, groups) }))
         .filter(r => r.access !== null)
         .sort((a, b) => a.share.name.localeCompare(b.share.name));
 

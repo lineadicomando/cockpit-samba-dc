@@ -63,6 +63,11 @@ function fakeDc() {
             return "";
         }
         if (isCmd(call, "tee")) { files.set(a[1], call.input ?? ""); return call.input ?? ""; }
+        if (isCmd(call, "cp")) {
+            // cp --attributes-only --preserve=… SOURCE DEST
+            if (!files.has(a[3])) throw new Error(`cp: cannot stat '${a[3]}': No such file or directory`);
+            return "";
+        }
         if (isCmd(call, "mv")) { files.set(a[3], files.get(a[2])!); files.delete(a[2]); return ""; }
         if (isCmd(call, "cat")) {
             if (!files.has(a[1])) throw new Error("No such file or directory");
@@ -147,6 +152,26 @@ describe("setDriveMapping", () => {
 
         await setDriveMapping("DOCS", [...teachers, { name: "mrossi", kind: "user", level: "read" }], { letter: "q", label: "Docs" });
         assert.equal(dc.gpo!.version, version);
+    });
+
+    it("resets the sysvol ACLs only when it writes a new file", async () => {
+        const dc = fakeDc();
+        const teachers = [{ name: "Teachers", kind: "group" as const, level: "write" as const }];
+        const resets = () => calls.filter(c => c.args.join(" ") === "samba-tool ntacl sysvolreset").length;
+        await setDriveMapping("docs", teachers, { letter: "P", label: "" });
+        assert.equal(resets(), 1);
+
+        await setDriveMapping("lab", teachers, { letter: "L", label: "" });
+        assert.equal(resets(), 1);
+        // The replacement takes the NT ACL of the file it replaces
+        const dir = `/var/lib/samba/sysvol/school.internal/Policies/${dc.gpo!.guid}`;
+        assert.ok(calls.some(c => c.args.join(" ") ===
+            `cp --attributes-only --preserve=mode,ownership,xattr ${dir}/GPT.INI ${dir}/GPT.INI.tmp`));
+
+        dc.files.delete(`${dir}/USER/Preferences/Drives/Drives.xml`); // removed by hand
+        await setDriveMapping("lab", [], null);
+        await setDriveMapping("docs", teachers, { letter: "Q", label: "" });
+        assert.equal(resets(), 2);
     });
 
     it("removes a mapping and rejects a letter used by another share", async () => {

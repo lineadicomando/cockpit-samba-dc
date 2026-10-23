@@ -85,15 +85,17 @@ To resume:
       (`/srv/samba/home/<old name>`) and `homeDirectory` keep the old name.
       Access still works (ownership follows the SID); decide whether to
       rename both.
-- [ ] **`ensureHomeShare` remembers success for the whole session**
-      (`src/lib/samba.ts`): a `home` share removed meanwhile is not created
-      again until the page is reloaded.
-- [ ] **`samba-tool ntacl sysvolreset` after every mapping change**
-      (`src/lib/drivemaps.ts`): slow on a large sysvol and resets every GPO's
-      ACLs; measure, and consider fixing only the module's GPO folder.
-- [ ] **Nested groups** are not expanded when the user page shows a user's
-      access to shared folders (`effectiveShareAccess`); smbd does expand
-      them, so the page can show less access than the user has.
+- [x] **`ensureHomeShare` remembers success for the whole session**: the
+      promise is now kept only while it runs, so the next provisioning checks
+      the share again.
+- [x] **`samba-tool ntacl sysvolreset` after every mapping change**: 0.7 s
+      on the test DC (3 GPOs), more with every file in sysvol. A rewritten
+      file now takes the attributes of the old one (`cp --attributes-only
+      --preserve=mode,ownership,xattr`, which carries `security.NTACL`);
+      the reset runs only for a new file. Checked with `sysvolcheck`, not yet
+      with a Windows logon.
+- [x] **Nested groups** are expanded on the user page
+      (`expandNestedGroups`, from the members that `listGroups` reads).
 - [ ] **Linter.** `validators.ts` carries an `eslint-disable` comment but
       ESLint is not set up: add a config, a script and a CI step;
       `src/lib/hooks.ts` mixes 2- and 4-space indentation.

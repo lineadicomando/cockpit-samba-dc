@@ -206,8 +206,9 @@ and groups that can access it. The module keeps a dedicated GPO,
 Preferences `Drives.xml` holds one drive per mapped folder, targeted at the
 folder's users and groups. The GPO is created on first use directly in the
 local `sam.ldb` and sysvol, so no domain credentials are needed; after each
-change the GPO version is increased and the sysvol ACLs are reset
-(`samba-tool ntacl sysvolreset`).
+change the GPO version is increased. A rewritten file keeps the NT ACL of the
+one it replaces; the sysvol ACLs are reset (`samba-tool ntacl sysvolreset`)
+only when the module writes a new file, as when it creates the GPO.
 
 Drive mapping applies to Windows clients; drive letters E–Z are available
 (H is reserved for home directories). Clients pick up changes at the next
