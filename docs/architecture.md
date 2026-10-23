@@ -31,20 +31,25 @@ One project for the Samba DC, with the logic written once, on the DC, and
 three thin interfaces on top of it.
 
 ```
-                 ┌──────────────────────── the DC ────────────────────────┐
- browser ──────► │ Cockpit page ──┐                                       │
-                 │                │  argv + JSON on stdin/stdout           │
- control node ─► │ Ansible module ┼─► samba-dc-admin ─► samba Python       │
-  (ansible)      │                │   (the core)        bindings, net conf,│
- MCP client ───► │ MCP server ────┘                     setfacl, sysvol    │
-  (over SSH)     └────────────────────────────────────────────────────────┘
+                 ┌──────────────────────── the DC ──────────────────────────┐
+ browser ──────► │ Cockpit page ──┐                                         │
+                 │                │  argv + JSON on stdin/stdout            │
+ control node ─► │ Ansible module ┼─► addcctl ──► samba Python bindings,    │
+  (ansible)      │                │   (the core)   net conf, setfacl,       │
+ MCP client ───► │ MCP server ────┘                sysvol                   │
+  (over SSH)     └──────────────────────────────────────────────────────────┘
 ```
 
 ### The core
 
-A Python package with a command, `samba-dc-admin`, installed on the DC:
+A Python package with a command, `addcctl` ("AD DC control"), installed on
+the DC. The name does not start with `samba`: `samba-*` packages and
+commands belong to Samba itself (Fedora already ships `samba-dc`,
+`samba-dc-libs`, `samba-dc-provision`, `samba-tools`), and the core is a
+project of its own, not part of Samba.
 
-- **One operation, one subcommand**: `samba-dc-admin share set`, `user
+
+- **One operation, one subcommand**: `addcctl share set`, `user
   unlock`, `home provision`, … Input is JSON on stdin, output is JSON on
   stdout; errors are a JSON object and a non-zero exit code, with English
   messages shown as they are.
@@ -67,7 +72,7 @@ A Python package with a command, `samba-dc-admin`, installed on the DC:
 
 ### The interfaces
 
-- **Cockpit**: the page calls `samba-dc-admin` with `cockpit.spawn` (still
+- **Cockpit**: the page calls `addcctl` with `cockpit.spawn` (still
   `superuser: "require"`, still no shell) and reads JSON. `src/lib/` keeps the
   cache, the hooks and the types, and loses the parsing of tool output.
 - **Ansible**: modules that call the core on the target and map its result
@@ -75,9 +80,9 @@ A Python package with a command, `samba-dc-admin`, installed on the DC:
   (`samba_dc_build`) and backup (`samba_dc_backup`); day-two roles become
   thin wrappers of the modules.
 - **MCP**, in two roles:
-  - *day-two management* (users, groups, shares, …): `samba-dc-admin mcp`,
+  - *day-two management* (users, groups, shares, …): `addcctl mcp`,
     an MCP server over stdio that runs on the DC and is reached through
-    SSH (`ssh -T dc sudo -n samba-dc-admin mcp`, with a sudoers rule for that
+    SSH (`ssh -T dc sudo -n addcctl mcp`, with a sudoers rule for that
     command alone). Its tools are the core's operations, generated from the
     schemas, with check mode as preview. No playbook, no output to parse.
   - *orchestration* (building a DC, backups across hosts): the MCP server
@@ -90,14 +95,14 @@ One source tree, three artifacts, one version:
 
 | Artifact | Contents | For |
 |---|---|---|
-| `samba-dc-tools` (`.deb`) | the core and `samba-dc-admin` | every DC managed by the project |
-| `cockpit-samba-dc` (`.deb`, depends on `samba-dc-tools` of the same version) | the Cockpit page | DCs managed from a browser |
+| `addcctl` (`.deb`) | the core and `addcctl` | every DC managed by the project |
+| `cockpit-samba-dc` (`.deb`, depends on `addcctl` of the same version) | the Cockpit page | DCs managed from a browser |
 | `lineadicomando.samba_dc` (collection, in `ansible/`) | roles, modules, orchestration MCP | control nodes |
 
 `samba_dc_build` installs the two packages of its own version from the
 GitHub release (checksum verified), so a collection and the DC software it
 installs always match; a build from source stays available for development.
-A project that needs a DC and no browser installs `samba-dc-tools` alone.
+A project that needs a DC and no browser installs `addcctl` alone.
 
 ### Boundaries
 

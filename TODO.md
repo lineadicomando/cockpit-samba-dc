@@ -159,7 +159,7 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
       v0.8.0, its symlink under `ansible_collections/` and `.mcp.json` on
       `ansible/`
 
-- [ ] Python package and command `samba-dc-admin` (`core/`) with `share
+- [ ] Python package and command `addcctl` (`core/`) with `share
       list|get|set|delete` and drive mapping, as in `docs/architecture.md`,
       "The core"; check on the target what the samba Python bindings cover
       (`SamDB`, the registry shares of `net conf`) and fall back to the
@@ -169,12 +169,12 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
       generated files are up to date
 - [ ] pytest tests; verbatim tool outputs as fixtures shared with the
       TypeScript tests (`test/fixtures/`)
-- [ ] Debian source package with two binaries: `samba-dc-tools`, and
+- [ ] Debian source package with two binaries: `addcctl`, and
       `cockpit-samba-dc` depending on it (`= ${binary:Version}`); lintian
       clean
 - [ ] `shares.ts` and `drivemaps.ts`, and the `samba_share` and
       `samba_share_info` modules, call the core; the modules fail with a
-      clear message when `samba-dc-tools` is missing
+      clear message when `addcctl` is missing
 - [ ] On the test DC: time to list and to save (cold and warm) against
       today's; a share made in Cockpit, changed with Ansible, and back; the
       mapped drive at a Windows logon
@@ -194,7 +194,7 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 
 ## A5. MCP server on the DC
 
-- [ ] `samba-dc-admin mcp` (stdio), tools generated from the schemas,
+- [ ] `addcctl mcp` (stdio), tools generated from the schemas,
       `--check` as preview, secrets never in a result or a log
 - [ ] Reached through SSH, with a sudoers rule for that command alone;
       documented in the README
