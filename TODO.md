@@ -146,14 +146,17 @@ at 0.7.0, the Cockpit page at 0.2.1, and one version may not go back
       `cockpit.socket`), a local `.deb`, `source` and back; a share made by
       `samba_tool` shown in Cockpit, one made in Cockpit read and changed by
       `samba_tool`; `sysvolcheck` clean
-- [ ] The old repository: a README pointing here (archived at the end of
-      the plan, A6); win_edulab: `requirements.yaml`, the symlink under
-      `ansible_collections/`, `.mcp.json`
 
 ## A3. Core: spike on shared folders and drive mapping
 
 The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
 `ansible/plugins/module_utils/samba_share.py`). Ends with a decision.
+
+- [ ] First, once v0.8.0 is out: a README in `ansible-collection-samba_dc`
+      pointing here (archived at the end of the plan, A6); win_edulab's
+      `requirements.yaml` on `git+…/cockpit-samba-dc.git#/ansible/` at
+      v0.8.0, its symlink under `ansible_collections/` and `.mcp.json` on
+      `ansible/`
 
 - [ ] Python package and command `samba-dc-admin` (`core/`) with `share
       list|get|set|delete` and drive mapping, as in `docs/architecture.md`,
