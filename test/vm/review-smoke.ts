@@ -8,7 +8,6 @@ import {
     listGroups, listUsers, getGroupDetails,
 } from "../../src/lib/samba.ts";
 import { createShare, updateShare, listShares } from "../../src/lib/shares.ts";
-import { getBaseDN } from "../../src/lib/exec.ts";
 
 const run = (args: string[], input?: string): Promise<string> =>
     input === undefined ? cockpit.spawn(args) : cockpit.spawn(args).input(input);
@@ -23,6 +22,11 @@ async function step(name: string, fn: () => Promise<void>): Promise<void> {
 async function drivesXml(): Promise<string> {
     const out = await run(["sh", "-c", "cat /var/lib/samba/sysvol/*/Policies/*/USER/Preferences/Drives/Drives.xml"]);
     return out;
+}
+
+async function getBaseDN(): Promise<string> {
+    const raw = await run(["ldbsearch", "-H", "/var/lib/samba/private/sam.ldb", "-s", "base", "-b", "", "defaultNamingContext"]);
+    return raw.match(/^defaultNamingContext: (.*)$/m)?.[1] ?? "";
 }
 
 async function gpLink(): Promise<string> {

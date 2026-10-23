@@ -19,9 +19,7 @@ It runs **on the domain controller** and requires elevated privileges
 | `samba_tool_object` | `user` \| `group` \| `computer` \| `ou` \| `home` \| `share` |
 | `samba_tool_action` | samba-tool verb (`create`, `delete`, `list`, `show`, `addmembers`, …) |
 | `samba_tool_args` | dictionary of action-specific arguments. `name` is required for every action except `list` |
-| `samba_tool_bin` | path to the executable (default `samba-tool`) |
-| `samba_tool_sam_ldb_path` | directory database used by `ldbmodify` (default `/var/lib/samba/private/sam.ldb`) |
-| `samba_tool_home_share_params` | parameters enforced on the home SMB share |
+| `samba_tool_bin` | path to samba-tool, for the read-only actions and the OUs (default `samba-tool`) |
 | `samba_tool_shares_dir` | directory holding the shared folders (default `/srv/samba/shares`) |
 | `samba_tool_no_log` | hide the output of tasks containing passwords (default `true`) |
 
@@ -38,48 +36,52 @@ It runs **on the domain controller** and requires elevated privileges
 
 ## Idempotency
 
-- **user**: mutating operations are delegated to the
-  [`samba_tool_user`](../../plugins/modules/samba_tool_user.py) module, with
-  check_mode and diff. The password cannot be read back: with `setpassword`
-  (mapped to `update_password: always`) the task always reports `changed`.
-- **group/computer/ou**: the current state is read before acting;
+Changes go through the collection's modules, which run `addcctl`, the core of
+cockpit-samba-dc: what the role does and what the Cockpit page does are the
+same code. All support check mode and diff, and apply only what differs.
+
+- **user**: [`samba_user`](../../plugins/modules/samba_user.py). `enable`,
+  `disable` and `setprimarygroup` act on an existing user and fail on a
+  missing one; `create` and `setpassword` create it when missing. The password
+  cannot be read back: `setpassword` always reports `changed`.
+- **group**: [`samba_group`](../../plugins/modules/samba_group.py);
   `addmembers`/`removemembers` apply only the membership delta, compared
-  case-insensitively as AD does.
-- **home**: the LDAP attributes are read back and only rewritten when they
-  differ; the SMB share parameters converge to
-  `samba_tool_home_share_params`, and the path of an existing share to
-  `home_base`.
-- **share**: delegated to the
-  [`samba_share`](../../plugins/modules/samba_share.py) module, with check_mode
-  and diff. Access lists are compared regardless of order and case, the ACL of
-  the share folder by uid/gid, and the drive mapping by its target SIDs, so a
-  share saved from Cockpit in a different order is not rewritten.
+  case-insensitively as AD does, on an existing group.
+- **computer**: [`samba_computer`](../../plugins/modules/samba_computer.py);
+  deleting one also removes its DNS records.
+- **home**: [`samba_home`](../../plugins/modules/samba_home.py).
+- **share**: [`samba_share`](../../plugins/modules/samba_share.py). Access lists
+  are compared regardless of order and case, the ACL of the share folder by
+  uid/gid, and the drive mapping by its targets, so a share saved from Cockpit
+  in a different order is not rewritten.
+- **ou**: the current state is read before acting (samba-tool).
+
+addcctl protects the built-in accounts and groups (not deleted or renamed,
+Administrator's and krbtgt's status unchanged, no expiry on system accounts)
+and never deletes a domain controller's account.
 
 ## Home directories
 
-`object: home`, `action: provision` replicates what cockpit-samba-dc does:
-it creates `<home_base>/<name>`, sets the `homeDrive` and `homeDirectory`
-attributes through `ldbmodify`, and ensures the SMB share exists.
+`object: home`, `action: provision` does what cockpit-samba-dc does: it
+creates `/srv/samba/home/<name>`, owned by the user and its login group
+with mode 0700, sets the `homeDrive` and `homeDirectory` attributes, and makes
+sure the hidden `home` share serves `/srv/samba/home`. `absent` clears the
+attributes and removes the folder.
 
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `name` | — | sAMAccountName (required) |
-| `home_base` | `/srv/samba/home` | base path for home directories, the one cockpit-samba-dc uses |
 | `home_drive` | `H:` | Windows drive letter mapping |
-| `share_name` | `home` | SMB share name |
-| `home_group` | `Domain Users` | group owning the directory |
+| `home_base` | `/srv/samba/home` | only this value: the base directory addcctl manages |
+| `share_name` | `home` | only this value |
 
-The share serves one base directory: when it already exists on another path,
-`provision` repoints it at `home_base`, as cockpit-samba-dc does with its own.
-Home directories are not moved. Up to collection 0.5.0 the default was
-`/home/samba`: on a DC provisioned then, move the directories to
-`/srv/samba/home` before the next `provision`, or keep passing
-`home_base: /home/samba` and do not provision homes from Cockpit.
+`home_group` is no longer used: the folder's group is the user's login group.
+Up to collection 0.5.0 the default base directory was `/home/samba`: move the
+directories of a DC provisioned then to `/srv/samba/home`.
 
 The directory is owned by the domain account, so domain accounts must be
 resolvable through NSS. The `samba_dc_build` role configures this by adding
-`winbind` to the `passwd`/`group` lines of `/etc/nsswitch.conf`; the role fails
-with an explicit message when the lookup does not work.
+`winbind` to the `passwd`/`group` lines of `/etc/nsswitch.conf`.
 
 ## Shared folders
 

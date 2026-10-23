@@ -36,11 +36,12 @@
 - name: Apply pending reboot before managing directory objects
   ansible.builtin.meta: flush_handlers
 
+# addcctl first: the collection's modules, used for the accounts below, call it
+- name: Install cockpit-samba-dc (addcctl and the Cockpit page)
+  ansible.builtin.import_tasks: cockpit_samba_dc.yaml
+
 - name: Passwords
   ansible.builtin.import_tasks: passwords.yaml
 
 - name: Admin user
   ansible.builtin.import_tasks: admin_user.yaml
-
-- name: Cockpit samba-dc UI
-  ansible.builtin.import_tasks: cockpit_samba_dc.yaml

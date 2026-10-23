@@ -11,13 +11,22 @@ samba_dc_build installs with the Cockpit page.
 from __future__ import annotations
 
 import json
+import re
 
 SHARES_DIR = "/srv/samba/shares"
 SAM_LDB = "/var/lib/samba/private/sam.ldb"
 
 
-def call(module, obj, action, request, check=False):
-    """The JSON result of `addcctl OBJ ACTION`, or fail_json with its error."""
+class NotFound(Exception):
+    """addcctl reported that the object does not exist."""
+
+
+_NOT_FOUND = re.compile(r'^(User|Group|Computer|Shared folder) ".*" not found$')
+
+
+def call(module, obj, action, request, check=False, not_found_ok=False):
+    """The JSON result of `addcctl OBJ ACTION`, or fail_json with its error.
+    With not_found_ok, an object that does not exist raises NotFound."""
     binary = module.get_bin_path("addcctl")
     if binary is None:
         module.fail_json(msg="addcctl is not installed on the DC: install the addcctl package "
@@ -30,8 +39,24 @@ def call(module, obj, action, request, check=False):
         result = None
     if rc != 0 or not isinstance(result, dict) or "error" in result:
         message = result.get("error") if isinstance(result, dict) else None
+        if not_found_ok and message and _NOT_FOUND.match(message):
+            raise NotFound(message)
         module.fail_json(msg=message or (err or out).strip() or "addcctl failed", rc=rc)
     return result
+
+
+def get(module, obj, name):
+    """The object called name (`addcctl OBJ get`), or None when it does not exist."""
+    try:
+        return call(module, obj, "get", {"name": name}, not_found_ok=True)[obj]
+    except NotFound:
+        return None
+
+
+def given(params, mapping):
+    """{core setting: value} for the module parameters that are set;
+    mapping: {core setting: module parameter}."""
+    return dict((key, params[option]) for key, option in mapping.items() if params.get(option) is not None)
 
 
 def check_fixed_paths(module):

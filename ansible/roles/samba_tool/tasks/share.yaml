@@ -37,7 +37,6 @@
       lineadicomando.samba_dc.samba_share_info:
         name: "{{ samba_tool_args.name if samba_tool_action == 'show' else omit }}"
         shares_dir: "{{ samba_tool_shares_dir }}"
-        sam_ldb_path: "{{ samba_tool_sam_ldb_path }}"
       register: _samba_tool_share_info
 
     # Registered under a private name and published here: a skipped task
@@ -102,7 +101,6 @@
         drive_label: "{{ samba_tool_args.drive_label | default(omit) }}"
         delete_data: "{{ samba_tool_args.delete_data | default(false) }}"
         shares_dir: "{{ samba_tool_shares_dir }}"
-        sam_ldb_path: "{{ samba_tool_sam_ldb_path }}"
       register: _samba_tool_share_apply
 
     - name: Publish the result

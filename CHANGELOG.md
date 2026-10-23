@@ -11,18 +11,33 @@ the README ("Versions and releases"). New entries go under
 ### Added
 
 - `addcctl`, a new Debian package: the command that runs the operations of
-  the DC as JSON, used by the page and by the Ansible collection, for now for
-  the shared folders and the drive mapping (`addcctl schema`, `man addcctl`).
-  `cockpit-samba-dc` depends on it.
+  the DC as JSON (users, groups, computers, home directories, shared folders,
+  drive mapping, password policy), used by the page and by the Ansible
+  collection (`addcctl schema`, `man addcctl`). `cockpit-samba-dc` depends
+  on it.
+- Collection: modules `samba_user`, `samba_group`, `samba_computer` and
+  `samba_home`, on `addcctl`, with check mode and diff; `samba_user` also
+  sets groups, expiry and renames, `samba_group` scope, category and renames,
+  `samba_computer` pre-creates accounts.
 
 ### Changed
 
-- The page creates and edits shared folders through `addcctl`: about twice
-  as fast to save (on the test DC, 0.7 s instead of 1.5 s to create one with
-  a mapped drive, 0.5 s instead of 1.25 s to change it).
-- Collection: `samba_share` and `samba_share_info` run `addcctl`, which
-  `samba_dc_build` installs; a share and its mapping changed from the page
-  and from Ansible at the same moment no longer lose an update.
+- The page reads and changes everything through `addcctl`. Shared folders
+  save about twice as fast (on the test DC, 0.7 s instead of 1.5 s to create
+  one with a mapped drive, 0.5 s instead of 1.25 s to change it); user and
+  group changes take under half a second.
+- Collection: `samba_share`, `samba_share_info` and the user, group,
+  computer and home actions of `samba_tool` run `addcctl`, which
+  `samba_dc_build` installs, so they make the same changes as the page; a
+  change from the page and one from Ansible at the same moment no longer lose
+  an update. `samba_dc_build` installs `addcctl` before creating its
+  accounts.
+
+### Fixed
+
+- Collection: `samba_tool` `enable`, `disable` and `setprimarygroup` on a
+  missing user fail instead of creating it with a random password, and a
+  failure of `samba-tool` is no longer read as "no such user".
 
 ### Breaking
 
@@ -33,6 +48,13 @@ the README ("Versions and releases"). New entries go under
   the list `samba_dc_build_cockpit_package_files`.
 - Collection: `shares_dir` and `sam_ldb_path` of `samba_share` and
   `samba_share_info` accept only their defaults.
+- Collection: `samba_tool_user` is removed, replaced by `samba_user`
+  (`mail` and `job_title` are aliases of `email` and `title`; no
+  `samba_tool_path` or `sam_ldb_path`).
+- Collection: `samba_tool` loses `samba_tool_sam_ldb_path` and
+  `samba_tool_home_share_params`; its home actions accept only `home_base:
+  /srv/samba/home` and `share_name: home`, and ignore `home_group` (the folder's
+  group is the user's login group).
 
 ## [0.8.0] - 2026-10-23
 

@@ -1,339 +1,165 @@
-// Runs samba.ts against the spawn() test double (see cockpit-loader.mjs).
-// samba.ts keeps module state (cache, home share promise, NetBIOS name), so
-// the tests below share one instance and are written to be order-independent.
+// Runs samba.ts against the spawn() test double (see cockpit-loader.mjs):
+// the directory logic lives in addcctl (core/), tested there; here, what the
+// page sends to it, how it reads the answers, and the cache.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listUsers, listGroups, createUser, createGroup, addGroupMembers, deleteUser, provisionHomeDir, modifyUser, renameGroup, unlockUser, setAccountExpiry, getUserDetails } from "../src/lib/samba.ts";
+import {
+    listUsers, listGroups, listComputers, getUserDetails, refreshUser, createUser, deleteUser,
+    enableUser, disableUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, setPrimaryGroup,
+    getPasswordPolicy, listGroupMembers, addGroupMembers, removeGroupMembers, renameGroup, createGroup,
+    deleteComputer, provisionHomeDir,
+} from "../src/lib/samba.ts";
 
-const ROOT_DSE = [
-    "# record 1",
-    "dn: ",
-    "defaultNamingContext: DC=school,DC=internal",
-    "",
-    "# returned 1 records",
-].join("\n");
+// Verbatim shape of addcctl's answers
+const USER = {
+    name: "nrossi", cn: "Nicolò Rossi", given_name: "Nicolò", surname: "Rossi", email: "", description: "",
+    title: "", department: "", company: "", uid_number: "", sid: "S-1-5-21-1-2-3-1112", rid: "1112",
+    enabled: true, locked_out: true, expires: "2025-08-18T14:13:20Z", last_logon: "2026-10-21T18:48:20Z",
+    groups: ["Domain Admins", "Domain Users"], primary_group: "Domain Users", critical: false,
+    home_drive: "H:", home_directory: "\\\\DC\\home\\nrossi",
+};
+const KRBTGT = { ...USER, name: "krbtgt", cn: "krbtgt", rid: "502", enabled: false, locked_out: false, expires: null,
+    last_logon: null, groups: ["Domain Users"], critical: true };
+const GROUP = { name: "Teachers", description: "", email: "", sid: "S-1-5-21-1-2-3-1108", rid: "1108",
+    members: ["mrossi"], primary_members: ["bianchi", "mrossi"], member_count: 2, scope: "global",
+    category: "distribution", critical: false, protected: false };
+const ANSWERS: Record<string, unknown> = {
+    "user list": { users: [USER, KRBTGT] },
+    "user get": { user: USER },
+    "group list": { groups: [GROUP] },
+    "group get": { group: GROUP },
+    "computer list": { computers: [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", sid: "", rid: "1300", os: "",
+        os_version: "", dns_name: "", description: "", last_logon: null }] },
+    "domain password-policy": { policy: { complexity: true, min_length: 7, history_length: 24, min_age_days: 1,
+        max_age_days: null, lockout_threshold: 0, lockout_duration_minutes: 30, lockout_window_minutes: 30 } },
+};
 
-// Verbatim shape of ldbsearch output on Samba 4.22: non-ASCII values in
-// base64, long lines folded at 78 columns, trailing referrals.
-const USERS = [
-    "# record 1",
-    "dn: CN=Nicolò Rossi,CN=Users,DC=school,DC=internal",
-    "cn:: Tmljb2zDsiBSb3NzaQ==",
-    "givenName:: Tmljb2zDsg==",
-    "sAMAccountName: nrossi",
-    "userAccountControl: 512",
-    "objectSid: S-1-5-21-1-2-3-1112",
-    "primaryGroupID: 513",
-    "memberOf: CN=Gruppo docenti con un nome decisamente lungo per il test LDIF,CN=",
-    " Users,DC=school,DC=internal",
-    "",
-    "# Referral",
-    "ref: ldap://school.internal/CN=Configuration,DC=school,DC=internal",
-    "",
-    "# returned 2 records",
-].join("\n");
+const op = (call: SpawnCall) => call.args.slice(1).join(" ");
+const sent = (operation: string) => calls.filter(c => c.args[0] === "addcctl" && op(c) === operation)
+    .map(c => JSON.parse(c.input!));
 
-const GROUPS = [
-    "# record 1",
-    "dn: CN=Domain Users,CN=Users,DC=school,DC=internal",
-    "sAMAccountName: Domain Users",
-    "objectSid: S-1-5-21-1-2-3-513",
-    "",
-].join("\n");
-
-function isCmd(call: SpawnCall, ...prefix: string[]): boolean {
-    return prefix.every((p, i) => call.args[i] === p);
+function core() {
+    setSpawnHandler(call => {
+        if (call.args[0] !== "addcctl") throw new Error(`unexpected ${call.args.join(" ")}`);
+        return JSON.stringify(ANSWERS[op(call)] ?? { changed: true, commands: [], check: false });
+    });
 }
 
-function ldbHandler(call: SpawnCall): string {
-    if (call.args.includes("-s") && call.args.includes("base")) return ROOT_DSE;
-    if (call.args.includes("(objectClass=group)")) return GROUPS;
-    return USERS;
+// Mutations drop the cache; one at the start of a test gives fresh reads
+async function fresh() {
+    core();
+    await enableUser("cache-reset");
+    calls.length = 0;
 }
 
-describe("listUsers", () => {
-    it("decodes base64 names, unfolds long DNs and resolves the primary group", async () => {
-        setSpawnHandler(call => (isCmd(call, "ldbsearch") ? ldbHandler(call) : ""));
-        const users = await listUsers();
-        assert.equal(users.length, 1);
-        assert.equal(users[0].username, "nrossi");
-        assert.equal(users[0].fullName, "Nicolò Rossi");
-        assert.equal(users[0].givenName, "Nicolò");
-        assert.deepEqual(users[0].groups, [
-            "Gruppo docenti con un nome decisamente lungo per il test LDIF",
-            "Domain Users",
-        ]);
-        assert.equal(users[0].primaryGroup, "Domain Users");
+describe("users", () => {
+    it("translates addcctl's users into the page's", async () => {
+        await fresh();
+        const [u, k] = await listUsers();
+        assert.equal(u.username, "nrossi");
+        assert.equal(u.fullName, "Nicolò Rossi");
+        assert.equal(u.id, "1112");
+        assert.equal(u.status, "Active");
+        assert.ok(u.isAdmin);
+        assert.ok(u.lockedOut);
+        assert.equal(u.accountExpires, Date.parse("2025-08-18T14:13:20Z"));
+        assert.ok(u.expired);
+        assert.equal(u.lastActivity, new Date("2026-10-21T18:48:20Z").toLocaleDateString());
+        assert.ok(k.isProtected && k.isStatusLocked);
+        assert.equal(k.status, "Disabled");
+        assert.equal(k.lastActivity, "");
     });
 
-    it("reads the base DN from the local rootDSE, not from a network query", async () => {
-        setSpawnHandler(call => (isCmd(call, "ldbsearch") ? ldbHandler(call) : ""));
+    it("caches reads until a mutation", async () => {
+        await fresh();
         await listUsers();
-        assert.ok(!calls.some(c => c.args.includes("domain") && c.args.includes("info")));
+        await getUserDetails("nrossi");
+        await listUsers();
+        await getUserDetails("NROSSI");
+        assert.equal(calls.length, 2);
+        await disableUser("nrossi");
+        await listUsers();
+        assert.equal(sent("user list").length, 2);
+        await refreshUser("nrossi");
+        assert.equal(sent("user get").length, 2);
     });
-});
 
-describe("createUser", () => {
-    it("passes the password on stdin, never in argv", async () => {
-        setSpawnHandler(() => "");
+    it("sends the password on stdin, never in argv", async () => {
+        await fresh();
         await createUser("mrossi", "S3cret!pw", "Mario", "Rossi");
-        const add = calls.find(c => isCmd(c, "samba-tool", "user", "add"));
-        assert.ok(add);
-        assert.ok(!add.args.some(a => a.includes("S3cret!pw")));
-        assert.equal(add.input, "S3cret!pw\nS3cret!pw\n");
-        assert.deepEqual(add.args, ["samba-tool", "user", "add", "mrossi", "--given-name=Mario", "--surname=Rossi"]);
+        const create = calls.find(c => op(c) === "user create")!;
+        assert.deepEqual(create.args, ["addcctl", "user", "create"]);
+        assert.deepEqual(JSON.parse(create.input!), { name: "mrossi", password: "S3cret!pw", given_name: "Mario", surname: "Rossi" });
+        await setUserPassword("mrossi", "N3w!pass", true);
+        assert.deepEqual(sent("user password"), [{ name: "mrossi", password: "N3w!pass", must_change: true }]);
+        assert.ok(!calls.some(c => c.args.some(a => a.includes("S3cret") || a.includes("N3w!"))));
     });
-});
 
-describe("option-like names", () => {
-    it("are rejected before any command runs", async () => {
-        setSpawnHandler(() => "");
-        await assert.rejects(createGroup("-H"), /Invalid account name/);
+    it("maps each change to user set or its own operation", async () => {
+        await fresh();
+        await enableUser("a");
+        await disableUser("a");
+        await unlockUser("a");
+        await setPrimaryGroup("a", "Teachers");
+        await setAccountExpiry("a", new Date(Date.UTC(2027, 5, 30, 22)));
+        await setAccountExpiry("a", null);
+        assert.deepEqual(sent("user set"), [
+            { name: "a", enabled: true }, { name: "a", enabled: false }, { name: "a", primary_group: "Teachers" },
+            { name: "a", expires: "2027-06-30T22:00:00.000Z" }, { name: "a", expires: null },
+        ]);
+        assert.deepEqual(sent("user unlock"), [{ name: "a" }]);
+        await assert.rejects(setAccountExpiry("a", new Date(NaN)), /Invalid account expiry date/);
+    });
+
+    it("renames through user set, which renames in the shares too", async () => {
+        await fresh();
+        await modifyUser("mrossi", { newUsername: "mario.rossi", email: "m@x" });
+        await modifyUser("mrossi", { newUsername: "mrossi" });
+        assert.deepEqual(sent("user set"), [{ name: "mrossi", email: "m@x", new_name: "mario.rossi" }]);
+    });
+
+    it("passes the core's error on as it is", async () => {
+        setSpawnHandler(() => { throw new Error('Renamed "a" to "b", but updating its shared folders failed: x'); });
+        await assert.rejects(modifyUser("a", { newUsername: "b" }), /^Error: Renamed "a" to "b", but updating/);
+    });
+
+    it("rejects option-like names before any command runs", async () => {
+        await fresh();
         await assert.rejects(deleteUser("--help"), /Invalid account name/);
         await assert.rejects(addGroupMembers("Teachers", ["alice", "-x"]), /Invalid account name/);
+        await assert.rejects(createGroup("-H"), /Invalid account name/);
         assert.equal(calls.length, 0);
     });
 });
 
-describe("provisionHomeDir", () => {
-    it("creates the home share once when several users are provisioned in parallel", async () => {
-        let shareExists = false;
-        let addshareCount = 0;
-        setSpawnHandler(async call => {
-            if (isCmd(call, "testparm")) return "DC\n";
-            if (isCmd(call, "samba-tool", "user", "show")) {
-                return `dn: CN=${call.args[3]},CN=Users,DC=school,DC=internal\nsAMAccountName: ${call.args[3]}\n`;
-            }
-            if (isCmd(call, "net", "conf", "getparm")) {
-                if (!shareExists) throw new Error("share not found");
-                return "/srv/samba/home\n";
-            }
-            if (isCmd(call, "net", "conf", "addshare")) {
-                // Real "net conf addshare" fails if the share already exists
-                if (shareExists) throw new Error("ERROR: share home already exists");
-                await new Promise(r => setTimeout(r, 10));
-                shareExists = true;
-                addshareCount++;
-                return "";
-            }
-            return "";
-        });
-
-        const users = ["alice", "bob", "carol"];
-        await Promise.all(users.map(u => provisionHomeDir(u)));
-
-        assert.equal(addshareCount, 1);
-        for (const u of users) {
-            const chown = calls.find(c => isCmd(c, "chown") && c.args[2] === `/srv/samba/home/${u}`);
-            assert.deepEqual(chown?.args, ["chown", `${u}:`, `/srv/samba/home/${u}`]);
-            const modify = calls.find(c => isCmd(c, "ldbmodify") && c.input?.includes(`CN=${u},`));
-            assert.ok(modify?.input?.includes(`homeDirectory: \\\\DC\\home\\${u}`));
-            assert.ok(modify?.input?.includes("homeDrive: H:"));
-        }
-    });
-});
-
-describe("home share", () => {
-    it("moves an existing home share to the current base directory", async () => {
-        // Separate module instance: the home share promise above is already settled
-        // @ts-expect-error -- the query string is not a path TypeScript can resolve
-        const { provisionHomeDir: provision } = await import("../src/lib/samba.ts?home-move");
-        setSpawnHandler(call => {
-            if (isCmd(call, "testparm")) return "DC\n";
-            if (isCmd(call, "samba-tool", "user", "show")) return "dn: CN=u1,CN=Users,DC=school,DC=internal\n";
-            if (isCmd(call, "net", "conf", "getparm")) return "/home/samba\n";
-            return "";
-        });
-        await provision("u1");
-        assert.ok(calls.some(c => c.args.join(" ") === "net conf setparm home path /srv/samba/home"));
-        assert.ok(!calls.some(c => isCmd(c, "net", "conf", "addshare")));
-    });
-});
-
-describe("home share removed meanwhile", () => {
-    it("is created again by the next provisioning", async () => {
-        // @ts-expect-error -- the query string is not a path TypeScript can resolve
-        const { provisionHomeDir: provision } = await import("../src/lib/samba.ts?home-removed");
-        let shareExists = false;
-        setSpawnHandler(call => {
-            if (isCmd(call, "testparm")) return "DC\n";
-            if (isCmd(call, "samba-tool", "user", "show")) return `dn: CN=${call.args[3]},CN=Users,DC=school,DC=internal\n`;
-            if (isCmd(call, "net", "conf", "getparm")) {
-                if (!shareExists) throw new Error("share not found");
-                return "/srv/samba/home\n";
-            }
-            if (isCmd(call, "net", "conf", "addshare")) shareExists = true;
-            return "";
-        });
-        await provision("u1");
-        shareExists = false; // "net conf delshare home" by hand
-        await provision("u2");
-        assert.equal(calls.filter(c => isCmd(c, "net", "conf", "addshare")).length, 2);
-    });
-});
-
-describe("DN resolution", () => {
-    // CNs differ from account names: samba-tool names users "Given Surname",
-    // and groups made with other tools can have any CN.
-    const groups = [
-        "dn: CN=Docenti (2026),CN=Users,DC=school,DC=internal",
-        "sAMAccountName: Teachers",
-        "objectSid: S-1-5-21-1-2-3-1108",
-        "member: CN=Rossi\\, Mario,CN=Users,DC=school,DC=internal",
-        "member: CN=PC01,CN=Computers,DC=school,DC=internal",
-        "",
-        "dn: CN=Domain Users,CN=Users,DC=school,DC=internal",
-        "sAMAccountName: Domain Users",
-        "objectSid: S-1-5-21-1-2-3-513",
-        "",
-    ].join("\n");
-    const users = [
-        "dn: CN=Rossi\\, Mario,CN=Users,DC=school,DC=internal",
-        "cn: Rossi, Mario",
-        "sAMAccountName: mrossi",
-        "objectSid: S-1-5-21-1-2-3-1200",
-        "primaryGroupID: 513",
-        "memberOf: cn=docenti (2026),cn=users,dc=school,dc=internal",
-        "",
-    ].join("\n");
-    function handler(call: SpawnCall): string {
-        if (call.args.includes("-s") && call.args.includes("base")) return ROOT_DSE;
-        if (call.args.includes("(objectClass=group)")) return groups;
-        return users;
-    }
-    // Mutations drop the cached ldbsearch results of the earlier tests
-    async function resetCaches(): Promise<void> {
-        setSpawnHandler(() => "");
-        await createGroup("cache-reset");
-        await createUser("cache-reset", "x");
-        setSpawnHandler(handler);
-    }
-
-    it("lists group members by account name", async () => {
-        await resetCaches();
-        const teachers = (await listGroups()).find(g => g.name === "Teachers");
-        assert.deepEqual(teachers?.members, ["mrossi", "PC01"]);
-        assert.equal((await listGroups()).find(g => g.name === "Domain Users")?.memberCount, 1);
+describe("groups, computers, homes, policy", () => {
+    it("reads groups and lists the primary members too", async () => {
+        await fresh();
+        const [g] = await listGroups();
+        assert.deepEqual([g.name, g.id, g.memberCount, g.groupType], ["Teachers", "1108", 2, "Distribution"]);
+        assert.deepEqual(await listGroupMembers("Teachers"), ["mrossi", "bianchi"]);
     });
 
-    it("lists user groups by account name", async () => {
-        await resetCaches();
-        const [u] = await listUsers();
-        assert.deepEqual(u.groups, ["Teachers", "Domain Users"]);
-    });
-});
-
-describe("renames", () => {
-    function handler(call: SpawnCall): string {
-        if (isCmd(call, "addcctl")) return JSON.stringify({ changed: true, shares: ["docs"], commands: [], check: false });
-        if (isCmd(call, "ldbsearch")) return call.args.includes("defaultNamingContext") ? ROOT_DSE : "";
-        return "";
-    }
-    const renameInput = () => JSON.parse(calls.find(c => isCmd(c, "addcctl", "share", "rename-principal"))?.input ?? "null");
-
-    it("renaming a user updates the shares that list it", async () => {
-        setSpawnHandler(handler);
-        await modifyUser("mrossi", { newUsername: "mario.rossi" });
-        assert.deepEqual(renameInput(), { kind: "user", old: "mrossi", new: "mario.rossi" });
-    });
-
-    it("renaming a group updates the shares that list it", async () => {
-        setSpawnHandler(handler);
+    it("maps members and renames to group set", async () => {
+        await fresh();
+        await addGroupMembers("Teachers", ["a", "b"]);
+        await removeGroupMembers("Teachers", ["a"]);
         await renameGroup("Teachers", "Docenti");
-        assert.deepEqual(renameInput(), { kind: "group", old: "Teachers", new: "Docenti" });
-        // Samba 4.22 takes the new name as an option, not a second argument
-        assert.deepEqual(calls.find(c => isCmd(c, "samba-tool", "group", "rename"))?.args,
-            ["samba-tool", "group", "rename", "Teachers", "--samaccountname=Docenti"]);
+        assert.deepEqual(sent("group set"), [
+            { name: "Teachers", members: ["a", "b"], members_mode: "append" },
+            { name: "Teachers", members: ["a"], members_mode: "remove" },
+            { name: "Teachers", new_name: "Docenti" },
+        ]);
     });
 
-    it("other edits leave the shares alone", async () => {
-        setSpawnHandler(handler);
-        await modifyUser("mrossi", { email: "m@school.internal" });
-        assert.ok(!calls.some(c => isCmd(c, "addcctl")));
-    });
-
-    it("reports a share update failure as happening after the rename", async () => {
-        setSpawnHandler(call => {
-            if (isCmd(call, "addcctl")) throw new Error("registry locked");
-            return handler(call);
-        });
-        await assert.rejects(renameGroup("Teachers", "Docenti"), /Renamed "Teachers" to "Docenti", but updating its shared folders failed: registry locked/);
-        assert.ok(calls.some(c => isCmd(c, "samba-tool", "group", "rename")));
-    });
-});
-
-describe("lockout and expiry", () => {
-    // Verbatim shape of "samba-tool user show --attributes=*,msDS-User-Account-Control-Computed"
-    // on Samba 4.22 for an account locked out and expired
-    const show = [
-        "dn: CN=student2,CN=Users,DC=school,DC=internal",
-        "sAMAccountName: student2",
-        "userAccountControl: 512",
-        "accountExpires: 134000000000000000",
-        "lockoutTime: 134372390602576080",
-        "badPwdCount: 3",
-        "objectSid: S-1-5-21-1-2-3-1105",
-        "primaryGroupID: 513",
-        "msDS-User-Account-Control-Computed: 16",
-        "",
-    ].join("\n");
-    function handler(call: SpawnCall): string {
-        if (isCmd(call, "samba-tool", "user", "show")) return show;
-        if (isCmd(call, "ldbsearch")) return ldbHandler(call);
-        return "";
-    }
-
-    it("reads the lock and the expiry date", async () => {
-        setSpawnHandler(handler);
-        const u = await getUserDetails("student2");
-        assert.equal(u.lockedOut, true);
-        assert.equal(u.expired, true);
-        assert.equal(new Date(u.accountExpires!).toISOString(), "2025-08-18T14:13:20.000Z");
-        assert.deepEqual(calls.find(c => isCmd(c, "samba-tool", "user", "show"))?.args,
-            ["samba-tool", "user", "show", "student2", "--attributes=*,msDS-User-Account-Control-Computed"]);
-    });
-
-    it("drops the cached detail after an unlock", async () => {
-        setSpawnHandler(handler);
-        await getUserDetails("student2");
-        await unlockUser("student2");
-        calls.length = 0;
-        await getUserDetails("student2");
-        assert.equal(calls.filter(c => isCmd(c, "samba-tool", "user", "show")).length, 1);
-    });
-
-    it("unlocks with samba-tool", async () => {
-        setSpawnHandler(handler);
-        await unlockUser("student2");
-        assert.deepEqual(calls.map(c => c.args), [["samba-tool", "user", "unlock", "student2"]]);
-    });
-
-    it("writes accountExpires alone, leaving userAccountControl as it is", async () => {
-        setSpawnHandler(handler);
-        await setAccountExpiry("student2", new Date(Date.UTC(2027, 5, 30, 22, 0, 0)));
-        const modify = calls.find(c => isCmd(c, "ldbmodify"));
-        assert.equal(modify?.input, [
-            "dn: CN=student2,CN=Users,DC=school,DC=internal",
-            "changetype: modify",
-            "replace: accountExpires",
-            "accountExpires: 134588664000000000",
-            "-",
-            "",
-        ].join("\n"));
-        assert.ok(!calls.some(c => isCmd(c, "samba-tool", "user", "setexpiry")));
-    });
-
-    it("writes the never-expires value", async () => {
-        setSpawnHandler(handler);
-        await setAccountExpiry("student2", null);
-        assert.ok(calls.find(c => isCmd(c, "ldbmodify"))?.input?.includes("accountExpires: 9223372036854775807\n"));
-    });
-
-    it("rejects an invalid date before any command runs", async () => {
-        setSpawnHandler(handler);
-        await assert.rejects(setAccountExpiry("student2", new Date(NaN)), /Invalid account expiry date/);
-        await assert.rejects(unlockUser("-x"), /Invalid account name/);
-        assert.equal(calls.length, 0);
+    it("computers, home directories and the password policy", async () => {
+        await fresh();
+        assert.deepEqual(await listComputers(), [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", id: "1300", os: "-", lastLogon: "" }]);
+        await deleteComputer("PC01");
+        await provisionHomeDir("nrossi");
+        assert.deepEqual(sent("computer delete"), [{ name: "PC01" }]);
+        assert.deepEqual(sent("home provision"), [{ name: "nrossi" }]);
+        assert.deepEqual(await getPasswordPolicy(), { complexityRequired: true, minLength: 7, historyLength: 24 });
     });
 });

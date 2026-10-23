@@ -1,2 +1,8 @@
 ---
 requires_ansible: ">=2.19.0"
+plugin_routing:
+  modules:
+    samba_tool_user:
+      tombstone:
+        removal_date: "2026-10-23"
+        warning_text: Use lineadicomando.samba_dc.samba_user, which runs addcctl; mail and job_title are aliases of email and title there.

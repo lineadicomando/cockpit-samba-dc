@@ -99,17 +99,6 @@ export async function deleteShare(name: string, deleteData: boolean): Promise<vo
     }
 }
 
-// Called after a user or group is renamed: smb.conf lists principals by
-// name, so without this they would lose access to their shares.
-export async function renameSharePrincipal(kind: "user" | "group", oldName: string, newName: string): Promise<void> {
-    if (oldName === newName) return;
-    try {
-        await addcctl("share rename-principal", { kind, old: oldName, new: newName });
-    } finally {
-        cache.invalidate(k => k === SHARES_KEY);
-    }
-}
-
 export interface EffectiveShareAccess {
     level: ShareAccessLevel;
     // The entries that grant access: the user itself and/or its groups

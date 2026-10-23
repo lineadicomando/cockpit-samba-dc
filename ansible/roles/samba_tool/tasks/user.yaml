@@ -2,8 +2,8 @@
 ---
 # User operations.
 #   read-only : list, show          -> generic executor
-#   mutating  : create/present, delete/absent, enable, disable, setpassword
-#               -> idempotent samba_tool_user module
+#   mutating  : create/present, delete/absent, enable, disable, setpassword,
+#               setprimarygroup -> the samba_user module (addcctl)
 
 - name: Validate user action
   ansible.builtin.assert:
@@ -37,12 +37,17 @@
     - name: Run read-only user command
       ansible.builtin.include_tasks: _run.yaml
 
+# Through samba_user, on addcctl: enable, disable and setprimarygroup act on
+# an existing user only (no password, so a missing one is an error, not a
+# new account); create and setpassword create it when missing.
 - name: Mutating user operations
   when: samba_tool_action not in ['list', 'show']
-  lineadicomando.samba_dc.samba_tool_user:
+  lineadicomando.samba_dc.samba_user:
     name: "{{ samba_tool_args.name }}"
     state: "{{ 'absent' if samba_tool_action in ['delete', 'absent'] else 'present' }}"
-    password: "{{ samba_tool_args.password | default(omit) }}"
+    password: >-
+      {{ samba_tool_args.password | default(omit)
+         if samba_tool_action in ['create', 'present', 'setpassword'] else omit }}
     update_password: "{{ 'always' if samba_tool_action == 'setpassword' else 'on_create' }}"
     enabled: >-
       {{ true if samba_tool_action == 'enable'
@@ -50,14 +55,15 @@
          else samba_tool_args.enabled | default(omit) }}
     given_name: "{{ samba_tool_args.given_name | default(omit) }}"
     surname: "{{ samba_tool_args.surname | default(omit) }}"
-    mail: "{{ samba_tool_args.mail | default(omit) }}"
+    email: "{{ samba_tool_args.mail | default(samba_tool_args.email | default(omit)) }}"
     description: "{{ samba_tool_args.description | default(omit) }}"
-    job_title: "{{ samba_tool_args.job_title | default(omit) }}"
+    title: "{{ samba_tool_args.job_title | default(samba_tool_args.title | default(omit)) }}"
     department: "{{ samba_tool_args.department | default(omit) }}"
     company: "{{ samba_tool_args.company | default(omit) }}"
     ou: "{{ samba_tool_args.ou | default(omit) }}"
+    expires: "{{ samba_tool_args.expires | default(omit) }}"
+    groups: "{{ samba_tool_args.groups | default(omit) }}"
+    groups_mode: "{{ samba_tool_args.groups_mode | default(omit) }}"
     must_change_password: "{{ samba_tool_args.must_change_password | default(omit) }}"
     primary_group: "{{ samba_tool_args.primary_group | default(omit) }}"
-    sam_ldb_path: "{{ samba_tool_args.sam_ldb_path | default(samba_tool_sam_ldb_path) }}"
-    samba_tool_path: "{{ samba_tool_bin if samba_tool_bin != 'samba-tool' else omit }}"
   no_log: "{{ samba_tool_no_log }}"

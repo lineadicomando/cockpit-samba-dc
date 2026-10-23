@@ -2,7 +2,7 @@
 ---
 # Computer account operations.
 #   read-only : list, show
-#   mutating  : create, delete/absent  (idempotent via existence check)
+#   mutating  : create, delete/absent -> the samba_computer module (addcctl)
 
 - name: Validate computer action
   ansible.builtin.assert:
@@ -31,11 +31,10 @@
     - name: Run read-only computer command
       ansible.builtin.include_tasks: _run.yaml
 
-- name: Ensure computer present or absent
-  ansible.builtin.include_tasks: _ensure.yaml
+- name: Computer account present or absent (samba_computer, on addcctl)
   when: samba_tool_action in ['create', 'delete', 'absent']
-  vars:
-    _samba_tool_ensure_object: computer
-    _samba_tool_ensure_name: "{{ samba_tool_args.name }}"
-    _samba_tool_ensure_mode: show
-    _samba_tool_ensure_create: create
+  lineadicomando.samba_dc.samba_computer:
+    name: "{{ samba_tool_args.name }}"
+    state: "{{ 'absent' if samba_tool_action in ['delete', 'absent'] else 'present' }}"
+    ou: "{{ samba_tool_args.ou | default(omit) }}"
+    description: "{{ samba_tool_args.description | default(omit) }}"

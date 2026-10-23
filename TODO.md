@@ -76,7 +76,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section A4.
+4. Next step: section A5 (or the v0.9.0 release, when asked).
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -196,16 +196,23 @@ Measures on the test DC (2 vCPU), through the page:
 | change its drive letter | 1.18–1.32 s | 0.45–0.60 s |
 | one `addcctl` call from a shell (start, read, answer) | | ≈185 ms |
 
-## A4. Core: every other operation
+## A4. Core: every other operation (done) — v0.9.0
 
-- [ ] One operation at a time: users, groups, computers, home directories,
-      password policy (read), lockout and expiry; each with its schema and
-      tests, and the TypeScript it replaces removed only once the core
-      version is tried on the test DC
-- [ ] Ansible modules per object (`samba_user`, `samba_group`,
-      `samba_computer`, `samba_home`, …) on the core; `samba_tool` becomes a
-      thin dispatcher of them; `samba_tool_user` goes
-- [ ] `CLAUDE.md`: the non-negotiable rules refer to the core
+- [x] In addcctl: users (list, get, create, set, password, unlock, delete;
+      lockout and expiry), groups (list, get, create, set, delete), computers
+      (list, get, create, delete), home directories (provision, delete), the
+      password policy (read); SamDB API, `samba-tool` only for the renames, the
+      primary group and a computer's deletion; built-in objects protected in
+      the core; tried on the test DC
+- [x] The page's `samba.ts` on the core (`parsers.ts` is gone); every page
+      tried in the browser on the test DC
+- [x] Ansible modules `samba_user`, `samba_group`, `samba_computer`,
+      `samba_home` on the core; `samba_tool` dispatches to them (OUs and the
+      read-only actions still run `samba-tool`); `samba_dc_build` creates its
+      accounts with `samba_user`, after installing addcctl; `samba_tool_user`
+      goes (tombstone in `meta/runtime.yml`); tried on the test DC, from a DC
+      built from `baseline`
+- [x] `CLAUDE.md`: the non-negotiable rules refer to the core
 
 ## A5. MCP server on the DC
 
@@ -263,20 +270,11 @@ Measures on the test DC (2 vCPU), through the page:
 - [ ] **Integration checks.** `test/vm/review-smoke.ts` covers only the review
       fixes; grow it into a suite run before each release (users, groups,
       home directories, shares, drive mapping), with cleanup of its data.
-- [ ] **Collection: `enable`, `disable` and `setprimarygroup` create a
-      missing user** (`ansible/roles/samba_tool/tasks/user.yaml`: every
-      action but `delete`/`absent` maps to `state: present`), so a typo in
-      the name provisions an account with a random password. Only
-      `create`/`present` may create; the others must fail on a missing user.
-      Goes away with `samba_tool_user` in A4 if that comes first
-- [ ] **Collection: `samba_tool_user` reads any `samba-tool` failure as
-      "no such user"** (`show()`), and goes on to create it: tell the
-      unknown-user message apart and fail with `rc`, `stdout`, `stderr`
-- [ ] **Collection: an empty DN can reach `ldbmodify`** after a user is
-      created and not read back (`set_primary_group()`): fail first, naming
-      the user
-- [ ] **Collection: `RETURN` of `samba_tool_user` documents `commands` as
-      returned only when changed**; it always is
+- [x] **Collection: `samba_tool_user` bugs** (enable, disable and
+      setprimarygroup creating a missing user; any failure read as "no such
+      user"; an empty DN reaching `ldbmodify`; `commands` documented as
+      conditional): gone with the module, replaced by `samba_user` on addcctl
+      (A4), which fails on a missing user unless given a password
 - [ ] **Collection: sanity ignore files for ansible-core 2.16–2.18**, below
       `requires_ansible: ">=2.19.0"` and never run by CI: keep or delete
 - [ ] **Rebuild scripts.** `test/vm/build-dc.sh` and `build-win.sh` record

@@ -155,6 +155,7 @@ class TestRead(Base):
         groups = {g["name"]: g for g in Groups(self.dc, self.runner).list()}
         # mrossi by member, bianchi by primary group
         self.assertEqual(groups["Teachers"]["member_count"], 2)
+        self.assertEqual(groups["Teachers"]["primary_members"], ["bianchi"])
         self.assertEqual(groups["Staff"]["members"], ["Teachers"])
         self.assertTrue(groups["Domain Users"]["protected"])
         self.assertEqual((groups["Teachers"]["scope"], groups["Teachers"]["category"]), ("global", "security"))

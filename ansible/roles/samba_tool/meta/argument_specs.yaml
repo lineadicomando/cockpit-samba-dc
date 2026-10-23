@@ -28,27 +28,6 @@ argument_specs:
         description: Path to the samba-tool executable on the target.
         type: str
         default: samba-tool
-      samba_tool_sam_ldb_path:
-        description:
-          - Samba directory database, used by C(ldbmodify) for the attributes
-            samba-tool cannot set (primaryGroupID, homeDrive, homeDirectory).
-        type: path
-        default: /var/lib/samba/private/sam.ldb
-      samba_tool_home_share_params:
-        description:
-          - Parameters enforced on the home SMB share by
-            O(samba_tool_object=home) with O(samba_tool_action=provision).
-        type: list
-        elements: dict
-        options:
-          param:
-            description: smb.conf parameter name.
-            type: str
-            required: true
-          value:
-            description: Value the parameter must have.
-            type: str
-            required: true
       samba_tool_shares_dir:
         description:
           - Directory holding the shared folders managed by O(samba_tool_object=share).

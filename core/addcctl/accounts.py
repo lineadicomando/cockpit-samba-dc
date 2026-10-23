@@ -228,7 +228,7 @@ class Users:
             changed = True
 
         if new_name != name:
-            Shares(self.dc, self.runner).rename_principal({"kind": "user", "old": name, "new": new_name})
+            _follow_rename(self.dc, self.runner, "user", name, new_name)
 
         after = before if not changed or self.runner.check else self._describe(self._require(new_name))
         return {"changed": changed, "user": after, "diff": {"before": before, "after": after}}
@@ -296,10 +296,10 @@ class Groups:
         self.runner = runner
         self.directory = Directory(dc)
 
-    def _describe(self, record, names=None, primary_counts=None):
+    def _describe(self, record, names=None, primary_members=None):
         names = self.directory.dn_names() if names is None else names
-        if primary_counts is None:
-            primary_counts = self._primary_counts()
+        if primary_members is None:
+            primary_members = self._primary_members()
         name = first(record, "sAMAccountName")
         sid = first(record, "objectSid")
         members = [self.directory.name_of(dn, names) for dn in record.get("member", [])]
@@ -312,21 +312,23 @@ class Groups:
             "sid": sid,
             "rid": ad.rid(sid),
             "members": members,
-            # Users whose primary group this is are not in "member"
-            "member_count": len(members) + primary_counts.get(ad.rid(sid), 0),
+            # Accounts whose primary group this is: not in "member"
+            "primary_members": sorted(primary_members.get(ad.rid(sid), []), key=str.lower),
+            "member_count": len(members) + len(primary_members.get(ad.rid(sid), [])),
             "scope": scope,
             "category": category,
             "critical": critical,
             "protected": name.lower() in ad.PROTECTED_GROUPS or critical,
         }
 
-    def _primary_counts(self):
-        counts = {}
+    def _primary_members(self):
+        """Group RID -> the accounts whose primary group it is."""
+        members = {}
         for account in self.directory.accounts():
             pgid = first(account, "primaryGroupID")
             if pgid:
-                counts[pgid] = counts.get(pgid, 0) + 1
-        return counts
+                members.setdefault(pgid, []).append(first(account, "sAMAccountName"))
+        return members
 
     def _record(self, name):
         found = [g for g in self.directory.groups() if first(g, "sAMAccountName").lower() == name.lower()]
@@ -340,8 +342,8 @@ class Groups:
         return record
 
     def list(self):
-        names, counts = self.directory.dn_names(), self._primary_counts()
-        return sorted((self._describe(g, names, counts) for g in self.directory.groups()),
+        names, primary = self.directory.dn_names(), self._primary_members()
+        return sorted((self._describe(g, names, primary) for g in self.directory.groups()),
                       key=lambda g: g["name"].lower())
 
     def get(self, name):
@@ -386,7 +388,7 @@ class Groups:
             changed = self._set_members(new_name, before, request["members"],
                                         request.get("members_mode", "replace")) or changed
         if new_name != before["name"]:
-            Shares(self.dc, self.runner).rename_principal({"kind": "group", "old": before["name"], "new": new_name})
+            _follow_rename(self.dc, self.runner, "group", before["name"], new_name)
         if changed and not self.runner.check:
             self.directory = Directory(self.dc)
             after = self.get(new_name)
@@ -486,6 +488,15 @@ class Computers:
         # Also removes its DNS records
         self.dc.samba_tool(["computer", "delete", before["name"]])
         return {"changed": True, "diff": {"before": before, "after": None}}
+
+
+def _follow_rename(dc, runner, kind, old, new):
+    """The shared folders list principals by name. The rename itself is done:
+    say so, so that a failure here is not read as "nothing changed"."""
+    try:
+        Shares(dc, runner).rename_principal({"kind": kind, "old": old, "new": new})
+    except AddcError as e:
+        raise AddcError('Renamed "%s" to "%s", but updating its shared folders failed: %s' % (old, new, e)) from None
 
 
 def _escape(value):

@@ -46,8 +46,6 @@ export interface PasswordPolicy {
     historyLength: number;
 }
 
-export type LdapFields = Record<string, string | string[]>;
-
 export type ShareAccessLevel = "read" | "write";
 
 // A user or group granted access to a shared folder, by sAMAccountName

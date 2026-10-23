@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, renameSharePrincipal } from "../src/lib/shares.ts";
+import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups } from "../src/lib/shares.ts";
 
 // Verbatim shape of "addcctl share list"
 const LIST = JSON.stringify({ shares: [{
@@ -90,16 +90,6 @@ describe("updateShare and deleteShare", () => {
         assert.equal(input("set").browseable, false);
         await deleteShare("docs", true);
         assert.deepEqual(input("delete"), { name: "docs", delete_data: true });
-    });
-});
-
-describe("renameSharePrincipal", () => {
-    it("asks addcctl to follow the rename, and skips a no-op", async () => {
-        core();
-        await renameSharePrincipal("user", "mrossi", "mrossi");
-        assert.equal(calls.length, 0);
-        await renameSharePrincipal("user", "mrossi", "mario.rossi");
-        assert.deepEqual(input("rename-principal"), { kind: "user", old: "mrossi", new: "mario.rossi" });
     });
 });
 

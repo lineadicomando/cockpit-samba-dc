@@ -7,8 +7,9 @@ Agent instructions for this project.
 `cockpit-samba-dc` is a Cockpit plugin that manages a Samba Active Directory
 domain controller from the browser: users, groups, computers, home
 directories and shared folders, with network drives mapped through a GPO. It
-runs on the DC itself and drives the local tools (`samba-tool`, `ldbsearch`,
-`ldbmodify`, `net conf`, `testparm`, `setfacl`) as root through Cockpit.
+runs on the DC itself and calls `addcctl`, the project's core, as root
+through Cockpit; addcctl reads and changes the DC locally (Samba's Python
+bindings, `setfacl`, a few `samba-tool` commands).
 
 `ansible/` holds the Ansible collection `lineadicomando.samba_dc`, which
 provisions the DC (`samba_dc_build`, installing this module's package) and
@@ -17,9 +18,9 @@ It has the version of the repository.
 
 `core/` holds `addcctl`, the shared core of `docs/architecture.md`: a Python
 command on the DC that runs one operation per call, JSON in and out. The
-page and the collection call it for the shared folders and the drive
-mapping; for the rest (users, groups, computers, home directories) each still
-has its own code, so a change there is made on both sides until A4.
+page and the collection call it for users, groups, computers, home
+directories, shared folders, drive mapping and the password policy: a change
+to what the project does on the DC is made there, once.
 
 Documents, each with one job; do not repeat one in another:
 
@@ -46,13 +47,15 @@ clones the repository.
 
 Layout: `src/app.tsx` the tabs, `src/components/` pages and
 `src/components/modals/`, `src/lib/` everything that talks to the system
-(`exec.ts` spawn wrappers, smb.conf parameters and the base DN; `samba.ts`
-users, groups, computers, home directories; `addcctl.ts` the call to the
-core; `shares.ts` shared folders and drive mapping, through it;
-`parsers.ts`, `validators.ts`, `cache.ts`, `hooks.ts`, `concurrency.ts`; `addcctl-schema.ts` is generated),
+(`exec.ts` spawn wrappers; `addcctl.ts` the call to the core; `samba.ts`
+users, groups, computers, home directories, password policy, and `shares.ts`
+shared folders and drive mapping, both through it, translating and caching;
+`validators.ts`, `passwordUtils.ts`, `cache.ts`, `hooks.ts`,
+`concurrency.ts`; `addcctl-schema.ts` is generated),
 `core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
 operations and their JSON Schemas, `dc.py` everything that reads or writes
-the DC, `shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`; `tests/`,
+the DC, `accounts.py` users groups computers, `homes.py`, `domain.py`,
+`shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`, `ad.py`; `tests/`,
 `bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
 `po/` and `src/locales/` translations, `scripts/` build and release
@@ -66,37 +69,41 @@ own `README.md` for its users).
 
 ## Non-negotiable rules
 
-They keep a web page that runs commands as root on a domain controller safe.
-A change that breaks one of them needs the user's explicit agreement. They
-bind `core/` in the same way: there commands are argv lists through
-`Runner` (`runner.py`), secrets go on stdin, names are checked before they
-reach a command (`share_name_violation`, `_check_principal_names`), LDAP
-values go through `ldb.binary_encode`, and recursive changes run only on
-`is_managed_path`.
+They keep a web page and a set of modules that change a domain controller as
+root safe. They are enforced in `core/` (addcctl), which every interface
+calls; the page and the modules check what they can too. A change that breaks
+one of them needs the user's explicit agreement.
 
-1. **No shell.** Spawn with argv arrays through `runAsRoot` /
-   `runAsRootWithInput` in `src/lib/exec.ts` (`superuser: "require"`); never
-   `sudo` in argv, never `sh -c`.
-2. **Secrets never appear in argv.** Passwords go to `samba-tool` on stdin
-   (`runSambaWithInput`), so they are not readable in `/proc/<pid>/cmdline`.
-3. **Names are checked in `src/lib/`, not only in the UI.** New names go
-   through `validators.ts`; every name that reaches a command as a positional
-   argument goes through `checkName` (a leading `-` would be read as an
-   option). Values in an LDAP filter go through `escapeLdapFilter`.
-4. **Destructive commands only on paths the module created.** Recursive
-   `setfacl` and `rm -rf` run only on `SHARES_DIR/<name>` (`isManagedPath`);
-   shares elsewhere (the home share, hand-made shares) are not listed or
-   touched.
-5. **Local reads, no domain credentials.** Read the configuration with
-   `testparm` and the directory from the local `sam.ldb`, not with network
-   queries (`samba-tool domain info` and CLDAP fail when Samba does not listen
-   on loopback). The GPO is written directly to `sam.ldb` and sysvol.
+1. **No shell.** Commands are argv lists: `Runner` in `core/addcctl/runner.py`,
+   `runAsRoot` / `runAsRootWithInput` in `src/lib/exec.ts` (`superuser:
+   "require"`). Never `sudo` in argv, never `sh -c`.
+2. **Secrets never appear in argv or in an output.** Passwords reach addcctl
+   in its JSON input on stdin (`writeOnly` in the schema), go to Samba through
+   its Python API in the same process, and are never returned or recorded in
+   `commands`; the modules mark them `no_log`.
+3. **Names are checked before they reach a command.** In the core
+   (`check_principal_names`, `share_name_violation`: a leading `-` would be
+   read as an option); in the page too (`validators.ts`, `checkName`). Values
+   in an LDAP filter go through `ldb.binary_encode`.
+4. **Destructive commands only on paths the project created.** Recursive
+   `setfacl` and `rm -rf` run only on `/srv/samba/shares/<name>`
+   (`is_managed_path`) and `/srv/samba/home/<user>` (`is_home_path`); shares
+   elsewhere (hand-made ones) are not listed or touched.
+5. **Local reads, no domain credentials.** The configuration through Samba's
+   loadparm, the directory from the local `sam.ldb` with the system session,
+   not with network queries (`samba-tool domain info` and CLDAP fail when Samba
+   does not listen on loopback). The GPO is written directly to `sam.ldb` and
+   sysvol.
 6. **Never open a share by mistake.** An empty `valid users` grants every
    domain user: a share always keeps at least one entry, and nothing removes
    entries automatically (deleted accounts stay listed).
-7. **Every mutation invalidates the caches it affects** (`cache.invalidate`
-   in `samba.ts`, `shares.ts`). The cache is shared between
-   modules, so a mutation in one invalidates entries of the others.
+7. **Every mutation invalidates the caches it affects.** The page caches
+   addcctl's answers (`samba.ts` drops them all on a change, `shares.ts` its
+   own); the cache is shared, so a change in one drops entries of the other.
+
+The built-in accounts and groups are protected in the core too: not deleted
+or renamed, Administrator's and krbtgt's status unchanged, no expiry on a
+system account, a domain controller's account never deleted.
 
 ## Stack and conventions
 
@@ -106,12 +113,15 @@ values go through `ldb.binary_encode`, and recursive changes run only on
   --help` on the target before using a subcommand or flag: some were renamed
   across releases.
 - Bulk actions run through `mapLimit(…, BULK_CONCURRENCY, …)`, not an
-  unbounded `Promise.all`: each call spawns a `samba-tool` process and takes
-  the `sam.ldb` lock.
-- Group members and user groups come as DNs: turn them into account names
-  with `resolveDn` and a `buildDnNameMap`, not from the CN (a user's CN is
-  often its full name).
-- Errors raised in `src/lib/` are English and shown as they are.
+  unbounded `Promise.all`: each call starts an addcctl process, and changes
+  wait for its lock.
+- In the core, group members and user groups come as DNs: they become
+  account names through `Directory.dn_names()`, not from the CN (a user's CN
+  is often its full name).
+- addcctl prefers Samba's SamDB API; it calls `samba-tool` (argv) only where
+  that does the job right and the API does not (renames, the primary group,
+  deleting a computer with its DNS records).
+- Errors raised by addcctl and in `src/lib/` are English and shown as they are.
 - Code, comments, commit messages and docs (`TODO.md` included) in English;
   conversation with the user in Italian.
 - Commits: short imperative subject, as in the history.
@@ -123,9 +133,9 @@ The collection (`ansible/`):
 - Every file starts with an SPDX header, `GPL-3.0-or-later`.
 - Role variables carry the role name as prefix (`samba_dc_build_*`);
   each role documents them in `README.md` and `meta/argument_specs.yaml`.
-- Modules support check mode and diff, run commands as argv lists, and keep
-  secrets out of argv and logs (`no_log`, stdin), as rules 1 and 2 ask of
-  `src/lib/`.
+- Modules that change the DC call addcctl (`module_utils/addcctl.py`): check
+  mode is `addcctl --check`, diff comes from its answer. Only the OUs and the
+  read-only actions of `samba_tool` still run `samba-tool` directly.
 
 ## Adding things
 
@@ -133,7 +143,9 @@ Each new feature (see `TODO.md`) also needs:
 
 - validators in `src/lib/validators.ts`, with a `…ViolationMessage` that calls
   `t()` with literal strings (so the parser can extract them);
-- parsers and tests under `test/`;
+- the operation in `core/addcctl/` with its JSON Schema in `operations.py`,
+  tests in `core/tests/`, then `make schema` for the page's types; the page's
+  call in `src/lib/` and its tests under `test/`;
 - cache invalidation for every mutation (rule 7);
 - strings: English in the source through `t()`, Italian in `po/it.po`, then
   `make po-compile && make pot` (in this order: `pot` sorts the catalogs,
@@ -171,8 +183,8 @@ Releases are made only when the user asks; pushing the tag publishes them.
   on the test DC (`lab.sh deploy`, then `addcctl` as root).
 - Unit tests run `src/lib/` against `test/mocks/cockpit.ts`: a test sets a
   handler with `setSpawnHandler`, which answers each spawned argv, and checks
-  the recorded `calls` (argv and stdin). Answer with output in the verbatim
-  shape of the real tool on the target (see `test/samba.test.ts`).
+  the recorded `calls` (argv and stdin). Answer in the verbatim shape of
+  addcctl's output (see `test/samba.test.ts`).
 - Module state (the cache, the smb.conf parameters, the home share promise)
   is shared by the tests of one file: a test that needs fresh data either
   runs a mutation that invalidates it or imports the module again with a

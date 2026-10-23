@@ -37,9 +37,18 @@ Windows clients join the domain through the `domain` role of
 
 | Module | Purpose |
 |--------|---------|
-| `samba_tool_user` | Idempotent management of domain users (create, delete, enable/disable, password, primary group), with check mode and diff |
+| `samba_user` | Users: create, change (names, mail, enabled, expiry, groups, primary group, rename), password, delete |
+| `samba_group` | Groups: create, change (description, members, rename), delete |
+| `samba_computer` | Computer accounts: create before a join, delete with their DNS records |
+| `samba_home` | Home directories: provision (folder, H: drive, home share), clear |
 | `samba_share` | Idempotent management of shared folders for domain users and groups (access, POSIX ACL, drive mapping through a GPO), with check mode and diff; same model as cockpit-samba-dc |
 | `samba_share_info` | List shared folders with their access list and drive mapping |
+
+All of them run `addcctl`, the core of cockpit-samba-dc that the Cockpit page
+also uses, so the two make the same changes; they support check mode and
+diff. `addcctl` comes with the `addcctl` Debian package, which `samba_dc_build`
+installs. `samba_tool_user` is gone: use `samba_user` (`mail` and `job_title`
+are aliases there).
 
 ## MCP service
 

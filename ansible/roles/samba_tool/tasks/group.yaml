@@ -3,7 +3,7 @@
 # Group operations.
 #   read-only : list, listmembers, show
 #   mutating  : add/create, delete/absent, addmembers, removemembers
-# Idempotency is handled by comparing the current state before acting.
+#               -> the samba_group module (addcctl)
 
 - name: Validate group action
   ansible.builtin.assert:
@@ -36,51 +36,24 @@
     - name: Run read-only group command
       ansible.builtin.include_tasks: _run.yaml
 
-- name: Ensure group present or absent
-  ansible.builtin.include_tasks: _ensure.yaml
+- name: Group present or absent (samba_group, on addcctl)
   when: samba_tool_action in ['add', 'create', 'delete', 'absent']
-  vars:
-    _samba_tool_ensure_object: group
-    _samba_tool_ensure_name: "{{ samba_tool_args.name }}"
-    _samba_tool_ensure_mode: show
-    _samba_tool_ensure_create: add
+  lineadicomando.samba_dc.samba_group:
+    name: "{{ samba_tool_args.name }}"
+    state: "{{ 'absent' if samba_tool_action in ['delete', 'absent'] else 'present' }}"
+    description: "{{ samba_tool_args.description | default(omit) }}"
+    scope: "{{ samba_tool_args.scope | default(omit) }}"
+    category: "{{ samba_tool_args.category | default(omit) }}"
 
-- name: Reconcile group membership
+# Only the delta is applied, compared case-insensitively as AD does; the
+# group must exist.
+- name: Group membership (samba_group, on addcctl)
   when: samba_tool_action in ['addmembers', 'removemembers']
-  block:
-    - name: Normalize the desired member list
-      ansible.builtin.set_fact:
-        _samba_tool_members: >-
-          {{ samba_tool_args.members
-             if (samba_tool_args.members is sequence
-                 and samba_tool_args.members is not string)
-             else samba_tool_args.members.split(',') | map('trim') | list }}
-
-    - name: Read current members of {{ samba_tool_args.name }}
-      ansible.builtin.command:
-        argv: "{{ [samba_tool_bin, 'group', 'listmembers', samba_tool_args.name] }}"
-      register: _samba_tool_current_members
-      changed_when: false
-
-    # sAMAccountNames are case-insensitive in AD, so the delta is computed on
-    # lowercased names — otherwise 'Alice' vs 'alice' would be re-applied on
-    # every run and samba-tool would fail with "already a member".
-    - name: Compute the membership delta
-      ansible.builtin.set_fact:
-        _samba_tool_member_delta: >-
-          {{ (_samba_tool_desired_lower | difference(_samba_tool_current_lower))
-             if samba_tool_action == 'addmembers'
-             else (_samba_tool_desired_lower | intersect(_samba_tool_current_lower)) }}
-      vars:
-        _samba_tool_desired_lower: >-
-          {{ _samba_tool_members | map('trim') | map('lower') | list }}
-        _samba_tool_current_lower: >-
-          {{ _samba_tool_current_members.stdout_lines | map('trim') | map('lower') | list }}
-
-    - name: "Apply membership change: {{ samba_tool_action }}"
-      ansible.builtin.command:
-        argv: >-
-          {{ [samba_tool_bin, 'group', samba_tool_action, samba_tool_args.name,
-              _samba_tool_member_delta | join(',')] }}
-      when: _samba_tool_member_delta | length > 0
-      changed_when: true
+  lineadicomando.samba_dc.samba_group:
+    name: "{{ samba_tool_args.name }}"
+    create: false
+    members: >-
+      {{ samba_tool_args.members
+         if (samba_tool_args.members is sequence and samba_tool_args.members is not string)
+         else samba_tool_args.members.split(',') | map('trim') | list }}
+    members_mode: "{{ 'append' if samba_tool_action == 'addmembers' else 'remove' }}"

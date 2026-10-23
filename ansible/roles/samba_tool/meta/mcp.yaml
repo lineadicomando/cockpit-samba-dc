@@ -5,9 +5,10 @@
 display_name: Samba AD DC
 notes: >-
   Runs on the domain controller with elevated privileges. Read-only actions
-  (list, show, ...) never change state. Mutating actions on users are
-  idempotent via the samba_tool_user module; group/computer/ou reconcile state
-  before acting. args.name is required for every action except list.
+  (list, show, ...) never change state. Mutating actions on users, groups,
+  computers, home directories and shares are idempotent, through modules that
+  run addcctl, the core of cockpit-samba-dc; ou reconciles state before
+  acting. args.name is required for every action except list.
   Use preview for destructive actions (delete, disable, removemembers, revoke).
 
 objects:
