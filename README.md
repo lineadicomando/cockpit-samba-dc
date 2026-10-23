@@ -137,13 +137,22 @@ on the server changes (paths under `/srv/samba`, share settings, the GPO),
 a requirement is raised (Cockpit, Samba, Debian), or a feature is removed.
 From `1.0.0` breaking changes raise the major number.
 
-To release, list the changes under `[Unreleased]` in `CHANGELOG.md`, commit,
-then:
+The version is computed, not chosen. Each change goes under `[Unreleased]`
+in `CHANGELOG.md`, under the heading of its kind: `Added`, `Changed`,
+`Deprecated` (features), `Removed`, `Breaking` (changes that ask the
+administrator to act), `Fixed`, `Security` (fixes). `TODO.md` plans the next
+release: the headings of the sections that go into it end with its version
+(`— v0.2.0`). The two must agree, and the planned sections may have no open
+item; a release with fixes only needs no plan.
 
 ```bash
-make release VERSION=X.Y.Z    # checks, dates the changelog, commits, tags
+make next-version             # the computed version, the plan, what is missing
+make release                  # checks, dates the changelog, commits, tags
 git push origin main vX.Y.Z   # the tag starts the release workflow
 ```
+
+`make release VERSION=X.Y.Z` only goes higher than the computed version (for
+`1.0.0`, say), and the plan in `TODO.md` must name it too.
 
 The release workflow checks the tag against `package.json` and
 `CHANGELOG.md`, builds and tests, and publishes a GitHub release with the

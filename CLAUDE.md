@@ -16,9 +16,12 @@ Documents, each with one job; do not repeat one in another:
   on the server ("Files and shares on the server", "Network drive mapping").
   Update it with every change a user or an administrator would notice.
 - `CHANGELOG.md`: what changed in each release, for its users. Add a line
-  under `[Unreleased]` with every change that goes into the README.
-- `TODO.md`: the roadmap (release infrastructure first, then `samba-tool`
-  features). Tick items as they are completed and keep it short.
+  under `[Unreleased]` with every change that goes into the README, under the
+  heading of its kind (`Added`, `Changed`, `Fixed`, `Breaking`, …): the
+  kinds decide the next version.
+- `TODO.md`: the roadmap of `samba-tool` features and the plan of the next
+  release (`— vX.Y.Z` at the end of the headings of its sections). Tick
+  items as they are completed and keep it short.
 - This file: how to work on the project.
 
 `CLAUDE.local.md` and `Makefile.local`, when present, are not tracked: they
@@ -35,7 +38,9 @@ users, groups, computers, home directories; `shares.ts` shared folders;
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
 `po/` and `src/locales/` translations, `scripts/` build and release
 helpers (`version.mjs` reads the version from the git tag, `debian.mjs`
-turns it into the Debian version and `debian/changelog`), `debian/` the
+turns it into the Debian version and `debian/changelog`, `plan.mjs`
+computes the next one from `CHANGELOG.md` and checks it against `TODO.md`),
+`debian/` the
 Debian package of the built `dist/`.
 
 ## Non-negotiable rules
@@ -113,7 +118,8 @@ make po-compile         # po/it.po → src/locales/it/translation.json
 make deb                # Debian package in build/ (Debian 13 container, lintian)
 make devel-install      # symlink dist/ into ~/.local/share/cockpit/samba-dc
 sudo make install       # copy dist/ into /usr/share/cockpit/samba-dc
-make release VERSION=x.y.z  # commit and tag a release (README, "Versions and releases")
+make next-version       # next version: CHANGELOG.md checked against the plan in TODO.md
+make release            # commit and tag it (README, "Versions and releases")
 ```
 
 Releases are made only when the user asks; pushing the tag publishes them.

@@ -8,8 +8,19 @@ target before implementing, since some were renamed across releases (e.g.
 
 Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
-Order: the features from section 3 on. Section 0 collects the follow-ups of
-the last review, small enough to take up at any time.
+Order: section 8 (the "Domain" tab, where section 4 puts the password
+policy), then sections 4, 5, 6 and 7 (7 waits for a decision on
+authentication). Section 0 collects the follow-ups of the last review, small
+enough to take up at any time.
+
+Versions: only the next release is planned. The heading of each section
+that goes into it ends with its version (`— v0.2.0`), which it keeps once
+released; the other sections have none. `make next-version` computes the
+version from the kinds of change under `[Unreleased]` in `CHANGELOG.md` and
+checks it against the plan: they must agree, and the planned sections may
+have no open item. Items of section 0 go into whichever release comes next,
+with no version of their own. Rule and procedure: README, "Versions and
+releases".
 
 Each feature item (sections 3–8) also needs what `CLAUDE.md` lists under
 "Adding things" (validators, parsers and tests, cache invalidation,
@@ -26,9 +37,9 @@ Updated on 2026-10-23.
   POSIX ACLs and drive mapping through the "Cockpit - Mapped drives" GPO.
   Tabs in `src/app.tsx`: Users, Groups, Shared folders, Computers.
 - Releases: `v0.1.0` published on 2026-10-22, the only one so far, with the
-  tarball only. The version comes from the git tag; `make release
-  VERSION=x.y.z` dates `CHANGELOG.md`, commits and tags; pushing the tag
-  runs `.github/workflows/release.yml`, which publishes
+  tarball only. The version comes from the git tag; `make release`
+  computes the next one, dates `CHANGELOG.md`, commits and tags; pushing
+  the tag runs `.github/workflows/release.yml`, which publishes
   `cockpit-samba-dc-X.Y.Z.tar.gz` and `cockpit-samba-dc_X.Y.Z_all.deb`.
   Rule and procedure: README, "Versions and releases".
 - Debian package (section 2, commit `f403bef`): `make deb` builds it in a
@@ -54,7 +65,8 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section 4, password policy.
+4. Next step: release v0.2.0 (`make next-version`, then `make release`),
+   then section 8, the "Domain" tab.
 
 ## 0. Follow-ups of the October 2026 review
 
@@ -93,7 +105,7 @@ To resume:
       at the next rebuild of the VMs (the Windows client is an evaluation
       edition and expires).
 
-## 1. Versioning through git tags (done)
+## 1. Versioning through git tags (done) — v0.1.0
 
 The tag `vX.Y.Z` on `main` is the only source of the version
 (`scripts/version.mjs`): the build writes it into `dist/manifest.json` and
@@ -101,10 +113,10 @@ the page header, `make release` dates `CHANGELOG.md`, commits and tags, and
 `release.yml` publishes on the tag. Rule and procedure: README, "Versions
 and releases".
 
-- [ ] Update the "Supported versions" table in `SECURITY.md` when it stops
-      being just `0.x`
+At 1.0.0, update the "Supported versions" table in `SECURITY.md`, which
+lists only `0.x`.
 
-## 2. Debian package (done)
+## 2. Debian package (done) — v0.2.0
 
 `debian/` packages the `dist/` built beforehand, since a Debian build
 environment does not download npm dependencies: `debian/rules` only copies
@@ -117,12 +129,13 @@ a Debian 13 container); `release.yml` attaches the `.deb`, `ci.yml` builds
 it on every push. Depends: `cockpit-bridge (>= 337)`, `samba-ad-dc (>=
 2:4.22)`, `samba-common-bin`, `ldb-tools`, `acl`. README, "Installation".
 
-- [ ] When a requirement is raised (Cockpit, Samba), raise the matching
-      `Depends:` in `debian/control` too
+When a requirement is raised (Cockpit, Samba), raise the matching
+`Depends:` in `debian/control` too.
+
 - [?] RPM package for Fedora/RHEL-based servers — future implementation to be
       decided
 
-## 3. Account lockout and expiry (done)
+## 3. Account lockout and expiry (done) — v0.2.0
 
 User page "Account" section, row menu, bulk actions, "Locked" and "Expired"
 labels and filters. README, "Account lockout and expiry". Tried on the test

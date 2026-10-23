@@ -7,7 +7,7 @@ DEB_DIR := build
 
 -include Makefile.local
 
-.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check pot po-compile release deb deb-package deb-changelog deb-binary help
+.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check pot po-compile next-version release deb deb-package deb-changelog deb-binary help
 
 all: build
 
@@ -46,7 +46,10 @@ pot: ## Extract translatable strings from src/ → src/locales/en/translation.js
 po-compile: ## Compile po/it.po → src/locales/it/translation.json
 	npm run po-compile
 
-release: ## Commit and tag a release: make release VERSION=x.y.z (nothing is pushed)
+next-version: ## Version of the next release, from CHANGELOG.md checked against TODO.md
+	node scripts/release.mjs next
+
+release: ## Commit and tag the next release (VERSION=x.y.z only to go higher); nothing is pushed
 	node scripts/release.mjs prepare "$(VERSION)"
 
 deb: build ## Build the Debian package into build/ (needs podman or docker)

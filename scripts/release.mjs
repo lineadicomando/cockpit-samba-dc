@@ -1,9 +1,14 @@
 // Release helper.
 //
-//   node scripts/release.mjs prepare X.Y.Z   (make release VERSION=X.Y.Z)
-//       On a clean main: run the checks, date the Unreleased changes in
-//       CHANGELOG.md, set the version in package.json, commit, tag vX.Y.Z.
-//       Nothing is pushed.
+//   node scripts/release.mjs next          (make next-version)
+//       The version of the next release: computed from the kinds of change
+//       under [Unreleased] in CHANGELOG.md, checked against the plan in
+//       TODO.md (see scripts/plan.mjs).
+//   node scripts/release.mjs prepare [X.Y.Z]   (make release [VERSION=X.Y.Z])
+//       On a clean main, when the plan has no problems: run the checks, date
+//       the Unreleased changes in CHANGELOG.md, set the version in
+//       package.json, commit, tag vX.Y.Z. Nothing is pushed. X.Y.Z, when
+//       given, may only be higher than the computed version (e.g. 1.0.0).
 //   node scripts/release.mjs verify vX.Y.Z
 //       The tag matches package.json and CHANGELOG.md (release workflow).
 //   node scripts/release.mjs notes X.Y.Z
@@ -12,8 +17,10 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { changelogSection, releaseChangelog } from "./changelog.mjs";
 import { SEMVER, packageVersion } from "./version.mjs";
+import { planRelease } from "./plan.mjs";
 
 const CHANGELOG = "CHANGELOG.md";
+const TODO = "TODO.md";
 
 function fail(message) {
     console.error(`release: ${message}`);
@@ -32,7 +39,36 @@ function checkVersion(version) {
     if (!version || !SEMVER.test(version)) fail(`"${version ?? ""}" is not a version of the form X.Y.Z`);
 }
 
-function prepare(version) {
+function releasedVersions() {
+    return git("tag", "--list", "v[0-9]*").split("\n").filter(Boolean).map((t) => t.slice(1));
+}
+
+function plan(requested) {
+    return planRelease({
+        changelog: readFileSync(CHANGELOG, "utf8"),
+        todo: readFileSync(TODO, "utf8"),
+        released: releasedVersions(),
+        requested,
+    });
+}
+
+function next() {
+    const p = plan(undefined);
+    console.log(`last release: v${p.current}`);
+    console.log(`CHANGELOG.md: ${p.computed ? `v${p.computed}` : "-"}`);
+    console.log(`TODO.md plan: ${p.planned.length ? p.planned.map((v) => `v${v}`).join(", ") : "-"}`);
+    if (p.problems.length) {
+        console.log("not ready:");
+        for (const problem of p.problems) console.log(`  - ${problem}`);
+        process.exit(1);
+    }
+    console.log(`ready: make release (v${p.version})`);
+}
+
+function prepare(requested) {
+    const p = plan(requested);
+    if (p.problems.length) fail(`not ready for a release:\n  - ${p.problems.join("\n  - ")}`);
+    const version = p.version;
     checkVersion(version);
     const tag = `v${version}`;
     if (git("rev-parse", "--abbrev-ref", "HEAD") !== "main") fail("releases are tagged on main");
@@ -81,8 +117,9 @@ function notes(version) {
 
 const [command, arg] = process.argv.slice(2);
 switch (command) {
+    case "next": next(); break;
     case "prepare": prepare(arg); break;
     case "verify": verify(arg); break;
     case "notes": notes(arg); break;
-    default: fail("usage: release.mjs prepare X.Y.Z | verify vX.Y.Z | notes X.Y.Z");
+    default: fail("usage: release.mjs next | prepare [X.Y.Z] | verify vX.Y.Z | notes X.Y.Z");
 }

@@ -5,7 +5,9 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SEMVER, buildVersion, versionFromDescribe } from "../scripts/version.mjs";
-import { changelogSection, releaseChangelog } from "../scripts/changelog.mjs";
+import { changelogSection, releaseChangelog, changeKinds, nextVersion } from "../scripts/changelog.mjs";
+import { todoSections, plannedVersions, openItems } from "../scripts/todo.mjs";
+import { planRelease, compareVersions } from "../scripts/plan.mjs";
 
 const CHANGELOG = `# Changelog
 
@@ -132,5 +134,142 @@ describe("releaseChangelog", () => {
 
     it("refuses a version already released", () => {
         assert.throws(() => releaseChangelog(CHANGELOG, "0.1.0", "2026-11-01"), /already/);
+    });
+});
+
+describe("nextVersion", () => {
+    const kinds = (...k: string[]) => new Set(k);
+
+    it("raises the minor number for features and, before 1.0.0, breaking changes", () => {
+        assert.equal(nextVersion("0.1.0", kinds("Added", "Fixed")), "0.2.0");
+        assert.equal(nextVersion("0.1.3", kinds("Changed")), "0.2.0");
+        assert.equal(nextVersion("0.4.1", kinds("Breaking")), "0.5.0");
+        assert.equal(nextVersion("0.4.1", kinds("Removed")), "0.5.0");
+    });
+
+    it("raises the patch number for fixes only", () => {
+        assert.equal(nextVersion("0.2.0", kinds("Fixed")), "0.2.1");
+        assert.equal(nextVersion("0.2.1", kinds("Fixed", "Security")), "0.2.2");
+    });
+
+    it("raises the major number for breaking changes from 1.0.0", () => {
+        assert.equal(nextVersion("1.2.3", kinds("Breaking", "Added")), "2.0.0");
+        assert.equal(nextVersion("1.2.3", kinds("Added")), "1.3.0");
+    });
+
+    it("refuses an empty set of changes", () => {
+        assert.throws(() => nextVersion("0.1.0", kinds()), /empty/);
+    });
+});
+
+describe("changeKinds", () => {
+    it("counts only headings with entries", () => {
+        assert.deepEqual(changeKinds("### Added\n\n- One\n\n### Fixed\n"), new Set(["Added"]));
+    });
+
+    it("refuses unknown headings and entries without one", () => {
+        assert.throws(() => changeKinds("### New\n\n- One"), /unknown kind/);
+        assert.throws(() => changeKinds("- One"), /no "### Kind"/);
+    });
+});
+
+const TODO = `# TODO
+
+## 0. Follow-ups
+
+- [ ] **Stale entries.** Show them.
+
+## 1. Versioning (done) — v0.1.0
+
+- [x] Tags
+
+## 3. Lockout — v0.2.0
+
+- [x] **Unlock**
+  - [ ] Bulk action
+
+## 4. Password policy
+
+- [ ] Edit the policy
+
+| [?] | \`drs\` | Left out |
+`;
+
+describe("TODO.md plan", () => {
+    it("reads the version at the end of a section heading", () => {
+        const sections = todoSections(TODO);
+        assert.deepEqual(sections.map(s => [s.title, s.version]), [
+            ["0. Follow-ups", null],
+            ["1. Versioning (done)", "0.1.0"],
+            ["3. Lockout", "0.2.0"],
+            ["4. Password policy", null],
+        ]);
+    });
+
+    it("plans only the versions without a tag", () => {
+        assert.deepEqual(plannedVersions(TODO, ["0.1.0"]), ["0.2.0"]);
+        assert.deepEqual(plannedVersions(TODO, ["0.1.0", "0.2.0"]), []);
+    });
+
+    it("lists the open items of a planned version, nested ones too", () => {
+        assert.deepEqual(openItems(TODO, "0.2.0"), ["3. Lockout: Bulk action"]);
+        assert.deepEqual(openItems(TODO, "0.1.0"), []);
+    });
+});
+
+describe("planRelease", () => {
+    const ready = TODO.replace("  - [ ] Bulk action", "  - [x] Bulk action");
+    const changelog = (body: string) => `# Changelog\n\n## [Unreleased]\n\n${body}\n\n## [0.1.0] - 2026-10-22\n\n### Added\n\n- First\n`;
+    const plan = (opts: { todo?: string; body?: string; requested?: string; released?: string[] }) => planRelease({
+        changelog: changelog(opts.body ?? "### Added\n\n- Unlock\n\n### Fixed\n\n- Refresh"),
+        todo: opts.todo ?? ready,
+        released: opts.released ?? ["0.1.0"],
+        requested: opts.requested,
+    });
+
+    it("agrees when the changelog and the plan give the same version", () => {
+        const p = plan({});
+        assert.deepEqual(p.problems, []);
+        assert.equal(p.version, "0.2.0");
+    });
+
+    it("stops on open items of the planned sections", () => {
+        assert.deepEqual(plan({ todo: TODO }).problems, ["open in TODO.md: 3. Lockout: Bulk action"]);
+    });
+
+    it("stops when only fixes are listed but a feature release is planned", () => {
+        const p = plan({ body: "### Fixed\n\n- Refresh" });
+        assert.equal(p.computed, "0.1.1");
+        assert.match(p.problems.join(), /TODO.md plans v0\.2\.0, the release would be v0\.1\.1/);
+    });
+
+    it("allows a fix release with no plan", () => {
+        const p = plan({ body: "### Fixed\n\n- Refresh", todo: ready.replace(" — v0.2.0", "") });
+        assert.deepEqual(p.problems, []);
+        assert.equal(p.version, "0.1.1");
+    });
+
+    it("asks to plan a feature release", () => {
+        const p = plan({ todo: ready.replace(" — v0.2.0", "") });
+        assert.match(p.problems.join(), /TODO.md does not plan it/);
+    });
+
+    it("refuses more than one planned release", () => {
+        const p = plan({ todo: ready.replace("## 4. Password policy", "## 4. Password policy — v0.3.0") });
+        assert.match(p.problems.join(), /more than one release/);
+    });
+
+    it("accepts a higher requested version only if the plan names it", () => {
+        assert.match(plan({ requested: "1.0.0" }).problems.join(), /plans v0\.2\.0, the release would be v1\.0\.0/);
+        assert.deepEqual(plan({ requested: "1.0.0", todo: ready.replace("v0.2.0", "v1.0.0") }).problems, []);
+        assert.match(plan({ requested: "0.1.5" }).problems.join(), /at least v0\.2\.0/);
+        assert.match(plan({ requested: "0.1.0" }).problems.join(), /already released/);
+    });
+});
+
+describe("compareVersions", () => {
+    it("compares numerically", () => {
+        assert.ok(compareVersions("0.10.0", "0.9.1") > 0);
+        assert.equal(compareVersions("1.0.0-rc.1", "1.0.0"), 0);
     });
 });
