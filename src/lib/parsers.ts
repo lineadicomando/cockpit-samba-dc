@@ -84,17 +84,47 @@ export function deriveUserStatus(uacRaw: string): "Active" | "Disabled" | "Unkno
     return (uac & 2) === 2 ? "Disabled" : "Active";
 }
 
+// Milliseconds between the FILETIME epoch (1601-01-01) and the Unix epoch.
+const FILETIME_EPOCH_OFFSET_MS = 11644473600000n;
+
+// Windows FILETIME (100 ns ticks since 1601) to Unix milliseconds, or null
+// when the value is missing, zero or before 1970. FILETIME values exceed
+// Number.MAX_SAFE_INTEGER, hence BigInt.
+export function filetimeToUnixMs(ticksRaw: string): number | null {
+    if (!ticksRaw || !/^\d+$/.test(ticksRaw)) return null;
+    const unixMs = BigInt(ticksRaw) / 10000n - FILETIME_EPOCH_OFFSET_MS;
+    if (unixMs <= 0n || unixMs > 8_640_000_000_000_000n) return null;
+    return Number(unixMs);
+}
+
+export function unixMsToFiletime(unixMs: number): string {
+    return ((BigInt(Math.trunc(unixMs)) + FILETIME_EPOCH_OFFSET_MS) * 10000n).toString();
+}
+
 // Returns "" when there was never a logon; the UI renders the translated "Never".
 export function deriveLastActivity(ticksRaw: string): string {
-    // Windows FILETIME values exceed Number.MAX_SAFE_INTEGER; use BigInt to avoid precision loss.
-    if (!ticksRaw || !/^\d+$/.test(ticksRaw)) return "";
-    const ticks = BigInt(ticksRaw);
-    if (ticks <= 0n) return "";
-    const unixMs = Number(ticks / 10000n) - 11644473600000;
-    if (unixMs <= 0) return "";
-    const date = new Date(unixMs);
-    if (isNaN(date.getTime())) return "";
-    return date.toLocaleDateString();
+    const unixMs = filetimeToUnixMs(ticksRaw);
+    return unixMs === null ? "" : new Date(unixMs).toLocaleDateString();
+}
+
+// accountExpires value AD uses for "never" (0 means "never" too).
+export const ACCOUNT_NEVER_EXPIRES = "9223372036854775807";
+
+// Expiry instant of an account in Unix milliseconds, or null if it never
+// expires.
+export function parseAccountExpires(raw: string): number | null {
+    if (!raw || raw === ACCOUNT_NEVER_EXPIRES) return null;
+    return filetimeToUnixMs(raw);
+}
+
+// UF_LOCKOUT in msDS-User-Account-Control-Computed. Samba computes it from
+// lockoutTime and the lockout duration of the domain (or of the user's PSO),
+// so a lock whose duration has elapsed is not reported.
+const UF_LOCKOUT = 0x10;
+
+export function isLockedOut(computedUacRaw: string): boolean {
+    const v = parseInt(computedUacRaw, 10);
+    return !isNaN(v) && (v & UF_LOCKOUT) !== 0;
 }
 
 export function ridFromSid(sid: string): string {

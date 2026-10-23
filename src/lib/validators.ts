@@ -104,3 +104,42 @@ export function shareNameViolationMessage(t: (key: string) => string, violation:
         case "reserved":          return t("This name is reserved by Samba.");
     }
 }
+
+export type ExpiryDateViolation = "empty" | "invalid";
+
+const LAST_EXPIRY_YEAR = 9999;
+
+// Parses an expiry day as written by the date picker ("YYYY-MM-DD") into the
+// instant the account expires: the start of the following day, local time, so
+// the account can still be used on the day chosen (as "End of" in Windows'
+// Active Directory Users and Computers). Null when the value is not a date.
+export function expiryInstantFromDay(day: string): Date | null {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(day.trim());
+    if (!m) return null;
+    const [year, month, date] = [Number(m[1]), Number(m[2]), Number(m[3])];
+    if (year < 1970 || year > LAST_EXPIRY_YEAR || month < 1 || month > 12) return null;
+    const instant = new Date(year, month - 1, date + 1);
+    // Rejects days that roll over into the next month, such as 2026-02-30
+    const lastDay = new Date(year, month - 1, date);
+    if (lastDay.getMonth() !== month - 1 || lastDay.getDate() !== date) return null;
+    return instant;
+}
+
+// The day an expiry instant falls at the end of, in the picker's format.
+export function dayFromExpiryInstant(unixMs: number): string {
+    const d = new Date(unixMs - 1);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+export function validateExpiryDay(day: string): ExpiryDateViolation | null {
+    if (!day.trim()) return "empty";
+    return expiryInstantFromDay(day) ? null : "invalid";
+}
+
+export function expiryDateViolationMessage(t: (key: string) => string, violation: ExpiryDateViolation): string {
+    switch (violation) {
+        case "empty":   return t("Choose the last day the account can be used.");
+        case "invalid": return t("Enter a date as YYYY-MM-DD.");
+    }
+}

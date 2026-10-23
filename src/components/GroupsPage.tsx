@@ -61,6 +61,7 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
         loading,
         error,
         reload: loadGroups,
+        reloadFresh: loadGroupsFresh,
         refresh: refreshGroups,
     } = useSingleLoad(listGroups);
 
@@ -164,7 +165,7 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                     <ToolbarItem>
                         <Button
                             variant="secondary"
-                            onClick={loadGroups}
+                            onClick={loadGroupsFresh}
                             isDisabled={loading}
                         >
                             {t("Refresh")}

@@ -16,7 +16,7 @@ import {
 import { Table, Thead, Tbody, Tr, Th, Td } from "@patternfly/react-table";
 import { UserIcon, UsersIcon } from "@patternfly/react-icons";
 import cockpit from "cockpit";
-import { getUserDetails, refreshUser, modifyUser, setUserPassword, getPasswordPolicy, addGroupMembers, removeGroupMembers, setPrimaryGroup as savePrimaryGroup, provisionHomeDir } from "../lib/samba.ts";
+import { getUserDetails, refreshUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, getPasswordPolicy, addGroupMembers, removeGroupMembers, setPrimaryGroup as savePrimaryGroup, provisionHomeDir } from "../lib/samba.ts";
 import { listShares, effectiveShareAccess } from "../lib/shares.ts";
 import type { User } from "../lib/types.ts";
 import { usePasswordPolicy, usePasswordGenerator, useSingleLoad } from "../lib/hooks.ts";
@@ -24,6 +24,8 @@ import { checkPasswordAgainstPolicy } from "../lib/passwordUtils.ts";
 import { validateUsername, usernameViolationMessage } from "../lib/validators.ts";
 import { PasswordField, PasswordPolicyInfo, PasswordPolicyUnavailable } from "./PasswordField.tsx";
 import { GroupMultiSelect } from "./GroupMultiSelect.tsx";
+import { UserStatusLabels } from "./UserStatusLabels.tsx";
+import { AccountExpiryField, expiryValueOf, expiryFromValue, expiryValueError, formatExpiry, type ExpiryValue } from "./AccountExpiryField.tsx";
 
 interface Props {
     username: string;
@@ -80,6 +82,10 @@ export function UserDetailPage({ username }: Props) {
                     <Divider />
                     <PageSection hasBodyWrapper={false}>
                         <GroupsSection user={user} onUpdate={setUser} />
+                    </PageSection>
+                    <Divider />
+                    <PageSection hasBodyWrapper={false}>
+                        <AccountSection user={user} onUpdate={setUser} />
                     </PageSection>
                     <Divider />
                     <PageSection hasBodyWrapper={false}>
@@ -178,6 +184,98 @@ function IdentitySection({ user, onUpdate }: { user: User; onUpdate: (u: User) =
                             {t("Save changes")}
                         </Button>
                     </ActionGroup>
+                </Form>
+            </CardBody>
+        </Card>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Account section: status, lockout and expiry
+// ---------------------------------------------------------------------------
+function AccountSection({ user, onUpdate }: { user: User; onUpdate: (u: User) => void }) {
+    const { t } = useTranslation();
+    const [expiry, setExpiry] = useState<ExpiryValue>(() => expiryValueOf(user.accountExpires));
+    const [busy, setBusy] = useState<"unlock" | "expiry" | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState<string | null>(null);
+
+    const saved = expiryValueOf(user.accountExpires);
+    const unchanged = expiry.never === saved.never && (expiry.never || expiry.day === saved.day);
+
+    async function run(kind: "unlock" | "expiry", action: () => Promise<void>, message: string) {
+        setBusy(kind);
+        setError(null);
+        setSuccess(null);
+        try {
+            await action();
+            const updated = await refreshUser(user.username);
+            onUpdate(updated);
+            setExpiry(expiryValueOf(updated.accountExpires));
+            setSuccess(message);
+        } catch (e) {
+            setError(e instanceof Error ? e.message : String(e));
+        } finally {
+            setBusy(null);
+        }
+    }
+
+    function handleSaveExpiry() {
+        const invalid = expiryValueError(t, expiry);
+        if (invalid) { setError(invalid); return; }
+        const instant = expiryFromValue(expiry);
+        if (instant === undefined) return;
+        run("expiry", () => setAccountExpiry(user.username, instant), t("Account expiry saved."));
+    }
+
+    return (
+        <Card isPlain>
+            <CardTitle><Title headingLevel="h2" size="xl">{t("Account")}</Title></CardTitle>
+            <CardBody>
+                {error && <Alert variant="danger" isInline title={error} style={{ marginBottom: "1rem" }} />}
+                {success && <Alert variant="success" isInline title={success} style={{ marginBottom: "1rem" }} />}
+                <Form isHorizontal>
+                    <FormGroup label={t("Status")} fieldId="ud-status">
+                        <UserStatusLabels user={user} />
+                        {user.accountExpires !== null && (
+                            <FormHelperText>
+                                <HelperText>
+                                    <HelperTextItem>
+                                        {user.expired
+                                            ? t("Expired on {{date}}.", { date: formatExpiry(user.accountExpires) })
+                                            : t("Expires on {{date}}.", { date: formatExpiry(user.accountExpires) })}
+                                    </HelperTextItem>
+                                </HelperText>
+                            </FormHelperText>
+                        )}
+                    </FormGroup>
+                    {user.lockedOut && (
+                        <FormGroup fieldId="ud-unlock">
+                            <Alert variant="warning" isInline isPlain
+                                title={t("The account is locked out after too many failed logon attempts.")} />
+                            <Button variant="secondary" isLoading={busy === "unlock"} isDisabled={busy !== null}
+                                onClick={() => run("unlock", () => unlockUser(user.username), t("Account unlocked."))}
+                                style={{ marginTop: "0.5rem" }}>
+                                {t("Unlock")}
+                            </Button>
+                        </FormGroup>
+                    )}
+                    <AccountExpiryField id="ud-expiry" value={expiry}
+                        onChange={v => { setExpiry(v); setError(null); setSuccess(null); }}
+                        isDisabled={busy !== null || user.isProtected} />
+                    {user.isProtected && (
+                        <HelperText>
+                            <HelperTextItem>{t("System accounts cannot be given an expiry date.")}</HelperTextItem>
+                        </HelperText>
+                    )}
+                    {!user.isProtected && (
+                        <ActionGroup>
+                            <Button variant="primary" isLoading={busy === "expiry"}
+                                isDisabled={unchanged || busy !== null} onClick={handleSaveExpiry}>
+                                {t("Save expiry")}
+                            </Button>
+                        </ActionGroup>
+                    )}
                 </Form>
             </CardBody>
         </Card>

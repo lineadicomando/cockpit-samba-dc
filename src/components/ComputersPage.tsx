@@ -45,6 +45,7 @@ export function ComputersPage() {
         loading,
         error,
         reload: loadComputers,
+        reloadFresh: loadComputersFresh,
     } = useSingleLoad(listComputers);
 
     const [search, setSearch] = useState("");
@@ -92,7 +93,7 @@ export function ComputersPage() {
                     <ToolbarItem align={{ default: "alignEnd" }}>
                         <Button
                             variant="secondary"
-                            onClick={loadComputers}
+                            onClick={loadComputersFresh}
                             isDisabled={loading}
                         >
                             {t("Refresh")}

@@ -87,10 +87,15 @@ awk '$6=="cockpit" {printf "document.cookie = \"cockpit=%s; path=/\"; void 0;\n"
 rm /tmp/cockpit-jar
 ```
 
-Then open `http://127.0.0.1:9091/cockpit/login` in an isolated context, run
-`evaluate_script` with `sourcePath: /tmp/cockpit-cookie.js` (the script must
-end in `void 0`, or its value, the cookie, is echoed back), and navigate to
-`http://127.0.0.1:9091/samba-dc`.
+Then open a page that sets no cookie, such as
+`http://127.0.0.1:9091/cockpit/static/none.txt`, in a new isolated context
+(the login page sets an HttpOnly `cockpit` cookie that a script cannot
+overwrite), run `evaluate_script` with `sourcePath: /tmp/cockpit-cookie.js`
+(the script must end in `void 0`, or its value, the cookie, is echoed back),
+and navigate to `http://127.0.0.1:9091/samba-dc`. Do it within a few seconds
+of the `curl` login: Cockpit closes a session that no page has connected to
+after about 15 seconds. Adding `location.href = "/samba-dc";` before `void 0`
+saves a step.
 
 A session opened this way has no stored password, so Cockpit cannot switch
 to administrative access by itself. For the test only, drop in

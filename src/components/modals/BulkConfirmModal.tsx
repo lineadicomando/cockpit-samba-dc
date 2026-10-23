@@ -4,11 +4,11 @@ import {
     Alert, Button, List, ListItem,
     Modal, ModalBody, ModalFooter, ModalHeader, ModalVariant,
 } from "@patternfly/react-core";
-import { enableUser, disableUser, deleteUser, provisionHomeDir } from "../../lib/samba.ts";
+import { enableUser, disableUser, unlockUser, deleteUser, provisionHomeDir } from "../../lib/samba.ts";
 import type { User } from "../../lib/types.ts";
 import { mapLimit, BULK_CONCURRENCY } from "../../lib/concurrency.ts";
 
-export type BulkConfirmAction = "enable" | "disable" | "delete" | "provision-home";
+export type BulkConfirmAction = "enable" | "disable" | "unlock" | "delete" | "provision-home";
 
 interface Props {
     action: BulkConfirmAction;
@@ -27,6 +27,7 @@ function partitionUsers(action: BulkConfirmAction, users: User[]): [User[], User
     switch (action) {
         case "enable":         actionable = users.filter(u => u.status !== "Active"   && !u.isStatusLocked); break;
         case "disable":        actionable = users.filter(u => u.status !== "Disabled" && !u.isStatusLocked); break;
+        case "unlock":         actionable = users.filter(u => u.lockedOut); break;
         case "delete":         actionable = users.filter(u => !u.isProtected); break;
         case "provision-home": actionable = users.filter(u => !u.homeDirectory && !u.isProtected); break;
     }
@@ -45,6 +46,7 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
         switch (action) {
             case "enable":         return t("Enable users");
             case "disable":        return t("Disable users");
+            case "unlock":         return t("Unlock users");
             case "delete":         return t("Delete users");
             case "provision-home": return t("Provision home directory");
         }
@@ -53,6 +55,7 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
         switch (action) {
             case "enable":         return t("Enable");
             case "disable":        return t("Disable");
+            case "unlock":         return t("Unlock");
             case "delete":         return t("Delete");
             case "provision-home": return t("Provision");
         }
@@ -61,6 +64,7 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
         switch (action) {
             case "enable":         return t("users_enabled", { count });
             case "disable":        return t("users_disabled", { count });
+            case "unlock":         return t("users_unlocked", { count });
             case "delete":         return t("users_deleted", { count });
             case "provision-home": return t("users_provisioned", { count });
         }
@@ -69,6 +73,7 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
         switch (action) {
             case "enable":         return t("users_will_be_enabled", { count });
             case "disable":        return t("users_will_be_disabled", { count });
+            case "unlock":         return t("users_will_be_unlocked", { count });
             case "delete":         return t("users_will_be_deleted", { count });
             case "provision-home": return t("users_will_be_provisioned", { count });
         }
@@ -81,6 +86,7 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
             try {
                 if (action === "enable") await enableUser(u.username);
                 else if (action === "disable") await disableUser(u.username);
+                else if (action === "unlock") await unlockUser(u.username);
                 else if (action === "delete") await deleteUser(u.username);
                 else await provisionHomeDir(u.username);
                 return { username: u.username, ok: true, error: "" };

@@ -110,11 +110,14 @@ case $cmd in
         SSHPASS=$(pass_of "$t") exec sshpass -e ssh "${SSH_OPTS[@]}" "$(user_of "$t")@$(host_of "$t")" "$@" ;;
     root)
         # sudo reads the password from the first line of stdin; the rest of
-        # stdin reaches the command.
+        # stdin reaches the command. When sudo asks none (NOPASSWD, as for
+        # the browser tests), the shell drops that line instead, or it would
+        # reach the command.
         [[ $# -gt 0 ]] || die "root needs a command"
+        cmd=$(printf '%q' "$*")
         { printf '%s\n' "$DC_ADMIN_PASSWORD"; [[ -t 0 ]] || cat; } |
             SSHPASS=$DC_ADMIN_PASSWORD sshpass -e ssh "${SSH_OPTS[@]}" "$DC_ADMIN_USER@$DC_HOST" \
-                "sudo -S -p '' sh -c $(printf '%q' "$*")" ;;
+                "if sudo -n true 2>/dev/null; then IFS= read -r _; exec sudo -n sh -c $cmd; else exec sudo -S -p '' sh -c $cmd; fi" ;;
     deploy)
         # The Debian package, as an administrator would install it. Copies
         # left in a user's ~/.local (or under the pre-rename name) would

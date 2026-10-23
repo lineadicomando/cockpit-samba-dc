@@ -21,10 +21,10 @@ translations, README and `CHANGELOG.md` entries) and a check on the test DC
 Updated on 2026-10-23.
 
 - Features: users (create, edit names, e-mail and account name, password,
-  enable and disable, delete, groups), groups, computers (list, delete),
-  home directories (H:), shared folders with POSIX ACLs and drive mapping
-  through the "Cockpit - Mapped drives" GPO. Tabs in `src/app.tsx`: Users,
-  Groups, Shared folders, Computers.
+  enable and disable, unlock, account expiry, delete, groups), groups,
+  computers (list, delete), home directories (H:), shared folders with
+  POSIX ACLs and drive mapping through the "Cockpit - Mapped drives" GPO.
+  Tabs in `src/app.tsx`: Users, Groups, Shared folders, Computers.
 - Releases: `v0.1.0` published on 2026-10-22, the only one so far, with the
   tarball only. The version comes from the git tag; `make release
   VERSION=x.y.z` dates `CHANGELOG.md`, commits and tags; pushing the tag
@@ -54,7 +54,7 @@ To resume:
 3. For anything touching `src/lib/`, follow the workflow of skill `vm-lab`
    (`test/vm/lab.sh reset`, `start dc`, `deploy`); `deploy` needs podman or
    docker for `make deb` (the build image is made on first use).
-4. Next step: section 3, account lockout and expiry.
+4. Next step: section 4, password policy.
 
 ## 0. Follow-ups of the October 2026 review
 
@@ -122,22 +122,22 @@ it on every push. Depends: `cockpit-bridge (>= 337)`, `samba-ad-dc (>=
 - [?] RPM package for Fedora/RHEL-based servers — future implementation to be
       decided
 
-## 3. Account lockout and expiry (high priority)
+## 3. Account lockout and expiry (done)
 
-Small additions to the existing user page.
+User page "Account" section, row menu, bulk actions, "Locked" and "Expired"
+labels and filters. README, "Account lockout and expiry". Tried on the test
+DC on 2026-10-23 (lockout after failed SMB logons, unlock single and bulk,
+expiry single and bulk, logon refused with `NT_STATUS_ACCOUNT_EXPIRED`).
 
-- [ ] **Unlock account** — `samba-tool user unlock <username>`
-  - [ ] Read `lockoutTime` in the `ldbsearch` user query and expose a locked
-        state on `User` (a non-zero `lockoutTime` is only a lock while the
-        domain lockout duration has not elapsed)
-  - [ ] "Locked" label in the users table and on the user detail page
-  - [ ] "Unlock" action on the detail page and as a bulk action
-  - [ ] "Locked only" filter in the users list
-- [ ] **Account expiry** — `samba-tool user setexpiry <username> --days=N | --noexpiry`
-  - [ ] Read `accountExpires` and show the expiry date on the detail page
-  - [ ] Date picker converted to a number of days, plus "never expires"
-  - [ ] "Expired" label in the users table
-  - [ ] Bulk action (e.g. expire a whole class at the end of the school year)
+- [x] **Unlock account** — `samba-tool user unlock <username>`; the locked
+      state comes from `msDS-User-Account-Control-Computed` (UF_LOCKOUT),
+      which Samba computes with the lockout duration, also through local
+      `ldbsearch`
+- [x] **Account expiry** — written as `accountExpires` with `ldbmodify` on
+      `sam.ldb`, not with `samba-tool user setexpiry`, which also sets
+      (`--noexpiry`) or clears (`--days`) "password never expires"; a date
+      picker for the last day of use, plus "never"; not offered for system
+      accounts
 
 ## 4. Password policy (high priority)
 

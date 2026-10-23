@@ -10,6 +10,7 @@ import {
 import cockpit from "cockpit";
 import { getPasswordPolicy, listGroups, listUsers } from "./samba.ts";
 import { generatePassword } from "./passwordUtils.ts";
+import { forgetCachedData } from "./exec.ts";
 import type { PasswordPolicy } from "./types.ts";
 
 export function useCockpitLocation() {
@@ -36,6 +37,7 @@ export function useSingleLoad<T>(
     error: string | null;
     reload: () => void;
     refresh: () => void;
+    reloadFresh: () => void;
 } {
     const [items, setItems] = useState<T[]>([]);
     const [loading, setLoading] = useState(true);
@@ -63,12 +65,14 @@ export function useSingleLoad<T>(
     // be taken as the "silent" flag).
     const reload = useCallback(() => { load_(false); }, [load_]);
     const refresh = useCallback(() => { load_(true); }, [load_]);
+    // Refresh button: read the system again rather than the cache
+    const reloadFresh = useCallback(() => { forgetCachedData(); load_(false); }, [load_]);
 
     useEffect(() => {
         reload();
     }, [reload]);
 
-    return { items, setItems, loading, error, reload, refresh };
+    return { items, setItems, loading, error, reload, refresh, reloadFresh };
 }
 
 // ---------------------------------------------------------------------------

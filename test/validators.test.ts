@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant } from "../src/lib/validators.ts";
 
 describe("validateUsername", () => {
     it("accepts typical usernames", () => {
@@ -108,5 +108,27 @@ describe("validateShareName", () => {
         for (const n of ["global", "HOMES", "SysVol", "netlogon", "home", "IPC$", ".", ".."]) {
             assert.equal(validateShareName(n), "reserved", `expected '${n}' to be reserved`);
         }
+    });
+});
+
+describe("account expiry day", () => {
+    it("expires at the start of the following day, local time", () => {
+        const instant = expiryInstantFromDay("2027-06-30");
+        assert.deepEqual(instant, new Date(2027, 6, 1));
+        assert.deepEqual(expiryInstantFromDay("2026-12-31"), new Date(2027, 0, 1));
+    });
+
+    it("shows the day an instant ends", () => {
+        assert.equal(dayFromExpiryInstant(new Date(2027, 6, 1).getTime()), "2027-06-30");
+        assert.equal(dayFromExpiryInstant(new Date(2027, 6, 1, 15, 30).getTime()), "2027-07-01");
+    });
+
+    it("rejects what is not a calendar day", () => {
+        assert.equal(validateExpiryDay(""), "empty");
+        assert.equal(validateExpiryDay("2026-02-30"), "invalid");
+        assert.equal(validateExpiryDay("2026-13-01"), "invalid");
+        assert.equal(validateExpiryDay("30/06/2027"), "invalid");
+        assert.equal(validateExpiryDay("1960-01-01"), "invalid");
+        assert.equal(validateExpiryDay("2028-02-29"), null);
     });
 });

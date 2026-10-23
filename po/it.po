@@ -863,3 +863,95 @@ msgstr "Nome mostrato in Esplora file. Se vuoto, si usa il nome della cartella."
 
 msgid "No drive letters are available."
 msgstr "Non ci sono lettere di unità disponibili."
+
+# ---------------------------------------------------------------------------
+# Blocco e scadenza degli account
+# ---------------------------------------------------------------------------
+
+msgid "Account"
+msgstr "Account"
+
+msgid "Account expires"
+msgstr "Scadenza dell'account"
+
+msgid "At the end of"
+msgstr "Alla fine del giorno"
+
+msgid "Last day the account can be used"
+msgstr "Ultimo giorno in cui l'account può essere usato"
+
+msgid "Choose a date"
+msgstr "Scegli una data"
+
+msgid "Enter a date as YYYY-MM-DD."
+msgstr "Inserisci una data nel formato AAAA-MM-GG."
+
+msgid "Choose the last day the account can be used."
+msgstr "Scegli l'ultimo giorno in cui l'account può essere usato."
+
+msgid "Account expiry saved."
+msgstr "Scadenza dell'account salvata."
+
+msgid "Expired on {{date}}."
+msgstr "Scaduto il {{date}}."
+
+msgid "Expires on {{date}}."
+msgstr "Scade il {{date}}."
+
+msgid "The account is locked out after too many failed logon attempts."
+msgstr "L'account è bloccato dopo troppi tentativi di accesso non riusciti."
+
+msgid "Account unlocked."
+msgstr "Account sbloccato."
+
+msgid "Unlock"
+msgstr "Sblocca"
+
+msgid "Unlock users"
+msgstr "Sblocca utenti"
+
+msgid "System accounts cannot be given an expiry date."
+msgstr "Agli account di sistema non si può assegnare una scadenza."
+
+msgid "Save expiry"
+msgstr "Salva scadenza"
+
+msgid "Set expiry"
+msgstr "Imposta scadenza"
+
+msgid "Set account expiry"
+msgstr "Imposta la scadenza degli account"
+
+msgid "Locked"
+msgstr "Bloccato"
+
+msgid "Expired"
+msgstr "Scaduto"
+
+msgid "— system accounts."
+msgstr "— account di sistema."
+
+msgid "locked_count"
+msgid_plural "locked_count_plural"
+msgstr[0] "{{count}} bloccato"
+msgstr[1] "{{count}} bloccati"
+
+msgid "users_unlocked"
+msgid_plural "users_unlocked_plural"
+msgstr[0] "{{count}} utente sbloccato."
+msgstr[1] "{{count}} utenti sbloccati."
+
+msgid "users_will_be_unlocked"
+msgid_plural "users_will_be_unlocked_plural"
+msgstr[0] "Il seguente {{count}} utente verrà sbloccato:"
+msgstr[1] "I seguenti {{count}} utenti verranno sbloccati:"
+
+msgid "users_expiry_set"
+msgid_plural "users_expiry_set_plural"
+msgstr[0] "Scadenza impostata per {{count}} utente."
+msgstr[1] "Scadenza impostata per {{count}} utenti."
+
+msgid "users_will_get_expiry"
+msgid_plural "users_will_get_expiry_plural"
+msgstr[0] "La scadenza verrà impostata per il seguente {{count}} utente:"
+msgstr[1] "La scadenza verrà impostata per i seguenti {{count}} utenti:"

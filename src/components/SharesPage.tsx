@@ -47,6 +47,7 @@ export function SharesPage() {
         loading,
         error,
         reload: loadShares,
+        reloadFresh: loadSharesFresh,
     } = useSingleLoad(listShares);
 
     const [search, setSearch] = useState("");
@@ -100,7 +101,7 @@ export function SharesPage() {
                         </Button>
                     </ToolbarItem>
                     <ToolbarItem>
-                        <Button variant="secondary" onClick={loadShares} isDisabled={loading}>
+                        <Button variant="secondary" onClick={loadSharesFresh} isDisabled={loading}>
                             {t("Refresh")}
                         </Button>
                     </ToolbarItem>

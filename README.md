@@ -11,12 +11,12 @@ Cockpit module for managing a Samba Active Directory Domain Controller via `samb
 
 ## Features
 
-- **Users** — list, create, edit (first and last name, e-mail, account name), reset password, enable/disable, delete, group membership and primary group, home directory (H:) provisioning; bulk enable, disable, delete, add to or remove from a group, change primary group, provision home directories
+- **Users** — list, create, edit (first and last name, e-mail, account name), reset password, enable/disable, unlock accounts locked out after failed logons, account expiry date, delete, group membership and primary group, home directory (H:) provisioning; bulk enable, disable, unlock, set expiry, delete, add to or remove from a group, change primary group, provision home directories
 - **Groups** — list, create, rename, delete, member management (add/remove)
 - **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
 - **Computers** — list, delete
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
-- Live search and filters in every section
+- Live search and filters in every section (users also by locked out and expired)
 - English and Italian interface, following Cockpit's language
 - Full support for Cockpit light/dark theme
 - The installed version is shown next to the page title
@@ -173,6 +173,21 @@ share (`valid users`, plus `read list` for read-only entries) and by a POSIX
 ACL on the folder tree, the same model used for home directories: Samba's
 `acl_xattr` derives the Windows ACL from it. Only shares whose path is under
 `/srv/samba/shares` are listed and managed by the module.
+
+### Account lockout and expiry
+
+An account is shown as locked out when Samba reports it in
+`msDS-User-Account-Control-Computed`, which accounts for the lockout duration
+of the domain (or of the user's password settings object); "Unlock" runs
+`samba-tool user unlock`. Lockouts happen only when the domain has a lockout
+threshold (`samba-tool domain passwordsettings show`).
+
+The expiry date is the last day the account can be used: the module writes
+`accountExpires` as midnight at the end of that day, in the browser's time
+zone, directly to `sam.ldb`. It does not use `samba-tool user setexpiry`,
+which also turns "password never expires" on (`--noexpiry`) or off
+(`--days`). System accounts (Administrator, krbtgt, Guest) cannot be given an
+expiry date.
 
 ### Network drive mapping
 

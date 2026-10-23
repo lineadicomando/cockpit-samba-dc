@@ -14,6 +14,11 @@ export interface User {
     isStatusLocked: boolean;
     homeDrive: string;
     homeDirectory: string;
+    // Locked out after too many failed logons
+    lockedOut: boolean;
+    // Unix milliseconds, null if the account never expires
+    accountExpires: number | null;
+    expired: boolean;
 }
 
 export interface Group {

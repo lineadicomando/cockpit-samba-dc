@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listUsers, listGroups, createUser, createGroup, addGroupMembers, deleteUser, provisionHomeDir, modifyUser, renameGroup } from "../src/lib/samba.ts";
+import { listUsers, listGroups, createUser, createGroup, addGroupMembers, deleteUser, provisionHomeDir, modifyUser, renameGroup, unlockUser, setAccountExpiry, getUserDetails } from "../src/lib/samba.ts";
 
 const ROOT_DSE = [
     "# record 1",
@@ -240,5 +240,80 @@ describe("renames", () => {
         });
         await assert.rejects(renameGroup("Teachers", "Docenti"), /Renamed "Teachers" to "Docenti", but updating its shared folders failed: registry locked/);
         assert.ok(calls.some(c => isCmd(c, "samba-tool", "group", "rename")));
+    });
+});
+
+describe("lockout and expiry", () => {
+    // Verbatim shape of "samba-tool user show --attributes=*,msDS-User-Account-Control-Computed"
+    // on Samba 4.22 for an account locked out and expired
+    const show = [
+        "dn: CN=student2,CN=Users,DC=school,DC=internal",
+        "sAMAccountName: student2",
+        "userAccountControl: 512",
+        "accountExpires: 134000000000000000",
+        "lockoutTime: 134372390602576080",
+        "badPwdCount: 3",
+        "objectSid: S-1-5-21-1-2-3-1105",
+        "primaryGroupID: 513",
+        "msDS-User-Account-Control-Computed: 16",
+        "",
+    ].join("\n");
+    function handler(call: SpawnCall): string {
+        if (isCmd(call, "samba-tool", "user", "show")) return show;
+        if (isCmd(call, "ldbsearch")) return ldbHandler(call);
+        return "";
+    }
+
+    it("reads the lock and the expiry date", async () => {
+        setSpawnHandler(handler);
+        const u = await getUserDetails("student2");
+        assert.equal(u.lockedOut, true);
+        assert.equal(u.expired, true);
+        assert.equal(new Date(u.accountExpires!).toISOString(), "2025-08-18T14:13:20.000Z");
+        assert.deepEqual(calls.find(c => isCmd(c, "samba-tool", "user", "show"))?.args,
+            ["samba-tool", "user", "show", "student2", "--attributes=*,msDS-User-Account-Control-Computed"]);
+    });
+
+    it("drops the cached detail after an unlock", async () => {
+        setSpawnHandler(handler);
+        await getUserDetails("student2");
+        await unlockUser("student2");
+        calls.length = 0;
+        await getUserDetails("student2");
+        assert.equal(calls.filter(c => isCmd(c, "samba-tool", "user", "show")).length, 1);
+    });
+
+    it("unlocks with samba-tool", async () => {
+        setSpawnHandler(handler);
+        await unlockUser("student2");
+        assert.deepEqual(calls.map(c => c.args), [["samba-tool", "user", "unlock", "student2"]]);
+    });
+
+    it("writes accountExpires alone, leaving userAccountControl as it is", async () => {
+        setSpawnHandler(handler);
+        await setAccountExpiry("student2", new Date(Date.UTC(2027, 5, 30, 22, 0, 0)));
+        const modify = calls.find(c => isCmd(c, "ldbmodify"));
+        assert.equal(modify?.input, [
+            "dn: CN=student2,CN=Users,DC=school,DC=internal",
+            "changetype: modify",
+            "replace: accountExpires",
+            "accountExpires: 134588664000000000",
+            "-",
+            "",
+        ].join("\n"));
+        assert.ok(!calls.some(c => isCmd(c, "samba-tool", "user", "setexpiry")));
+    });
+
+    it("writes the never-expires value", async () => {
+        setSpawnHandler(handler);
+        await setAccountExpiry("student2", null);
+        assert.ok(calls.find(c => isCmd(c, "ldbmodify"))?.input?.includes("accountExpires: 9223372036854775807\n"));
+    });
+
+    it("rejects an invalid date before any command runs", async () => {
+        setSpawnHandler(handler);
+        await assert.rejects(setAccountExpiry("student2", new Date(NaN)), /Invalid account expiry date/);
+        await assert.rejects(unlockUser("-x"), /Invalid account name/);
+        assert.equal(calls.length, 0);
     });
 });

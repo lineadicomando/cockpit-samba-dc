@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { parseLdapShow, parseLdapMulti, parseList, deriveUserStatus, deriveLastActivity, ridFromSid, dnToName, resolveDn, buildDnNameMap, parseGroupType, parseNetConf, parseSmbUserList, parseSmbBool } from "../src/lib/parsers.ts";
+import { parseLdapShow, parseLdapMulti, parseList, deriveUserStatus, deriveLastActivity, ridFromSid, dnToName, resolveDn, buildDnNameMap, parseGroupType, parseNetConf, parseSmbUserList, parseSmbBool, parseAccountExpires, isLockedOut, unixMsToFiletime, filetimeToUnixMs } from "../src/lib/parsers.ts";
 
 describe("parseList", () => {
     it("splits output in names", () => {
@@ -143,6 +143,33 @@ describe("deriveLastActivity", () => {
         const windowsTicks = String((unixMs + 11644473600000) * 10000);
         const result = deriveLastActivity(windowsTicks);
         assert.match(result, /2024/);
+    });
+});
+
+describe("parseAccountExpires", () => {
+    it("reads 0, the maximum value and a missing value as never", () => {
+        assert.equal(parseAccountExpires("0"), null);
+        assert.equal(parseAccountExpires("9223372036854775807"), null);
+        assert.equal(parseAccountExpires(""), null);
+    });
+    it("converts a FILETIME into Unix milliseconds", () => {
+        // Written by "samba-tool user setexpiry --days=2" on 2026-10-23 at 14:24 UTC
+        assert.equal(new Date(parseAccountExpires("134374118500000000")!).toISOString(), "2026-10-25T14:24:10.000Z");
+    });
+    it("round-trips through unixMsToFiletime", () => {
+        const ms = Date.UTC(2027, 5, 30, 22, 0, 0);
+        assert.equal(unixMsToFiletime(ms), "134588664000000000");
+        assert.equal(filetimeToUnixMs(unixMsToFiletime(ms)), ms);
+    });
+});
+
+describe("isLockedOut", () => {
+    it("reads UF_LOCKOUT from msDS-User-Account-Control-Computed", () => {
+        assert.equal(isLockedOut("16"), true);
+        assert.equal(isLockedOut("8388624"), true); // also UF_PASSWORD_EXPIRED
+        assert.equal(isLockedOut("8388608"), false);
+        assert.equal(isLockedOut("0"), false);
+        assert.equal(isLockedOut(""), false);
     });
 });
 

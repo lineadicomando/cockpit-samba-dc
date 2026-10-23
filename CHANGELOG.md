@@ -12,6 +12,16 @@ the README ("Versions and releases"). New entries go under
 
 - Debian package (`cockpit-samba-dc_X.Y.Z_all.deb`) attached to each release,
   for Debian 13.
+- Users: unlock accounts locked out after failed logons, from the user page,
+  the row menu or as a bulk action; "Locked" label and filter.
+- Users: account expiry date ("never" or the last day of use) on the user
+  page and as a bulk action; "Expired" label and filter.
+
+### Fixed
+
+- The Refresh button of each list reads the server again, instead of data
+  cached for up to a minute (a lockout or a change made outside the module
+  did not show).
 
 ## [0.1.0] - 2026-10-22
 

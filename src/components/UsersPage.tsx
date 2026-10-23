@@ -34,6 +34,7 @@ import {
   refreshUser,
   enableUser,
   disableUser,
+  unlockUser,
 } from "../lib/samba.ts";
 import {
   useSingleLoad,
@@ -52,6 +53,19 @@ import {
   BulkGroupModal,
   type BulkGroupAction,
 } from "./modals/BulkGroupModal.tsx";
+import { BulkExpiryModal } from "./modals/BulkExpiryModal.tsx";
+import { UserStatusLabels } from "./UserStatusLabels.tsx";
+
+type StatusFilter = "all" | "Active" | "Disabled" | "Locked" | "Expired";
+
+function matchesStatus(u: User, filter: StatusFilter): boolean {
+  switch (filter) {
+    case "all": return true;
+    case "Locked": return u.lockedOut;
+    case "Expired": return u.expired;
+    default: return u.status === filter;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // UsersPage
@@ -61,7 +75,8 @@ type ModalState =
   | { kind: "create" }
   | { kind: "delete"; user: User }
   | { kind: "bulk-confirm"; action: BulkConfirmAction; users: User[] }
-  | { kind: "bulk-group"; action: BulkGroupAction; users: User[] };
+  | { kind: "bulk-group"; action: BulkGroupAction; users: User[] }
+  | { kind: "bulk-expiry"; users: User[] };
 
 interface Props {
   // Incremented by App when returning from the user detail page, whose edits
@@ -77,6 +92,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
     loading,
     error,
     reload: loadUsers,
+    reloadFresh: loadUsersFresh,
     refresh: refreshUsers,
   } = useSingleLoad(listUsers);
 
@@ -85,9 +101,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
   }, [refreshToken, refreshUsers]);
 
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<
-    "all" | "Active" | "Disabled"
-  >("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [statusSelectOpen, setStatusSelectOpen] = useState(false);
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [groupSelectOpen, setGroupSelectOpen] = useState(false);
@@ -112,6 +126,22 @@ export function UsersPage({ refreshToken = 0 }: Props) {
     setSortDir(direction);
   }
 
+  const handleUnlockUser = useCallback(
+    async (user: User) => {
+      setActionError(null);
+      try {
+        await unlockUser(user.username);
+        const updated = await refreshUser(user.username);
+        setUsers((prev) =>
+          prev.map((u) => (u.username === user.username ? updated : u)),
+        );
+      } catch (err: unknown) {
+        setActionError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [setUsers],
+  );
+
   const handleToggleUser = useCallback(
     async (user: User) => {
       setActionError(null);
@@ -135,7 +165,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
   const filtered = useMemo<User[]>(() => {
     let result = users;
     if (statusFilter !== "all") {
-      result = result.filter((u) => u.status === statusFilter);
+      result = result.filter((u) => matchesStatus(u, statusFilter));
     }
     if (search) {
       const q = search.toLowerCase();
@@ -186,6 +216,11 @@ export function UsersPage({ refreshToken = 0 }: Props) {
     [users],
   );
 
+  const lockedCount = useMemo(
+    () => users.filter((u) => u.lockedOut).length,
+    [users],
+  );
+
   const { page, perPage, paginated, onSetPage, onPerPageSelect } =
     usePagination(
       filtered,
@@ -229,6 +264,17 @@ export function UsersPage({ refreshToken = 0 }: Props) {
     });
   };
 
+  // Literal t() calls, so i18next-parser can extract them
+  function statusFilterLabel(filter: StatusFilter): string {
+    switch (filter) {
+      case "all": return t("All statuses");
+      case "Active": return t("Active");
+      case "Disabled": return t("Disabled");
+      case "Locked": return t("Locked");
+      case "Expired": return t("Expired");
+    }
+  }
+
   const handleBulkSuccess = () => {
     setModal({ kind: "none" });
     setSelectedUsernames(new Set());
@@ -254,7 +300,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
               isOpen={statusSelectOpen}
               onOpenChange={setStatusSelectOpen}
               onSelect={(_evt, val) => {
-                setStatusFilter(val as "all" | "Active" | "Disabled");
+                setStatusFilter(val as StatusFilter);
                 setStatusSelectOpen(false);
               }}
               selected={statusFilter}
@@ -264,7 +310,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                   onClick={() => setStatusSelectOpen((o) => !o)}
                   isExpanded={statusSelectOpen}
                 >
-                  {statusFilter === "all" ? t("All statuses") : statusFilter === "Active" ? t("Active") : t("Disabled")}
+                  {statusFilterLabel(statusFilter)}
                 </MenuToggle>
               )}
             >
@@ -272,6 +318,8 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                 <SelectOption value="all">{t("All statuses")}</SelectOption>
                 <SelectOption value="Active">{t("Active")}</SelectOption>
                 <SelectOption value="Disabled">{t("Disabled")}</SelectOption>
+                <SelectOption value="Locked">{t("Locked")}</SelectOption>
+                <SelectOption value="Expired">{t("Expired")}</SelectOption>
               </SelectList>
             </Select>
           </ToolbarItem>
@@ -328,6 +376,11 @@ export function UsersPage({ refreshToken = 0 }: Props) {
           <ToolbarItem>
             <Label color="green">{t("active_count", { count: activeCount })}</Label>
           </ToolbarItem>
+          {lockedCount > 0 && (
+            <ToolbarItem>
+              <Label color="red">{t("locked_count", { count: lockedCount })}</Label>
+            </ToolbarItem>
+          )}
           <ToolbarItem align={{ default: "alignEnd" }}>
             <Button
               variant="primary"
@@ -339,7 +392,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
           <ToolbarItem>
             <Button
               variant="secondary"
-              onClick={loadUsers}
+              onClick={loadUsersFresh}
               isDisabled={loading}
             >
               {t("Refresh")}
@@ -389,6 +442,30 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                 }
               >
                 {t("Disable")}
+              </Button>
+            </ToolbarItem>
+            <ToolbarItem>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setModal({
+                    kind: "bulk-confirm",
+                    action: "unlock",
+                    users: selectedUsers,
+                  })
+                }
+              >
+                {t("Unlock")}
+              </Button>
+            </ToolbarItem>
+            <ToolbarItem>
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  setModal({ kind: "bulk-expiry", users: selectedUsers })
+                }
+              >
+                {t("Set expiry")}
               </Button>
             </ToolbarItem>
             <ToolbarItem>
@@ -587,13 +664,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                 <Td dataLabel={t("Full name")}>{u.fullName}</Td>
                 <Td dataLabel={t("ID")}>{u.id}</Td>
                 <Td dataLabel={t("Status")}>
-                  {u.status === "Active" ? (
-                    <Label color="green">{t("Active")}</Label>
-                  ) : u.status === "Disabled" ? (
-                    <Label color="grey">{t("Disabled")}</Label>
-                  ) : (
-                    <Label color="orange">{t("Unknown")}</Label>
-                  )}
+                  <UserStatusLabels user={u} />
                 </Td>
                 <Td dataLabel={t("Groups")}>
                   {u.groups.length === 0 ? (
@@ -631,6 +702,9 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                         onClick: () => handleToggleUser(u),
                         isDisabled: u.isStatusLocked,
                       },
+                      ...(u.lockedOut
+                        ? [{ title: t("Unlock"), onClick: () => handleUnlockUser(u) }]
+                        : []),
                       { isSeparator: true, title: "" },
                       {
                         title: t("Delete"),
@@ -684,6 +758,14 @@ export function UsersPage({ refreshToken = 0 }: Props) {
       {modal.kind === "bulk-confirm" && (
         <BulkConfirmModal
           action={modal.action}
+          users={modal.users}
+          onClose={() => setModal({ kind: "none" })}
+          onSuccess={handleBulkSuccess}
+        />
+      )}
+
+      {modal.kind === "bulk-expiry" && (
+        <BulkExpiryModal
           users={modal.users}
           onClose={() => setModal({ kind: "none" })}
           onSuccess={handleBulkSuccess}

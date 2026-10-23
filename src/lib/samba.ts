@@ -5,13 +5,25 @@ import type { User, Group, Computer, PasswordPolicy, LdapFields } from "./types.
 import {
     parseList, parseLdapShow, parseLdapMulti, firstValue, listValue,
     deriveUserStatus, deriveLastActivity, ridFromSid, buildDnNameMap, resolveDn,
-    parseDomainPasswordSettings, parseGroupType,
+    parseDomainPasswordSettings, parseGroupType, parseAccountExpires, isLockedOut,
+    unixMsToFiletime, ACCOUNT_NEVER_EXPIRES,
 } from "./parsers.ts";
 
 const LDB_KEY_USERS = "ldb:users";
 const LDB_KEY_GROUPS = "ldb:groups";
 const LDB_KEY_COMPUTERS = "ldb:computers";
 const LDB_KEY_USER_ACCOUNTS = "ldb:user-accounts";
+
+// "user show" leaves out constructed attributes unless they are asked for.
+const USER_COMPUTED_UAC = "msDS-User-Account-Control-Computed";
+
+function userShowArgs(username: string): string[] {
+    return ["user", "show", username, `--attributes=*,${USER_COMPUTED_UAC}`];
+}
+
+function userShowKey(username: string): string {
+    return cacheKey(...userShowArgs(username));
+}
 
 const PROTECTED_USERS = new Set(["administrator", "krbtgt", "guest"]);
 const PROTECTED_GROUPS = new Set([
@@ -105,6 +117,7 @@ function buildRidToGroup(groupsRaw: string): Map<string, string> {
 function buildUser(fields: LdapFields, directGroups: string[], ridToGroup: Map<string, string>, username = firstValue(fields, "sAMAccountName")): User {
     const sid = firstValue(fields, "objectSid");
     const primaryGroup = ridToGroup.get(firstValue(fields, "primaryGroupID")) ?? "";
+    const accountExpires = parseAccountExpires(firstValue(fields, "accountExpires"));
     // primaryGroupID is not reflected in memberOf — add it to ensure consistency
     const groups = primaryGroup && !directGroups.includes(primaryGroup)
         ? [...directGroups, primaryGroup]
@@ -125,6 +138,9 @@ function buildUser(fields: LdapFields, directGroups: string[], ridToGroup: Map<s
         isStatusLocked: ["500", "502"].includes(ridFromSid(sid)),
         homeDrive: firstValue(fields, "homeDrive"),
         homeDirectory: firstValue(fields, "homeDirectory"),
+        lockedOut: isLockedOut(firstValue(fields, USER_COMPUTED_UAC)),
+        accountExpires,
+        expired: accountExpires !== null && accountExpires <= Date.now(),
     };
 }
 
@@ -171,6 +187,7 @@ export async function listUsers(): Promise<User[]> {
             "userAccountControl", "lastLogon", "lastLogonTimestamp",
             "objectSid", "memberOf", "isCriticalSystemObject",
             "homeDrive", "homeDirectory", "primaryGroupID",
+            "accountExpires", USER_COMPUTED_UAC,
         ], 30_000),
         loadGroupsRaw(baseDN),
     ]);
@@ -212,7 +229,7 @@ export async function getUserDetails(username: string): Promise<User> {
     checkName(username);
     const baseDN = await getBaseDN();
     const [detail, groupsRaw, groupsForMap] = await Promise.all([
-        runSambaCached(["user", "show", username], 30_000),
+        runSambaCached(userShowArgs(username), 30_000),
         runSambaCached(["user", "getgroups", username], 30_000),
         loadGroupsRaw(baseDN),
     ]);
@@ -221,7 +238,7 @@ export async function getUserDetails(username: string): Promise<User> {
 
 export async function refreshUser(username: string): Promise<User> {
     cache.invalidate(k =>
-        k === cacheKey("user", "show", username) ||
+        k === userShowKey(username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS ||
         k === LDB_KEY_USER_ACCOUNTS
@@ -249,7 +266,7 @@ export async function enableUser(username: string): Promise<void> {
     checkName(username);
     await runSamba(["user", "enable", username]);
     cache.invalidate(k =>
-        k === cacheKey("user", "show", username) ||
+        k === userShowKey(username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS
     );
@@ -259,10 +276,37 @@ export async function disableUser(username: string): Promise<void> {
     checkName(username);
     await runSamba(["user", "disable", username]);
     cache.invalidate(k =>
-        k === cacheKey("user", "show", username) ||
+        k === userShowKey(username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS
     );
+}
+
+// Clears the lockout (lockoutTime and badPwdCount) of an account.
+export async function unlockUser(username: string): Promise<void> {
+    checkName(username);
+    await runSamba(["user", "unlock", username]);
+    cache.invalidate(k => k === userShowKey(username) || k === LDB_KEY_USERS);
+}
+
+// Written to sam.ldb rather than through "samba-tool user setexpiry", which
+// also changes the "password never expires" flag: --noexpiry sets it and
+// --days clears it. expiresAt null: the account never expires.
+export async function setAccountExpiry(username: string, expiresAt: Date | null): Promise<void> {
+    checkName(username);
+    if (expiresAt !== null && isNaN(expiresAt.getTime())) throw new Error("Invalid account expiry date");
+    const value = expiresAt === null ? ACCOUNT_NEVER_EXPIRES : unixMsToFiletime(expiresAt.getTime());
+    const dn = await getUserDN(username);
+    const ldif = [
+        `dn: ${dn}`,
+        `changetype: modify`,
+        `replace: accountExpires`,
+        `accountExpires: ${value}`,
+        `-`,
+        ``,
+    ].join("\n");
+    await runAsRootWithInput(["ldbmodify", "-H", SAM_LDB], ldif);
+    cache.invalidate(k => k === userShowKey(username) || k === LDB_KEY_USERS);
 }
 
 export async function modifyUser(username: string, data: { givenName?: string; surname?: string; email?: string; newUsername?: string }): Promise<void> {
@@ -275,7 +319,7 @@ export async function modifyUser(username: string, data: { givenName?: string; s
     if (args.length === 3) return;
     await runSamba(args);
     cache.invalidate(k =>
-        k === cacheKey("user", "show", username) ||
+        k === userShowKey(username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS ||
         k === LDB_KEY_USER_ACCOUNTS
@@ -308,7 +352,7 @@ export async function setPrimaryGroup(username: string, groupName: string): Prom
     checkName(username, groupName);
     await runSamba(["user", "setprimarygroup", username, groupName]);
     cache.invalidate(k =>
-        k === cacheKey("user", "show", username) ||
+        k === userShowKey(username) ||
         k === cacheKey("user", "getgroups", username) ||
         k === LDB_KEY_USERS ||
         k === LDB_KEY_USER_ACCOUNTS
@@ -418,7 +462,7 @@ export async function deleteComputer(name: string): Promise<void> {
 // --- Home directories ---
 
 async function getUserDN(username: string): Promise<string> {
-    const raw = await runSambaCached(["user", "show", username], 30_000);
+    const raw = await runSambaCached(userShowArgs(username), 30_000);
     const fields = parseLdapShow(raw);
     const dn = firstValue(fields, "dn");
     if (!dn) throw new Error(`Cannot find DN for user ${username}`);
@@ -492,7 +536,7 @@ export async function provisionHomeDir(username: string): Promise<void> {
     await setHomeDirAttributes(dn, "H:", uncPath);
     await ensureHomeShare();
     cache.invalidate(k =>
-        k === cacheKey("user", "show", username) ||
+        k === userShowKey(username) ||
         k === LDB_KEY_USERS
     );
 }

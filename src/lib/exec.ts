@@ -6,6 +6,13 @@ import { parseLdapMulti, firstValue } from "./parsers.ts";
 // entries cached by the other.
 export const cache = createCache();
 
+// For the Refresh buttons: changes made outside the module (a lockout after
+// failed logons, another administrator's edits) show up only after the cache
+// entries expire.
+export function forgetCachedData(): void {
+    cache.clear();
+}
+
 export function cacheKey(...args: string[]): string {
     return args.join("\x1f");
 }
