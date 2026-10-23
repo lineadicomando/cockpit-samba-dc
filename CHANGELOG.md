@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-23
+
 ### Fixed
 
 - The Debian package is attached to the release again: the one of 0.2.0
