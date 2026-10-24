@@ -20,7 +20,8 @@ It runs **on the domain controller** and requires elevated privileges
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `samba_dc_backup_targetdir` | — | directory the archives are written to (required) |
+| `samba_dc_backup_targetdir` | `samba_dc_backup_addcctl_dir` | directory the archives are written to |
+| `samba_dc_backup_addcctl_dir` | `/var/backups/samba-dc` | where `addcctl` keeps the domain backups; an offline domain backup there is made by `addcctl backup create`, as on the Cockpit page, and listed there |
 | `samba_dc_backup_domain` | `true` | include a domain backup |
 | `samba_dc_backup_domain_type` | `offline` | `online` or `offline` |
 | `samba_dc_backup_domain_server` | `localhost` | DC to contact (online only) |
@@ -52,7 +53,14 @@ to run unless `samba_dc_backup_restore_confirm` is `true`.
 ## Examples
 
 ```yaml
-# Offline domain backup plus /home and /srv/samba
+# Offline domain backup through addcctl, plus /home and /srv/samba, in
+# /var/backups/samba-dc (where the Cockpit page lists them)
+- import_role:
+    name: lineadicomando.samba_dc.samba_dc_backup
+  vars:
+    samba_dc_backup_action: backup
+
+# The same, elsewhere (samba-tool directly)
 - import_role:
     name: lineadicomando.samba_dc.samba_dc_backup
   vars:

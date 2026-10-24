@@ -27,6 +27,15 @@ class Runner:
             raise AddcError("%s failed: %s" % (" ".join(args[:3]), message or "exit code %d" % proc.returncode))
         return proc.stdout
 
+    def diagnose(self, args):
+        """Run a read-only check whose failure is a result, not an error:
+        (exit code, standard output and error interleaved)."""
+        try:
+            proc = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        except FileNotFoundError:
+            raise AddcError("%s is not installed" % args[0]) from None
+        return proc.returncode, proc.stdout
+
     def change(self, args, input=None):
         """Run a mutating command; recorded, skipped in check mode."""
         self.commands.append(" ".join(args))

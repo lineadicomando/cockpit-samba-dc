@@ -3,14 +3,26 @@
 - name: Validate backup parameters
   ansible.builtin.assert:
     that:
-      - samba_dc_backup_targetdir is string
-      - samba_dc_backup_targetdir | length > 0
+      - samba_dc_backup_targetdir is none or samba_dc_backup_targetdir is string
       - samba_dc_backup_domain_type in ['online', 'offline']
       - samba_dc_backup_domain or samba_dc_backup_files
     fail_msg: >-
-      samba_dc_backup_targetdir is required and at least one of
-      samba_dc_backup_domain or samba_dc_backup_files must be true.
+      samba_dc_backup_targetdir must be a path when given, and at least one
+      of samba_dc_backup_domain or samba_dc_backup_files must be true.
     quiet: true
+
+# The directory of addcctl's backups unless another is given: an offline
+# domain backup there is the one the Cockpit page makes, through addcctl.
+- name: Choose the backup directory
+  ansible.builtin.set_fact:
+    _samba_dc_backup_dir: "{{ (samba_dc_backup_targetdir | default('', true) or samba_dc_backup_addcctl_dir) | regex_replace('/+$', '') }}"
+
+- name: Decide whether addcctl makes the domain backup
+  ansible.builtin.set_fact:
+    _samba_dc_backup_by_addcctl: >-
+      {{ samba_dc_backup_domain | bool
+         and samba_dc_backup_domain_type == 'offline'
+         and _samba_dc_backup_dir == samba_dc_backup_addcctl_dir }}
 
 # Without a password samba-tool prompts for one and the task hangs, so refuse
 # the combination up front.
@@ -27,15 +39,31 @@
 
 - name: Ensure target directory exists
   ansible.builtin.file:
-    path: "{{ samba_dc_backup_targetdir }}"
+    path: "{{ _samba_dc_backup_dir }}"
     state: directory
     owner: root
     group: root
     mode: "0700"
 
 # ── Domain backup ─────────────────────────────────────────────────────────────
+- name: Domain backup through addcctl
+  when: _samba_dc_backup_by_addcctl | bool
+  block:
+    - name: Run addcctl backup create
+      ansible.builtin.command:
+        argv: [addcctl, backup, create]
+        stdin: "{}"
+      register: _samba_dc_backup_addcctl
+      changed_when: true
+
+    - name: Read the backup addcctl made
+      ansible.builtin.set_fact:
+        samba_dc_backup_domain_result: "{{ _samba_dc_backup_addcctl.stdout | from_json }}"
+
 - name: Domain backup
-  when: samba_dc_backup_domain | bool
+  when:
+    - samba_dc_backup_domain | bool
+    - not (_samba_dc_backup_by_addcctl | bool)
   block:
     # The password is deliberately absent from argv: it would be world-readable
     # in /proc for the lifetime of the process, and it would be stored in this
@@ -44,7 +72,7 @@
       ansible.builtin.set_fact:
         _samba_dc_backup_argv: >-
           {{ [samba_dc_backup_bin, 'domain', 'backup', samba_dc_backup_domain_type,
-              '--targetdir=' ~ samba_dc_backup_targetdir]
+              '--targetdir=' ~ _samba_dc_backup_dir]
              + (['--server=' ~ samba_dc_backup_domain_server]
                 if samba_dc_backup_domain_type == 'online' else [])
              + (['-U' ~ samba_dc_backup_domain_username]
@@ -73,7 +101,7 @@
     - name: Set files archive path
       ansible.builtin.set_fact:
         _samba_dc_backup_files_archive: >-
-          {{ samba_dc_backup_targetdir }}/files_{{ now(utc=true, fmt='%Y%m%dT%H%M%S') }}.tar.gz
+          {{ _samba_dc_backup_dir }}/files_{{ now(utc=true, fmt='%Y%m%dT%H%M%S') }}.tar.gz
 
     - name: Archive user files
       community.general.archive:

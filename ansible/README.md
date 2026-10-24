@@ -43,6 +43,7 @@ Windows clients join the domain through the `domain` role of
 | `samba_home` | Home directories: provision (folder, H: drive, home share), clear |
 | `samba_share` | Idempotent management of shared folders for domain users and groups (access, POSIX ACL, drive mapping through a GPO), with check mode and diff; same model as cockpit-samba-dc |
 | `samba_share_info` | List shared folders with their access list and drive mapping |
+| `samba_dc_info` | The domain and its controllers (Samba version, functional levels, FSMO roles) and the offline backups |
 
 All of them run `addcctl`, the core of cockpit-samba-dc that the Cockpit page
 also uses, so the two make the same changes; they support check mode and

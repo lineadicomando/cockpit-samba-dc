@@ -111,7 +111,8 @@ def _get_tools() -> list[Tool]:
                         "type": "object",
                         "description": (
                             "Action-specific arguments (keys without the samba_dc_backup_ prefix). "
-                            "backup: targetdir (required), domain (bool, default true), "
+                            "backup: targetdir (default /var/backups/samba-dc, where an offline domain "
+                            "backup goes through addcctl, as on the Cockpit page), domain (bool, default true), "
                             "domain_type (online|offline, default offline), domain_server, "
                             "domain_username, domain_password (required with domain_username; kept "
                             "off the command line and masked in the run log), "

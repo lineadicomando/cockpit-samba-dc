@@ -164,6 +164,10 @@ MODULES = {
             "sam_ldb_path": SAM_LDB_PATH,
         },
     },
+    "samba_dc_info": {
+        "ops": ["domain info", "backup list"],
+        "options": {},
+    },
     "samba_share_info": {
         "ops": ["share list"],
         "options": {
@@ -342,7 +346,8 @@ def doc_fragment_file(specs):
                     "from __future__ import annotations\n\n\n"
                     "class ModuleDocFragment(object):\n")
     for module, options in specs.items():
-        out += "\n    %s = r'''\noptions:\n%s\n'''\n" % (module.upper(), "\n".join(doc_yaml(options, 2)))
+        body = "options:\n%s" % "\n".join(doc_yaml(options, 2)) if options else "options: {}"
+        out += "\n    %s = r'''\n%s\n'''\n" % (module.upper(), body)
     return out
 
 

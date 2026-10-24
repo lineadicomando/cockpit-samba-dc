@@ -22,8 +22,9 @@ defaults of one school lab.
 
 The target below is reached for everything the project already did (A1–A5):
 one repository, `addcctl` on the DC with every operation of users, groups,
-computers, home directories, shared folders, drive mapping and the password
-policy (read), and three interfaces on it: the page, the collection's
+computers, home directories, shared folders, drive mapping, the password
+policy (read), the domain overview, health checks and backups, and three
+interfaces on it: the page, the collection's
 modules and `addcctl mcp`. What is left:
 
 - OUs are managed only by the collection's `samba_tool` role, which runs

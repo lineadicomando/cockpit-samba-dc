@@ -48,13 +48,15 @@ clones the repository.
 Layout: `src/app.tsx` the tabs, `src/components/` pages and
 `src/components/modals/`, `src/lib/` everything that talks to the system
 (`exec.ts` spawn wrappers; `addcctl.ts` the call to the core; `samba.ts`
-users, groups, computers, home directories, password policy, and `shares.ts`
-shared folders and drive mapping, both through it, translating and caching;
+users, groups, computers, home directories, password policy, `shares.ts`
+shared folders and drive mapping, `domain.ts` the "Domain" tab (overview,
+health checks, backups), all through it, translating and caching;
 `validators.ts`, `passwordUtils.ts`, `cache.ts`, `hooks.ts`,
 `concurrency.ts`; `addcctl-schema.ts` is generated),
 `core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
 operations and their JSON Schemas, `dc.py` everything that reads or writes
-the DC, `accounts.py` users groups computers, `homes.py`, `domain.py`,
+the DC, `accounts.py` users groups computers, `homes.py`, `domain.py`
+(policy, overview, health checks), `backups.py`,
 `shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`, `ad.py`; `tests/`,
 `bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
@@ -99,8 +101,9 @@ one of them needs the user's explicit agreement.
    domain user: a share always keeps at least one entry, and nothing removes
    entries automatically (deleted accounts stay listed).
 7. **Every mutation invalidates the caches it affects.** The page caches
-   addcctl's answers (`samba.ts` drops them all on a change, `shares.ts` its
-   own); the cache is shared, so a change in one drops entries of the other.
+   addcctl's answers (`samba.ts` drops them all on a change, `shares.ts` and
+   `domain.ts` their own); the cache is shared, so a change in one drops
+   entries of the other.
 
 The built-in accounts and groups are protected in the core too: not deleted
 or renamed, Administrator's and krbtgt's status unchanged, no expiry on a

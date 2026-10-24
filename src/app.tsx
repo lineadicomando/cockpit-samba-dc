@@ -14,6 +14,7 @@ import { UsersPage } from "./components/UsersPage.tsx";
 import { GroupsPage } from "./components/GroupsPage.tsx";
 import { ComputersPage } from "./components/ComputersPage.tsx";
 import { SharesPage } from "./components/SharesPage.tsx";
+import { DomainPage } from "./components/DomainPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
 import { useCockpitLocation } from "./lib/hooks.ts";
 import { VERSION } from "./lib/version.ts";
@@ -77,6 +78,12 @@ export function App() {
               title={<TabTitleText>{t("Computers")}</TabTitleText>}
             >
               <ComputersPage />
+            </Tab>
+            <Tab
+              eventKey="domain"
+              title={<TabTitleText>{t("Domain")}</TabTitleText>}
+            >
+              <DomainPage />
             </Tab>
           </Tabs>
         </PageSection>

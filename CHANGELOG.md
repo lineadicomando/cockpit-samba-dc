@@ -8,6 +8,24 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- A **Domain** tab: the domain at a glance (names, Samba version, functional
+  levels, domain controllers, FSMO role owners, Samba processes), health
+  checks run on demand with their output (`samba-tool dbcheck`, report only;
+  `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs when it
+  fails; `testparm -s`), and offline backups of the domain in
+  `/var/backups/samba-dc`, readable by root only.
+- `addcctl`: operations `domain info`, `domain check`, `domain sysvol-reset`,
+  `backup list` and `backup create`, also as tools of `addcctl mcp`.
+- Collection: module `samba_dc_info`, the domain and its backups.
+
+### Changed
+
+- Collection: `samba_dc_backup_targetdir` is optional; without it, or set to
+  `/var/backups/samba-dc`, the offline domain backup is made by `addcctl`,
+  as on the Cockpit page, and listed there.
+
 ## [0.9.0] - 2026-10-24
 
 ### Added

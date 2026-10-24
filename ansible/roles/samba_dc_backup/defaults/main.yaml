@@ -3,7 +3,8 @@
 samba_dc_backup_action: ~           # backup | restore
 
 # ── Backup options ────────────────────────────────────────────────────────────
-samba_dc_backup_targetdir: ~        # required: directory where archives are written
+samba_dc_backup_targetdir: ~        # directory of the archives; default samba_dc_backup_addcctl_dir
+samba_dc_backup_addcctl_dir: /var/backups/samba-dc  # addcctl's: offline domain backups there go through addcctl
 
 # Domain backup (samba-tool domain backup)
 samba_dc_backup_domain: true

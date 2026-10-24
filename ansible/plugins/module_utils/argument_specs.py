@@ -74,6 +74,7 @@ _SPECS = {
         'shares_dir': {'type': 'path', 'default': '/srv/samba/shares'},
         'sam_ldb_path': {'type': 'path', 'default': '/var/lib/samba/private/sam.ldb'},
     },
+    'samba_dc_info': {},
     'samba_share_info': {
         'name': {'type': 'str'},
         'shares_dir': {'type': 'path', 'default': '/srv/samba/shares'},

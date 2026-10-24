@@ -955,3 +955,187 @@ msgid "users_will_get_expiry"
 msgid_plural "users_will_get_expiry_plural"
 msgstr[0] "La scadenza verrà impostata per il seguente {{count}} utente:"
 msgstr[1] "La scadenza verrà impostata per i seguenti {{count}} utenti:"
+
+# ---------------------------------------------------------------------------
+# Dominio: panoramica, controlli, backup
+# ---------------------------------------------------------------------------
+
+msgid "Backing up…"
+msgstr "Backup in corso…"
+
+msgid "Backup created: {{name}}"
+msgstr "Backup creato: {{name}}"
+
+msgid "Backup failed"
+msgstr "Backup non riuscito"
+
+msgid "Backups"
+msgstr "Backup"
+
+msgid "Check"
+msgstr "Controllo"
+
+msgid "Command"
+msgstr "Comando"
+
+msgid "Create backup"
+msgstr "Crea backup"
+
+msgid "Created"
+msgstr "Creato"
+
+msgid "Directory database"
+msgstr "Database della directory"
+
+msgid "DNS name"
+msgstr "Nome DNS"
+
+msgid "Domain"
+msgstr "Dominio"
+
+msgid "Domain controller"
+msgstr "Domain controller"
+
+msgid "Domain controllers"
+msgstr "Domain controller"
+
+msgid "Domain DNS zones master"
+msgstr "Master delle zone DNS del dominio"
+
+msgid "Domain functional level"
+msgstr "Livello funzionale del dominio"
+
+msgid "Domain naming master"
+msgstr "Master per la denominazione dei domini"
+
+msgid "Failed to load the domain"
+msgstr "Impossibile caricare il dominio"
+
+msgid "File"
+msgstr "File"
+
+msgid "Forest DNS zones master"
+msgstr "Master delle zone DNS della foresta"
+
+msgid "Forest functional level"
+msgstr "Livello funzionale della foresta"
+
+msgid "FSMO role"
+msgstr "Ruolo FSMO"
+
+msgid "FSMO roles"
+msgstr "Ruoli FSMO"
+
+msgid "Group Policy may fail on the clients until they are reset."
+msgstr "Finché non vengono reimpostati, i Criteri di gruppo possono non funzionare sui client."
+
+msgid "Health checks"
+msgstr "Controlli di integrità"
+
+msgid "Hide output"
+msgstr "Nascondi output"
+
+msgid "Infrastructure master"
+msgstr "Master infrastrutture"
+
+msgid "Loading backups"
+msgstr "Caricamento dei backup"
+
+msgid "Loading the domain"
+msgstr "Caricamento del dominio"
+
+msgid "NetBIOS name"
+msgstr "Nome NetBIOS"
+
+msgid "No backups yet."
+msgstr "Ancora nessun backup."
+
+msgid "(no output)"
+msgstr "(nessun output)"
+
+msgid "Not run"
+msgstr "Non eseguito"
+
+msgid "Offline backups of the domain go to {{dir}}, readable by root only: they hold the password hashes of every account."
+msgstr "I backup offline del dominio vanno in {{dir}}, leggibili solo da root: contengono gli hash delle password di tutti gli account."
+
+msgid "Overview"
+msgstr "Panoramica"
+
+msgid "Owner"
+msgstr "Proprietario"
+
+msgid "Passed"
+msgstr "Superato"
+
+msgid "PDC emulator"
+msgstr "Emulatore PDC"
+
+msgid "Problems found"
+msgstr "Problemi rilevati"
+
+msgid "Reset"
+msgstr "Reimposta"
+
+msgid "Reset sysvol ACLs"
+msgstr "Reimposta le ACL di sysvol"
+
+msgid "Restoring a backup replaces the domain and is done by hand, with samba-tool domain backup restore (see the README)."
+msgstr "Il ripristino di un backup sostituisce il dominio e si fa a mano, con samba-tool domain backup restore (vedi il README)."
+
+msgid "Result"
+msgstr "Esito"
+
+msgid "RID master"
+msgstr "Master RID"
+
+msgid "Run"
+msgstr "Esegui"
+
+msgid "Run all checks"
+msgstr "Esegui tutti i controlli"
+
+msgid "Running"
+msgstr "In esecuzione"
+
+msgid "Samba configuration"
+msgstr "Configurazione di Samba"
+
+msgid "Samba processes"
+msgstr "Processi di Samba"
+
+msgid "Samba version"
+msgstr "Versione di Samba"
+
+msgid "Schema master"
+msgstr "Master schema"
+
+msgid "Show output"
+msgstr "Mostra output"
+
+msgid "Site"
+msgstr "Sito"
+
+msgid "Size"
+msgstr "Dimensione"
+
+msgid "Sysvol ACLs"
+msgstr "ACL di sysvol"
+
+msgid "The ACLs of sysvol do not match what Samba expects"
+msgstr "Le ACL di sysvol non corrispondono a quelle attese da Samba"
+
+msgid "The checks could not run"
+msgstr "Impossibile eseguire i controlli"
+
+msgid "The checks only report: nothing is repaired. The directory check can take a while."
+msgstr "I controlli si limitano a segnalare: non viene riparato nulla. Il controllo della directory può richiedere un po' di tempo."
+
+msgid "The list of processes is not available: is Samba running?"
+msgstr "L'elenco dei processi non è disponibile: Samba è in esecuzione?"
+
+msgid "This runs samba-tool ntacl sysvolreset, which sets the ACLs of every file in sysvol, the Group Policy files included, to what Samba expects."
+msgstr "Esegue samba-tool ntacl sysvolreset, che imposta le ACL di ogni file in sysvol, compresi quelli dei Criteri di gruppo, ai valori attesi da Samba."
+
+msgid "This server"
+msgstr "Questo server"

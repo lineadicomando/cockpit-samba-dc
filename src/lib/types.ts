@@ -70,3 +70,47 @@ export interface SharedFolder {
     access: ShareAccess[];
     automount: DriveMapping | null;
 }
+
+export interface DomainController {
+    name: string;
+    dnsName: string;
+    site: string | null;
+}
+
+export interface FsmoRole {
+    // schema, naming, pdc, rid, infrastructure, domaindns, forestdns
+    role: string;
+    owner: string | null;
+}
+
+export interface DomainInfo {
+    realm: string;
+    dnsDomain: string;
+    netbiosDomain: string;
+    server: string;
+    sambaVersion: string;
+    domainLevel: string | null;
+    forestLevel: string | null;
+    domainControllers: DomainController[];
+    fsmo: FsmoRole[];
+    // Output of samba-tool processes; null when it failed (Samba not running)
+    processes: string | null;
+}
+
+export type HealthCheckName = "dbcheck" | "sysvolcheck" | "testparm";
+
+export interface HealthCheck {
+    name: HealthCheckName;
+    command: string;
+    ok: boolean;
+    exitCode: number;
+    output: string;
+}
+
+export interface DomainBackup {
+    name: string;
+    path: string;
+    size: number;
+    // Unix milliseconds
+    created: number;
+}

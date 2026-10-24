@@ -17,6 +17,7 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 - **Groups** — list, create, rename, delete, member management (add/remove)
 - **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
 - **Computers** — list, delete
+- **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), offline backups of the domain
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
 - Live search and filters in every section (users also by locked out and expired)
 - English and Italian interface, following Cockpit's language
@@ -266,6 +267,11 @@ Everything the module creates on disk lives under `/srv/samba`:
 | `/srv/samba/home/<user>` | `home` (hidden) | Home directories, mapped as `H:` through the user's `homeDrive`/`homeDirectory` |
 | `/srv/samba/shares/<name>` | `<name>` | Shared folders |
 
+Domain backups made from the **Domain** tab (or by `addcctl backup create`,
+the collection's `samba_dc_backup` role and `samba_dc_info` module) go to
+`/var/backups/samba-dc`, readable by root only: the archives hold the password
+hashes of every account.
+
 Shared folders are registry shares (`net conf`). Access is enforced by the
 share (`valid users`, plus `read list` for read-only entries) and by a POSIX
 ACL on the folder tree, the same model used for home directories: Samba's
@@ -286,6 +292,21 @@ zone, directly to `sam.ldb`. It does not use `samba-tool user setexpiry`,
 which also turns "password never expires" on (`--noexpiry`) or off
 (`--days`). System accounts (Administrator, krbtgt, Guest) cannot be given an
 expiry date.
+
+### Domain backups and restore
+
+A backup is `samba-tool domain backup offline`: a consistent copy of the
+directory, sysvol and the configuration, taken while Samba runs, in
+`/var/backups/samba-dc/samba-backup-<realm>-<time>.tar.bz2`. Copy the
+archives to another machine: a backup on the DC alone does not survive the
+loss of its disk. The page neither deletes nor downloads them.
+
+Restoring replaces the domain, so it is done by hand, from a shell, on a
+machine where Samba is stopped and not provisioned: `samba-tool domain backup
+restore --backup-file=<archive> --newservername=<name> --targetdir=<dir>`,
+then point `smb.conf` at the restored files (see the Samba wiki, "Back up and
+Restoring a Samba AD DC"). The collection's `samba_dc_backup` role does the
+same with `samba_dc_backup_action: restore`.
 
 ### Network drive mapping
 

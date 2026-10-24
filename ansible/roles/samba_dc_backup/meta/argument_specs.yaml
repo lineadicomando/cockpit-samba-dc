@@ -16,8 +16,15 @@ argument_specs:
 
       # ── Backup ──────────────────────────────────────────────────────────────
       samba_dc_backup_targetdir:
-        description: Directory where backup archives are written. Required for backup.
+        description:
+          - Directory where backup archives are written; default samba_dc_backup_addcctl_dir.
         type: str
+      samba_dc_backup_addcctl_dir:
+        description:
+          - Where addcctl keeps the domain backups. An offline domain backup in this
+            directory is made by addcctl backup create, as on the Cockpit page.
+        type: str
+        default: /var/backups/samba-dc
       samba_dc_backup_domain:
         description: Include a domain backup via samba-tool domain backup.
         type: bool

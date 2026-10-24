@@ -116,6 +116,30 @@ class Dc:
     def domain_dn(self):
         return str(self.samdb.domain_dn())
 
+    @property
+    def config_dn(self):
+        return str(self.samdb.get_config_basedn())
+
+    @property
+    def schema_dn(self):
+        return str(self.samdb.get_schema_basedn())
+
+    @property
+    def samba_version(self):
+        import samba
+        return samba.version
+
+    def entry(self, dn, attrs):
+        """The record of one entry (see search), or None when it does not exist."""
+        import ldb
+        try:
+            found = self.search("(objectClass=*)", attrs, base=dn, scope="base")
+        except ldb.LdbError as e:
+            if e.args[0] == ldb.ERR_NO_SUCH_OBJECT:
+                return None
+            raise
+        return found[0] if found else None
+
     def resolve_principals(self, names):
         """{lowercased name: {name, kind, sid}} of the names in the directory."""
         if not names:

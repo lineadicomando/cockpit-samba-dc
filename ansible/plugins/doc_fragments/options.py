@@ -303,6 +303,10 @@ options:
     default: "/var/lib/samba/private/sam.ldb"
 '''
 
+    SAMBA_DC_INFO = r'''
+options: {}
+'''
+
     SAMBA_SHARE_INFO = r'''
 options:
   name:

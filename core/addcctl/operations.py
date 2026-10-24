@@ -7,7 +7,8 @@ the MCP tools (docs/architecture.md, "The core"). A `default` is what the
 operation does when the setting is left out; the validator ignores it.
 """
 from .accounts import Computers, Groups, Users
-from .domain import Domain
+from .backups import BACKUP_DIR, Backups
+from .domain import CHECKS, Domain
 from .homes import Homes
 from .shares import Shares
 
@@ -242,6 +243,40 @@ OPERATIONS = {
         "description": "The domain password and lockout settings",
         "mutates": False, "input": _NONE,
         "run": lambda ctx, req: {"policy": Domain(ctx.dc, ctx.runner).password_policy()},
+    },
+    ("domain", "info"): {
+        "description": ("The domain and its controllers: names, Samba version, functional levels, "
+                        "FSMO role owners, the processes of this DC; read locally"),
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"domain": Domain(ctx.dc, ctx.runner).info()},
+    },
+    ("domain", "check"): {
+        "description": ("Run health checks on demand and report their output: samba-tool dbcheck "
+                        "(report only, nothing fixed), samba-tool ntacl sysvolcheck, testparm -s"),
+        "mutates": False,
+        "input": {"type": "object", "properties": {
+            "checks": {"type": "array", "items": {"type": "string", "enum": list(CHECKS)},
+                       "description": "The checks to run; default all"},
+        }, "additionalProperties": False},
+        "run": lambda ctx, req: Domain(ctx.dc, ctx.runner).check(req.get("checks")),
+    },
+    ("domain", "sysvol-reset"): {
+        "description": "Reset the ACLs of sysvol (samba-tool ntacl sysvolreset), when sysvolcheck reports a mismatch",
+        "mutates": True, "input": _NONE,
+        "run": lambda ctx, req: Domain(ctx.dc, ctx.runner).sysvol_reset(),
+    },
+    # -- backups
+    ("backup", "list"): {
+        "description": "List the offline backups of the domain in %s, newest first" % BACKUP_DIR,
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"backups": Backups(ctx.runner).list()},
+    },
+    ("backup", "create"): {
+        "description": ("Make an offline backup of the domain (samba-tool domain backup offline) in %s, "
+                        "readable by root only: it holds every password hash. Restoring one is a manual "
+                        "procedure (samba-tool domain backup restore)" % BACKUP_DIR),
+        "mutates": True, "input": _NONE,
+        "run": lambda ctx, req: Backups(ctx.runner).create(),
     },
     ("share", "list"): {
         "description": "List the shared folders under /srv/samba/shares, with access and drive mapping",

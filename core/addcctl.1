@@ -71,6 +71,24 @@ with "delete_data" remove its folder.
 .B domain password\-policy
 The domain password and lockout settings.
 .TP
+.B domain info
+The domain and its controllers: names, Samba version, functional levels, FSMO
+role owners, the processes of this DC. Read locally, with no network query.
+.TP
+.B domain check
+Run health checks and report their exit code and output: "samba\-tool dbcheck
+\-\-cross\-ncs" (nothing is fixed), "samba\-tool ntacl sysvolcheck", "testparm
+\-s"; "checks" picks some of them.
+.TP
+.B domain sysvol\-reset
+Reset the ACLs of sysvol ("samba\-tool ntacl sysvolreset").
+.TP
+.B backup list\fR, \fBbackup create
+The offline backups of the domain in /var/backups/samba\-dc; make one
+("samba\-tool domain backup offline"). The directory and the archives are
+readable by root only: they hold every password hash. Restoring is done by
+hand, with "samba\-tool domain backup restore".
+.TP
 .B share list\fR, \fBshare get
 The shared folders under /srv/samba/shares, with their access list and drive
 mapping.

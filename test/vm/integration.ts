@@ -21,6 +21,7 @@ import {
 } from "../../src/lib/samba.ts";
 import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
+import { createBackup, getDomainInfo, listBackups, runHealthChecks } from "../../src/lib/domain.ts";
 
 const env = process.env;
 const password = env.DOMAIN_TEST_PASSWORD!;
@@ -51,8 +52,12 @@ interface Driver {
     deleteHome(name: string): Promise<void>;
     deleteUser(name: string): Promise<void>;
     deleteGroup(name: string): Promise<void>;
+    // The "Domain" tab: the overview, and a backup or its preview
+    domain(): Promise<void>;
     close?(): void;
 }
+
+const realm = () => env.DOMAIN_REALM!.toUpperCase();
 
 // --- the page
 
@@ -73,6 +78,22 @@ const page: Driver = {
     deleteHome: async name => { await addcctl("home delete", { name, delete_data: true }); },
     deleteUser: name => deleteUser(name),
     deleteGroup: name => deleteGroup(name),
+    async domain() {
+        const info = await getDomainInfo();
+        assert.equal(info.realm, realm());
+        assert.ok(info.domainControllers.length > 0);
+        const [testparm] = await runHealthChecks(["testparm"]);
+        assert.ok(testparm.ok, testparm.output);
+        const backup = await createBackup();
+        assert.ok(backup, "the new archive is reported");
+        try {
+            assert.ok((await listBackups()).some(b => b.name === backup.name));
+            assert.equal((await run(["stat", "-c", "%a %U", backup.path])).trim(), "600 root");
+            assert.equal((await run(["stat", "-c", "%a", "/var/backups/samba-dc"])).trim(), "700");
+        } finally {
+            await run(["rm", "-f", "--", backup.path]);
+        }
+    },
 };
 
 // --- the Ansible modules, one playbook per step
@@ -109,6 +130,7 @@ function ansibleDriver(): Driver {
         deleteHome: name => play("samba_home", { name, state: "absent", delete_data: true }),
         deleteUser: name => play("samba_user", { name, state: "absent" }),
         deleteGroup: name => play("samba_group", { name, state: "absent" }),
+        domain: () => play("samba_dc_info", {}),
         close: () => rmSync(dir, { recursive: true, force: true }),
     };
 }
@@ -172,6 +194,14 @@ async function mcpDriver(): Promise<Driver> {
         deleteHome: async name => { await tool("home_delete", { name, delete_data: true }); },
         deleteUser: async name => { await tool("user_delete", { name }); },
         deleteGroup: async name => { await tool("group_delete", { name }); },
+        async domain() {
+            const info = (await tool("domain_info", {})).domain as { realm: string };
+            assert.equal(info.realm, realm());
+            const before = ((await tool("backup_list", {})).backups as unknown[]).length;
+            const preview = await tool("backup_create", { check: true });
+            assert.equal(preview.backup, null);
+            assert.equal(((await tool("backup_list", {})).backups as unknown[]).length, before, "a preview makes none");
+        },
         close: () => child.stdin.end(),
     };
 }
@@ -290,6 +320,7 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
         });
         if (!removed) await sweep(p);
     }
+    await step("the domain tab: overview, health check, backup", () => driver.domain());
 }
 
 // The first of names that the list operation returns, if any
@@ -351,6 +382,18 @@ async function coreChecks(): Promise<void> {
             assert.equal(await gpLink(), without);
             await core("share set", { name: "t-x-docs", drive: { letter: "S", label: "Documents" } });
             assert.equal(await gpLink(), link);
+        });
+        await step("domain info: the realm, this DC, every FSMO role it holds", async () => {
+            const d = (await core("domain info")).domain as { realm: string; server: string;
+                fsmo: { role: string; owner: string }[]; samba_version: string };
+            assert.equal(d.realm, realm());
+            assert.ok(d.samba_version.length > 0);
+            assert.ok(d.fsmo.length >= 5, JSON.stringify(d.fsmo));
+            assert.ok(d.fsmo.every(f => f.owner?.toLowerCase() === d.server.toLowerCase()), JSON.stringify(d.fsmo));
+        });
+        await step("domain check: dbcheck, sysvolcheck and testparm pass", async () => {
+            const checks = (await core("domain check")).checks as { name: string; ok: boolean; output: string }[];
+            for (const c of checks) assert.ok(c.ok, `${c.name}:\n${c.output}`);
         });
         await step("a hand-made share at the shares directory itself is not managed", async () => {
             await run(["net", "conf", "addshare", "t-x-root", "/srv/samba/shares/", "writeable=n", "guest_ok=n"]);
