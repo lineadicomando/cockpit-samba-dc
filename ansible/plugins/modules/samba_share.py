@@ -28,99 +28,8 @@ description:
     domain credentials are needed.
   - Runs on the domain controller itself and requires elevated privileges
     (typically C(become=true)).
-options:
-  name:
-    description:
-      - Share name. Also the name of the folder under O(shares_dir).
-      - Matched case-insensitively against existing shares, as Samba does.
-    type: str
-    required: true
-  state:
-    description:
-      - C(present) ensures the share exists with the requested settings,
-        C(absent) ensures it does not.
-    type: str
-    choices: [present, absent]
-    default: present
-  access:
-    description:
-      - Users and groups allowed on the share, by sAMAccountName (without the
-        C(DOMAIN\) prefix).
-      - Required to create a share. On an existing share, leaving it unset keeps
-        the current access list.
-      - How the list combines with the current one depends on O(access_mode).
-    type: list
-    elements: dict
-    suboptions:
-      name:
-        description: sAMAccountName of the user or group.
-        type: str
-        required: true
-      kind:
-        description:
-          - C(user) or C(group). Read from the directory when unset; when set,
-            it must match the directory.
-        type: str
-        choices: [user, group]
-      level:
-        description: C(read) for read-only access, C(write) for read-write.
-        type: str
-        choices: [read, write]
-        default: read
-  access_mode:
-    description:
-      - C(replace) makes O(access) the complete access list.
-      - C(append) adds the entries of O(access), or changes the level of those
-        already present, and keeps the others.
-      - C(remove) drops the principals named in O(access); their level and kind
-        are ignored.
-      - A share always needs at least one user or group, since an empty
-        C(valid users) would open it to every domain user.
-    type: str
-    choices: [replace, append, remove]
-    default: replace
-  comment:
-    description:
-      - Share description shown to clients. An empty string removes it.
-      - Unmanaged on an existing share when unset.
-    type: str
-  browseable:
-    description:
-      - Whether the share is listed when browsing the server.
-      - Defaults to C(true) for a new share, unmanaged on an existing one when
-        unset.
-    type: bool
-  drive_letter:
-    description:
-      - Map the share as this network drive at logon, for the same users and
-        groups that can access it. One of E-Z except H, which is reserved for
-        home directories. A trailing colon is accepted.
-      - An empty string removes the mapping. When unset, an existing mapping is
-        kept and follows access list changes.
-    type: str
-  drive_label:
-    description:
-      - Label of the mapped drive. When unset, the current label is kept, or the
-        share name is used for a new mapping.
-    type: str
-  delete_data:
-    description:
-      - With O(state=absent), also delete the folder and all its contents.
-        Otherwise the data is kept on disk.
-    type: bool
-    default: false
-  shares_dir:
-    description:
-      - Directory holding the shared folders. Kept for compatibility; only the
-        default is accepted, the directory addcctl manages.
-    type: path
-    default: /srv/samba/shares
-  sam_ldb_path:
-    description:
-      - Samba directory database. Kept for compatibility; only the default is
-        accepted.
-    type: path
-    default: /var/lib/samba/private/sam.ldb
+extends_documentation_fragment:
+  - lineadicomando.samba_dc.options.samba_share
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
@@ -215,6 +124,7 @@ commands:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.argument_specs import argument_spec
 from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, check_fixed_paths
 
 
@@ -247,27 +157,7 @@ def present(share):
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=dict(
-            name=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["present", "absent"]),
-            access=dict(
-                type="list",
-                elements="dict",
-                options=dict(
-                    name=dict(type="str", required=True),
-                    kind=dict(type="str", choices=["user", "group"]),
-                    level=dict(type="str", default="read", choices=["read", "write"]),
-                ),
-            ),
-            access_mode=dict(type="str", default="replace", choices=["replace", "append", "remove"]),
-            comment=dict(type="str"),
-            browseable=dict(type="bool"),
-            drive_letter=dict(type="str"),
-            drive_label=dict(type="str"),
-            delete_data=dict(type="bool", default=False),
-            shares_dir=dict(type="path", default="/srv/samba/shares"),
-            sam_ldb_path=dict(type="path", default="/var/lib/samba/private/sam.ldb"),
-        ),
+        argument_spec=argument_spec("samba_share"),
         supports_check_mode=True,
     )
     p = module.params

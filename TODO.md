@@ -38,8 +38,9 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-24: A5 done but for one item that waits for the v0.9.0
-release (now in A6); sections 0 and 4–8 rewritten for the core (A6).
+Updated on 2026-10-24: v0.9.0 released (A3, A4, A5); in A6, sections 0
+and 4–8 rewritten for the core and the modules' options generated from the
+schemas.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -54,23 +55,20 @@ release (now in A6); sections 0 and 4–8 rewritten for the core (A6).
   - `ansible/`: the **collection** `lineadicomando.samba_dc` (roles
     `samba_dc_build`, `samba_tool`, `samba_dc_backup`; modules `samba_user`,
     `samba_group`, `samba_computer`, `samba_home`, `samba_share`,
-    `samba_share_info`, all on addcctl; dispatcher playbooks `samba`,
+    `samba_share_info`, all on addcctl, their options generated from the
+    schemas by `make schema`; dispatcher playbooks `samba`,
     `samba_dc_build`, `samba_dc_backup`; an MCP server on the control node,
     `ansible/mcp/server.py`, with the tools `samba_dc_build` and
     `samba_dc_backup` only). OUs are managed only by `samba_tool` (playbook
     `samba`, which runs `samba-tool`): neither addcctl nor an MCP tool has
     them (section 5).
 - Releases: `v0.1.0`, `v0.2.1` (`v0.2.0` tagged, not published: its package
-  failed `lintian`), `v0.8.0` (the first with the collection). **v0.9.0 is
-  ready** (A3, A4, A5; `make next-version` says so) and not released:
-  release only when the user asks (run the integration suite first, then
-  `make release` and `git push origin main v0.9.0`). Each release carries
-  the page's tarball, the `.deb` of `cockpit-samba-dc` and of `addcctl`,
-  and the collection's tarball.
-- **Until v0.9.0 is out, `samba_dc_build`'s default install fails**: it
-  downloads `addcctl` of its own version (0.8.0 on `main`), which v0.8.0 does
-  not have. Test with local packages (`make deb`, then
-  `samba_dc_build_cockpit_package_files`).
+  failed `lintian`), `v0.8.0` (the first with the collection), `v0.9.0`
+  (addcctl, `addcctl mcp`, the modules on the core). Release only when the
+  user asks (run the integration suite first, then `make release` and `git
+  push origin main vX.Y.Z`). Each release carries the page's tarball, the
+  `.deb` of `cockpit-samba-dc` and of `addcctl`, and the collection's
+  tarball.
 - Debian source package with two binaries (`debian/control`): `addcctl`
   (`/usr/bin/addcctl`, modules in `/usr/lib/addcctl`, man page) and
   `cockpit-samba-dc` (depends on `addcctl` of the same version); `make deb`
@@ -78,15 +76,12 @@ release (now in A6); sections 0 and 4–8 rewritten for the core (A6).
 - CI (`.github/workflows/ci.yml`): page (type check, build, `node --test`),
   core (`unittest`), generated types up to date, both packages with
   `lintian`, the collection's ansible-lint and `ansible-test` sanity and units
-  on ansible-core 2.19 and 2.20. Green on the last push (`c15e96e`); the
-  commits after it (`addcctl mcp`, the collection's MCP server, the ids by
-  SID, the integration suite, this review; `git log origin/main..`) are
-  **not pushed** and CI has not run on them: push when the user asks, and
-  check CI before the release.
+  on ansible-core 2.19 and 2.20; the generated files up to date. Push when
+  the user asks, and check CI before a release.
 - Other repositories: `ansible-collection-win_workman` has the Windows
   client roles (`domain`: join, leave, status; v0.3.0);
   `ansible-win_edulab` takes the collection from `cockpit-samba-dc.git#/ansible/`
-  at v0.8.0 (bump to v0.9.0 after that release, A6), but its `.mcp.json`
+  at v0.8.0 (bump to v0.9.0, A6), but its `.mcp.json`
   runs the MCP server of a checkout of this repository; the old
   `ansible-collection-samba_dc` points here and is archived at the end of
   the plan (A6).
@@ -94,9 +89,11 @@ release (now in A6); sections 0 and 4–8 rewritten for the core (A6).
   to it, driven by `test/vm/lab.sh` (`deploy` installs both packages,
   `ansible` runs a playbook with the collection of this tree, `mcp` starts
   the collection's MCP server against the VMs) and configured by an
-  untracked `.env` (see `.env.example`); skills `vm-lab` and `win-gui`. Left
-  shut off at snapshot `lab_baseline`. The Windows client is an evaluation
-  edition (section 0, "Rebuild scripts").
+  untracked `.env` (see `.env.example`); skills `vm-lab` and `win-gui`.
+  **To rebuild**: on 2026-10-24 neither VM was defined any more, nor their
+  disks; rebuild them (section 0, "Rebuild scripts", with the user's
+  agreement) before the next test on a DC. The Windows client is an
+  evaluation edition.
 - Integration suite: `test/vm/run-lib.sh test/vm/integration.ts [core]
   [page] [ansible] [mcp]`, after `deploy`; about 30 s, removes its data.
   It drives `addcctl mcp` over SSH with `sudo -S`, as the DC's admin user.
@@ -107,7 +104,8 @@ release (now in A6); sections 0 and 4–8 rewritten for the core (A6).
 To resume:
 
 1. Read `CLAUDE.md` and `docs/architecture.md`, then run `npm install &&
-   make check && npx tsc --noEmit && node scripts/addcctl-types.mjs --check`
+   make check && npx tsc --noEmit && node scripts/addcctl-types.mjs --check
+   && python3 scripts/ansible-specs.py --check`
    (`make check` also runs `core/tests`), and `(cd ansible && ansible-lint)`.
 2. Check that the last CI run on GitHub passed (`gh run list --workflow
    ci.yml`).
@@ -117,10 +115,11 @@ To resume:
    `deploy` needs podman or docker for `make deb` (the build image is made
    on first use).
 4. Next steps, in order:
-   - push the commits and the v0.9.0 release, when the user asks;
-   - then the rest of A6: the first item (win_edulab on v0.9.0, with
-     `addcctl mcp` in its `.mcp.json`) and the decision on generated
-     Ansible docs (ask the user);
+   - rebuild the test VMs (ask the user: it creates VMs), then run the
+     integration suite on `main` (the modules' generated options are not
+     tried on a DC yet);
+   - the rest of A6: win_edulab on v0.9.0, with `addcctl mcp` in its
+     `.mcp.json` (another repository);
    - then section 8, the "Domain" tab.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
@@ -293,10 +292,11 @@ Measures on the test DC (2 vCPU), through the page:
 - [x] Rewrite sections 0 and 4–8 as operations of the core with their three
       interfaces; update "Where things stand", `docs/architecture.md` (its
       "Today" section described the two repositories) and the README
-- [ ] Decide whether the Ansible modules' `argument_specs` and
-      `DOCUMENTATION` are generated from the schemas, as the plan said, or
-      stay hand-written (they differ from the core inputs: aliases,
-      `state`, `create`, `update_password`)
+- [x] The Ansible modules' options generated from the schemas (decided on
+      2026-10-24): `scripts/ansible-specs.py` (`make schema`, checked by CI)
+      writes the doc fragment `options` and `module_utils/argument_specs.py`;
+      what only a module has (`state`, `create`, `update_password`, aliases,
+      its own descriptions) is in the script's `MODULES`
 - [ ] Archive `ansible-collection-samba_dc` on GitHub, once the plan is
       done (ask first: it is public)
 - [?] Rename the repository: it keeps its name for now; to reconsider when

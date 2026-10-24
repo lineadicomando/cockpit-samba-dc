@@ -16,20 +16,8 @@ description:
     O(shares_dir), with their access list and drive mapping.
   - Runs on the domain controller itself and requires elevated privileges
     (typically C(become=true)).
-options:
-  name:
-    description:
-      - Only return this share (matched case-insensitively). All managed shares
-        are returned when unset.
-    type: str
-  shares_dir:
-    description: Directory holding the shared folders. Kept for compatibility, only the default is accepted.
-    type: path
-    default: /srv/samba/shares
-  sam_ldb_path:
-    description: Samba directory database. Kept for compatibility, only the default is accepted.
-    type: path
-    default: /var/lib/samba/private/sam.ldb
+extends_documentation_fragment:
+  - lineadicomando.samba_dc.options.samba_share_info
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
@@ -89,16 +77,13 @@ shares:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.argument_specs import argument_spec
 from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, check_fixed_paths
 
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=dict(
-            name=dict(type="str"),
-            shares_dir=dict(type="path", default="/srv/samba/shares"),
-            sam_ldb_path=dict(type="path", default="/var/lib/samba/private/sam.ldb"),
-        ),
+        argument_spec=argument_spec("samba_share_info"),
         supports_check_mode=True,
     )
     check_fixed_paths(module)

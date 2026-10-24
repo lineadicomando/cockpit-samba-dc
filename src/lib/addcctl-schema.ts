@@ -64,7 +64,7 @@ export type GroupSetInput = {
     description?: string;
     /** Users, computers (name$) or groups */
     members?: string[];
-    /** replace (default), append or remove the members given */
+    /** replace makes members the whole list, append adds them, remove drops them */
     members_mode?: "replace" | "append" | "remove";
     /** sAMAccountName of the group */
     name: string;
@@ -82,7 +82,7 @@ export type HomeDeleteInput = {
 
 /** home provision: Create a user's home directory under /srv/samba/home, map it at logon (homeDrive, homeDirectory) and make sure the home share serves it */
 export type HomeProvisionInput = {
-    /** Drive letter; default H: */
+    /** Drive letter of the home directory, with its colon */
     drive?: string;
     /** sAMAccountName of the user */
     name: string;
@@ -90,7 +90,7 @@ export type HomeProvisionInput = {
 
 /** share delete: Remove a shared folder and its drive mapping */
 export type ShareDeleteInput = {
-    /** Also delete the folder and everything in it; default false */
+    /** Also delete the folder and everything in it */
     delete_data?: boolean;
     /** Share name; also the folder under /srv/samba/shares */
     name: string;
@@ -118,12 +118,12 @@ export type ShareSetInput = {
     access?: ({
         /** Read from the directory when left out; when given, it must match */
         kind?: "user" | "group";
-        /** Default: read */
+        /** read for read-only access, write for read-write */
         level?: "read" | "write";
         /** sAMAccountName of the user or group */
         name: string;
     })[];
-    /** replace: access is the whole list (default); append: add or change these entries; remove: drop these principals */
+    /** replace: access is the whole list; append: add or change these entries; remove: drop these principals */
     access_mode?: "replace" | "append" | "remove";
     /** Listed when browsing the server; default true */
     browseable?: boolean;
@@ -154,7 +154,7 @@ export type UserCreateInput = {
     given_name?: string;
     /** Groups to add it to */
     groups?: string[];
-    /** Change it at the next logon; default false */
+    /** Change it at the next logon */
     must_change_password?: boolean;
     /** sAMAccountName of the user */
     name: string;
@@ -185,7 +185,7 @@ export type UserListInput = Record<string, never>;
 
 /** user password: Set a user's password */
 export type UserPasswordInput = {
-    /** Change it at the next logon; default false */
+    /** Change it at the next logon */
     must_change?: boolean;
     /** sAMAccountName of the user */
     name: string;
@@ -203,6 +203,7 @@ export type UserSetInput = {
     description?: string;
     /** E-mail address; empty removes it */
     email?: string;
+    /** Whether the account can log on */
     enabled?: boolean;
     /** When the account stops working, ISO 8601 with a time zone (e.g. 2027-07-01T00:00:00+02:00); null: never */
     expires?: string | null;
@@ -210,7 +211,7 @@ export type UserSetInput = {
     given_name?: string;
     /** Groups it belongs to, the primary group aside */
     groups?: string[];
-    /** replace (default), append or remove the groups given */
+    /** replace makes groups the whole list, append adds them, remove drops them */
     groups_mode?: "replace" | "append" | "remove";
     /** sAMAccountName of the user */
     name: string;

@@ -59,13 +59,14 @@ the DC, `accounts.py` users groups computers, `homes.py`, `domain.py`,
 `bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
 `po/` and `src/locales/` translations, `scripts/` build and release
-helpers (`version.mjs` reads the version from the git tag, `debian.mjs`
-turns it into the Debian version and `debian/changelog`, `plan.mjs`
-computes the next one from `CHANGELOG.md` and checks it against `TODO.md`),
-`debian/` the
-Debian package of the built `dist/`, `ansible/` the collection (`roles/`,
-`plugins/modules/` and `module_utils/`, `playbooks/`, `mcp/`, `tests/`; its
-own `README.md` for its users).
+helpers (`addcctl-types.mjs` and `ansible-specs.py` generate from the
+core's schemas the page's types and the modules' options, `version.mjs`
+reads the version from the git tag, `debian.mjs` turns it into the Debian
+version and `debian/changelog`, `plan.mjs` computes the next one from
+`CHANGELOG.md` and checks it against `TODO.md`), `debian/` the Debian
+package of the built `dist/`, `ansible/` the collection (`roles/`,
+`plugins/modules/`, `module_utils/` and the generated `doc_fragments/`,
+`playbooks/`, `mcp/`, `tests/`; its own `README.md` for its users).
 
 ## Non-negotiable rules
 
@@ -136,6 +137,12 @@ The collection (`ansible/`):
 - Modules that change the DC call addcctl (`module_utils/addcctl.py`): check
   mode is `addcctl --check`, diff comes from its answer. Only the OUs and the
   read-only actions of `samba_tool` still run `samba-tool` directly.
+- A module's options are generated (`make schema`, `scripts/ansible-specs.py`)
+  into the doc fragment `plugins/doc_fragments/options.py` and
+  `module_utils/argument_specs.py`: those of a core setting from its schema,
+  the module's own (`state`, aliases, descriptions of what the module does
+  differently) from the table `MODULES` of the script. The module's file
+  keeps its description, examples and return values.
 
 ## Adding things
 
@@ -144,7 +151,9 @@ Each new feature (see `TODO.md`) also needs:
 - validators in `src/lib/validators.ts`, with a `…ViolationMessage` that calls
   `t()` with literal strings (so the parser can extract them);
 - the operation in `core/addcctl/` with its JSON Schema in `operations.py`,
-  tests in `core/tests/`, then `make schema` for the page's types; the page's
+  tests in `core/tests/`, then `make schema` for the page's types and the
+  modules' options (a new option of a module goes into `MODULES` of
+  `scripts/ansible-specs.py`); the page's
   call in `src/lib/` and its tests under `test/`;
 - cache invalidation for every mutation (rule 7);
 - strings: English in the source through `t()`, Italian in `po/it.po`, then
@@ -162,7 +171,7 @@ lists use `useSingleLoad` and `usePagination` from `src/lib/hooks.ts`.
 make build | watch      # bundle into dist/, watch mode
 make check              # unit tests: npm test (node --test, cockpit mock) and core/tests (unittest)
 npx tsc --noEmit        # type check (CI runs it before the build)
-make schema             # src/lib/addcctl-schema.ts from the core's schemas (CI checks it)
+make schema             # from the core's schemas: src/lib/addcctl-schema.ts, the modules' options (CI checks them)
 make pot                # extract strings into src/locales/*/translation.json
 make po-compile         # po/it.po → src/locales/it/translation.json
 make deb                # Debian package in build/ (Debian 13 container, lintian)

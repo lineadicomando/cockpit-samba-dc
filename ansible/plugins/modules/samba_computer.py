@@ -17,22 +17,8 @@ description:
   - Runs C(addcctl computer ...), the core of cockpit-samba-dc, on the domain
     controller itself; it needs elevated privileges (typically C(become=true)).
   - A domain controller's account is never deleted.
-options:
-  name:
-    description: Computer name, with or without the trailing C($).
-    type: str
-    required: true
-  state:
-    description: C(present) creates the account when it is missing; C(absent) deletes it.
-    type: str
-    choices: [present, absent]
-    default: present
-  ou:
-    description: Container the account is created in, relative to the domain; default C(CN=Computers).
-    type: str
-  description:
-    description: Description, set when the account is created.
-    type: str
+extends_documentation_fragment:
+  - lineadicomando.samba_dc.options.samba_computer
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
@@ -66,17 +52,13 @@ commands:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.argument_specs import argument_spec
 from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, get, given
 
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=dict(
-            name=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["present", "absent"]),
-            ou=dict(type="str"),
-            description=dict(type="str"),
-        ),
+        argument_spec=argument_spec("samba_computer"),
         supports_check_mode=True,
     )
     p = module.params

@@ -18,87 +18,8 @@ description:
   - Settings left unset keep their current value. The built-in accounts are
     protected by addcctl, which refuses to delete them, to change the status
     of Administrator and krbtgt, or to give a system account an expiry date.
-options:
-  name:
-    description: sAMAccountName of the user.
-    type: str
-    required: true
-  state:
-    description:
-      - C(present) creates the user when it is missing (then O(password) is
-        required) and brings it to the given settings; C(absent) deletes it.
-      - Shared folders keep listing a deleted user, so that none is left open
-        to every domain user.
-    type: str
-    choices: [present, absent]
-    default: present
-  password:
-    description:
-      - Password, set when the user is created, or on every run with
-        O(update_password=always).
-    type: str
-  update_password:
-    description:
-      - C(on_create) sets O(password) only when the user is created;
-        C(always) sets it on every run, which then always reports a change.
-    type: str
-    choices: [on_create, always]
-    default: on_create
-  must_change_password:
-    description: Ask for a new password at the next logon, when the password is set.
-    type: bool
-    default: false
-  given_name:
-    description: Given name.
-    type: str
-  surname:
-    description: Surname.
-    type: str
-  email:
-    description: E-mail address; an empty string removes it.
-    type: str
-    aliases: [mail]
-  description:
-    description: Description; an empty string removes it.
-    type: str
-  title:
-    description: Job title; an empty string removes it.
-    type: str
-    aliases: [job_title]
-  department:
-    description: Department; an empty string removes it.
-    type: str
-  company:
-    description: Company; an empty string removes it.
-    type: str
-  ou:
-    description:
-      - Container the user is created in, relative to the domain (e.g.
-        C(OU=Students)). Only used when the user is created.
-    type: str
-  enabled:
-    description: Whether the account can log on.
-    type: bool
-  expires:
-    description:
-      - When the account stops working, ISO 8601 with a time zone (e.g.
-        C(2027-07-01T00:00:00+02:00)); C(never) removes the expiry.
-    type: str
-  groups:
-    description: Groups of the user, the primary group aside; see O(groups_mode).
-    type: list
-    elements: str
-  groups_mode:
-    description: C(replace) makes O(groups) the whole list, C(append) adds them, C(remove) drops them.
-    type: str
-    choices: [replace, append, remove]
-    default: replace
-  primary_group:
-    description: Primary group; the user must belong to it, through O(groups) or already.
-    type: str
-  new_name:
-    description: Rename the user; its shared folders follow the new name.
-    type: str
+extends_documentation_fragment:
+  - lineadicomando.samba_dc.options.samba_user
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
@@ -142,6 +63,7 @@ commands:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.argument_specs import argument_spec
 from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, get, given
 
 # Core setting -> module parameter
@@ -163,27 +85,7 @@ def settings(params):
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=dict(
-            name=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["present", "absent"]),
-            password=dict(type="str", no_log=True),
-            update_password=dict(type="str", default="on_create", choices=["on_create", "always"]),
-            must_change_password=dict(type="bool", default=False),
-            given_name=dict(type="str"),
-            surname=dict(type="str"),
-            email=dict(type="str", aliases=["mail"]),
-            description=dict(type="str"),
-            title=dict(type="str", aliases=["job_title"]),
-            department=dict(type="str"),
-            company=dict(type="str"),
-            ou=dict(type="str"),
-            enabled=dict(type="bool"),
-            expires=dict(type="str"),
-            groups=dict(type="list", elements="str"),
-            groups_mode=dict(type="str", default="replace", choices=["replace", "append", "remove"]),
-            primary_group=dict(type="str"),
-            new_name=dict(type="str"),
-        ),
+        argument_spec=argument_spec("samba_user"),
         supports_check_mode=True,
     )
     p = module.params

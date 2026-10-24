@@ -18,52 +18,8 @@ description:
     controller itself; it needs elevated privileges (typically C(become=true)).
   - Settings left unset keep their current value. addcctl refuses to delete
     or rename the built-in groups.
-options:
-  name:
-    description: sAMAccountName of the group.
-    type: str
-    required: true
-  state:
-    description:
-      - C(present) creates the group when it is missing, unless O(create) is
-        false, and brings it to the given settings; C(absent) deletes it.
-      - Shared folders keep listing a deleted group.
-    type: str
-    choices: [present, absent]
-    default: present
-  create:
-    description: Create the group when it is missing; when false, a missing group is an error.
-    type: bool
-    default: true
-  description:
-    description: Description; an empty string removes it.
-    type: str
-  scope:
-    description:
-      - Group scope, set when the group is created (default C(global)); an
-        existing group keeps its own, with a warning when it differs.
-    type: str
-    choices: [domain, global, universal]
-  category:
-    description:
-      - Group category, set when the group is created (default C(security));
-        an existing group keeps its own, with a warning when it differs.
-    type: str
-    choices: [security, distribution]
-  members:
-    description:
-      - Users, computers (C(name$)) or groups; see O(members_mode). Accounts
-        whose primary group this is already belong to it.
-    type: list
-    elements: str
-  members_mode:
-    description: C(replace) makes O(members) the whole list, C(append) adds them, C(remove) drops them.
-    type: str
-    choices: [replace, append, remove]
-    default: replace
-  new_name:
-    description: Rename the group; its shared folders follow the new name.
-    type: str
+extends_documentation_fragment:
+  - lineadicomando.samba_dc.options.samba_group
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
@@ -100,22 +56,13 @@ commands:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.argument_specs import argument_spec
 from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call, get, given
 
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=dict(
-            name=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["present", "absent"]),
-            create=dict(type="bool", default=True),
-            description=dict(type="str"),
-            scope=dict(type="str", choices=["domain", "global", "universal"]),
-            category=dict(type="str", choices=["security", "distribution"]),
-            members=dict(type="list", elements="str"),
-            members_mode=dict(type="str", default="replace", choices=["replace", "append", "remove"]),
-            new_name=dict(type="str"),
-        ),
+        argument_spec=argument_spec("samba_group"),
         supports_check_mode=True,
     )
     p = module.params

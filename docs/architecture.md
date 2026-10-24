@@ -28,8 +28,6 @@ modules and `addcctl mcp`. What is left:
 
 - OUs are managed only by the collection's `samba_tool` role, which runs
   `samba-tool` (`TODO.md`, section 5); its other read-only actions too.
-- The Ansible modules' `argument_specs` and `DOCUMENTATION` are written by
-  hand, not generated from the schemas (`TODO.md`, A6).
 - The roadmap (`TODO.md`, sections 4–8) adds every new feature as
   operations of the core first.
 
@@ -74,8 +72,9 @@ project of its own, not part of Samba.
   and the registry; no network query and no domain credentials.
 - **One schema per operation** (JSON Schema, in the repository): the command
   validates its input against it, and the same file gives the MCP tool
-  definitions and the TypeScript types (and perhaps the Ansible
-  `argument_specs`: to be decided, A6). A change of contract is made in one
+  definitions, the TypeScript types and the options of the Ansible modules
+  (their `argument_spec` and documentation; what only a module has, such as
+  `state` or an alias, is added by the generator). A change of contract is made in one
   place; CI checks that the generated files are up to date.
 
 ### The interfaces
@@ -138,4 +137,4 @@ collection may import the core.
 | Core: spike on shared folders and drive mapping, go/no-go | A3 | done: go; shared folders and drive mapping in `addcctl`, TypeScript types generated |
 | Core: every other operation | A4 | done: users, groups, computers, home directories, password policy; Ansible modules on the core |
 | MCP server on the DC | A5 | done but for win_edulab's `.mcp.json` (after v0.9.0): `addcctl mcp`, reached through SSH; the orchestration MCP keeps the build and the backup; an integration suite through the three interfaces |
-| Roadmap rewritten for the new layout | A6 | under way: sections 0 and 4–8 rewritten as operations of the core; win_edulab on v0.9.0, the generated Ansible docs and the archive of the old repository still to do |
+| Roadmap rewritten for the new layout | A6 | under way: sections 0 and 4–8 rewritten as operations of the core; the modules' options generated from the schemas; win_edulab on v0.9.0 and the archive of the old repository still to do |

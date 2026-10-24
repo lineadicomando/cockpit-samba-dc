@@ -40,8 +40,9 @@ install: build ## Copy dist/ into /usr/share/cockpit and addcctl into /usr/lib/a
 uninstall: ## Remove what install copied
 	rm -rf $(INSTALL_DIR) /usr/lib/addcctl /usr/bin/addcctl
 
-schema: ## Generate src/lib/addcctl-schema.ts from the core's operations (addcctl schema)
+schema: ## Generate from the core's schemas (addcctl schema) the page's types and the collection's module options
 	node scripts/addcctl-types.mjs
+	python3 scripts/ansible-specs.py
 
 check: ## Run unit tests (the page and the core)
 	npm test

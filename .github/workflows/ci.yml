@@ -24,6 +24,9 @@ jobs:
       - name: Generated types up to date with the core
         run: node scripts/addcctl-types.mjs --check
 
+      - name: Module options of the collection up to date with the core
+        run: python3 scripts/ansible-specs.py --check
+
       - name: Type check
         run: npx tsc --noEmit
 

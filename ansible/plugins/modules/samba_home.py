@@ -17,29 +17,8 @@ description:
     does; or clear it.
   - Runs C(addcctl home ...), the core of cockpit-samba-dc, on the domain
     controller itself; it needs elevated privileges (typically C(become=true)).
-options:
-  name:
-    description: sAMAccountName of the user.
-    type: str
-    required: true
-  state:
-    description:
-      - C(present) creates the folder (owned by the user and its login group,
-        mode 0700), sets the drive attributes and makes sure the C(home) share
-        serves it; C(absent) clears the attributes.
-    type: str
-    choices: [present, absent]
-    default: present
-  drive:
-    description: Drive letter of the home directory, with its colon.
-    type: str
-    default: "H:"
-  delete_data:
-    description:
-      - With O(state=absent), also remove C(/srv/samba/home/<user>) and its
-        contents.
-    type: bool
-    default: false
+extends_documentation_fragment:
+  - lineadicomando.samba_dc.options.samba_home
 author:
   - Alessandro Gagliano (@lineadicomando)
 notes:
@@ -75,17 +54,13 @@ commands:
 """
 
 from ansible.module_utils.basic import AnsibleModule
+from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.argument_specs import argument_spec
 from ansible_collections.lineadicomando.samba_dc.plugins.module_utils.addcctl import call
 
 
 def run_module():
     module = AnsibleModule(
-        argument_spec=dict(
-            name=dict(type="str", required=True),
-            state=dict(type="str", default="present", choices=["present", "absent"]),
-            drive=dict(type="str", default="H:"),
-            delete_data=dict(type="bool", default=False),
-        ),
+        argument_spec=argument_spec("samba_home"),
         supports_check_mode=True,
     )
     p = module.params

@@ -3,7 +3,8 @@
 
 The schemas are the contract: the command validates every input against
 them, and they generate the TypeScript types, the Ansible argument specs and
-the MCP tools (docs/architecture.md, "The core").
+the MCP tools (docs/architecture.md, "The core"). A `default` is what the
+operation does when the setting is left out; the validator ignores it.
 """
 from .accounts import Computers, Groups, Users
 from .domain import Domain
@@ -19,7 +20,8 @@ _ACCESS_ENTRY = {
         "name": dict(_NAME, description="sAMAccountName of the user or group"),
         "kind": {"type": "string", "enum": ["user", "group"],
                  "description": "Read from the directory when left out; when given, it must match"},
-        "level": {"type": "string", "enum": ["read", "write"], "description": "Default: read"},
+        "level": {"type": "string", "enum": ["read", "write"], "default": "read",
+                  "description": "read for read-only access, write for read-write"},
     },
     "required": ["name"],
     "additionalProperties": False,
@@ -96,7 +98,8 @@ OPERATIONS = {
             "properties": dict(_USER_FIELDS, **{
                 "name": _ACCOUNT,
                 "password": _PASSWORD,
-                "must_change_password": {"type": "boolean", "description": "Change it at the next logon; default false"},
+                "must_change_password": {"type": "boolean", "default": False,
+                                         "description": "Change it at the next logon"},
                 "ou": dict(_TEXT, description="Container to create it in, relative to the domain (e.g. OU=Students); default CN=Users"),
                 "groups": {"type": "array", "items": _GROUP, "description": "Groups to add it to"},
             }),
@@ -113,12 +116,12 @@ OPERATIONS = {
             "properties": dict(_USER_FIELDS, **{
                 "name": _ACCOUNT,
                 "new_name": dict(_ACCOUNT, description="New sAMAccountName"),
-                "enabled": {"type": "boolean"},
+                "enabled": {"type": "boolean", "description": "Whether the account can log on"},
                 "expires": _EXPIRES,
                 "groups": {"type": "array", "items": _GROUP,
                            "description": "Groups it belongs to, the primary group aside"},
-                "groups_mode": {"type": "string", "enum": ["replace", "append", "remove"],
-                                "description": "replace (default), append or remove the groups given"},
+                "groups_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
+                                "description": "replace makes groups the whole list, append adds them, remove drops them"},
                 "primary_group": dict(_GROUP, description="Primary group, one the user belongs to"),
             }),
             "required": ["name"], "additionalProperties": False,
@@ -130,7 +133,7 @@ OPERATIONS = {
         "mutates": True,
         "input": {"type": "object", "properties": {
             "name": _ACCOUNT, "password": _PASSWORD,
-            "must_change": {"type": "boolean", "description": "Change it at the next logon; default false"},
+            "must_change": {"type": "boolean", "default": False, "description": "Change it at the next logon"},
         }, "required": ["name", "password"], "additionalProperties": False},
         "run": lambda ctx, req: _users(ctx).password(req),
     },
@@ -176,8 +179,8 @@ OPERATIONS = {
             "new_name": dict(_GROUP, description="New sAMAccountName"),
             "description": dict(_TEXT, description="Description; empty removes it"),
             "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
-            "members_mode": {"type": "string", "enum": ["replace", "append", "remove"],
-                             "description": "replace (default), append or remove the members given"},
+            "members_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
+                             "description": "replace makes members the whole list, append adds them, remove drops them"},
         }, "required": ["name"], "additionalProperties": False},
         "run": lambda ctx, req: _groups(ctx).set(req),
     },
@@ -219,7 +222,8 @@ OPERATIONS = {
         "mutates": True,
         "input": {"type": "object", "properties": {
             "name": _ACCOUNT,
-            "drive": {"type": "string", "minLength": 2, "maxLength": 2, "description": "Drive letter; default H:"},
+            "drive": {"type": "string", "minLength": 2, "maxLength": 2, "default": "H:",
+                      "description": "Drive letter of the home directory, with its colon"},
         }, "required": ["name"], "additionalProperties": False},
         "run": lambda ctx, req: Homes(ctx.dc, ctx.runner).provision(req),
     },
@@ -228,7 +232,8 @@ OPERATIONS = {
         "mutates": True,
         "input": {"type": "object", "properties": {
             "name": _ACCOUNT,
-            "delete_data": {"type": "boolean", "description": "Remove /srv/samba/home/<name> and its contents"},
+            "delete_data": {"type": "boolean", "default": False,
+                            "description": "Remove /srv/samba/home/<name> and its contents"},
         }, "required": ["name"], "additionalProperties": False},
         "run": lambda ctx, req: Homes(ctx.dc, ctx.runner).delete(req),
     },
@@ -261,8 +266,8 @@ OPERATIONS = {
                 "name": _SHARE_NAME,
                 "access": {"type": "array", "items": _ACCESS_ENTRY,
                            "description": "Users and groups allowed; required to create a share"},
-                "access_mode": {"type": "string", "enum": ["replace", "append", "remove"],
-                                "description": ("replace: access is the whole list (default); append: add or "
+                "access_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
+                                "description": ("replace: access is the whole list; append: add or "
                                                 "change these entries; remove: drop these principals")},
                 "comment": {"type": "string", "maxLength": 1024,
                             "description": "Description shown to clients; empty removes it"},
@@ -281,8 +286,8 @@ OPERATIONS = {
             "type": "object",
             "properties": {
                 "name": _SHARE_NAME,
-                "delete_data": {"type": "boolean",
-                                "description": "Also delete the folder and everything in it; default false"},
+                "delete_data": {"type": "boolean", "default": False,
+                                "description": "Also delete the folder and everything in it"},
             },
             "required": ["name"],
             "additionalProperties": False,
