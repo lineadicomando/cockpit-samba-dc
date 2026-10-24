@@ -38,9 +38,10 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-24: v0.10.0 released (section 8, the "Domain" tab);
-A6 done but for the archive of the old repository; section 4 (password
-policy) planned for v0.11.0; the test VMs built from scratch by scripts.
+Updated on 2026-10-24: v0.11.0 released (section 4, the password policy
+and the PSOs); A6 done but for the archive of the old repository; no
+release planned yet (section 5 is next); the test VMs built from scratch
+by scripts.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -66,8 +67,9 @@ policy) planned for v0.11.0; the test VMs built from scratch by scripts.
 - Releases: `v0.1.0`, `v0.2.1` (`v0.2.0` tagged, not published: its package
   failed `lintian`), `v0.8.0` (the first with the collection), `v0.9.0`
   (addcctl, `addcctl mcp`, the modules on the core), `v0.10.0` (the
-  "Domain" tab: overview, health checks, backups). **v0.11.0** is planned
-  (section 4); `make next-version` names its open items. Release only when the
+  "Domain" tab: overview, health checks, backups), `v0.11.0` (the domain
+  password policy edited, fine-grained policies). The next release is not
+  planned yet: give its sections a version when the work starts. Release only when the
   user asks (run the integration suite first, then `make release` and `git
   push origin main vX.Y.Z`). Each release carries the page's tarball, the
   `.deb` of `cockpit-samba-dc` and of `addcctl`, and the collection's
@@ -123,8 +125,8 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - section 4 (password policy, in the "Domain" tab), for v0.11.0;
-   - then sections 5, 6, 7.
+   - section 5 (organizational units), then 6 and 7; section 0 when
+     convenient.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
