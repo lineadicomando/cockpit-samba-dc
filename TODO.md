@@ -38,10 +38,9 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-24: v0.9.0 released (A3, A4, A5); A6 done but for the
-archive of the old repository; section 8 (the "Domain" tab) done and tried
-on the test DC, ready for v0.10.0; the test VMs built from scratch by
-scripts.
+Updated on 2026-10-24: v0.10.0 released (section 8, the "Domain" tab);
+A6 done but for the archive of the old repository; section 4 (password
+policy) planned for v0.11.0; the test VMs built from scratch by scripts.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -66,9 +65,9 @@ scripts.
     them (section 5).
 - Releases: `v0.1.0`, `v0.2.1` (`v0.2.0` tagged, not published: its package
   failed `lintian`), `v0.8.0` (the first with the collection), `v0.9.0`
-  (addcctl, `addcctl mcp`, the modules on the core). **v0.10.0** is
-  planned (section 8, under `[Unreleased]` in `CHANGELOG.md`) and ready:
-  `make next-version` agrees with the plan. Release only when the
+  (addcctl, `addcctl mcp`, the modules on the core), `v0.10.0` (the
+  "Domain" tab: overview, health checks, backups). **v0.11.0** is planned
+  (section 4); `make next-version` names its open items. Release only when the
   user asks (run the integration suite first, then `make release` and `git
   push origin main vX.Y.Z`). Each release carries the page's tarball, the
   `.deb` of `cockpit-samba-dc` and of `addcctl`, and the collection's
@@ -124,8 +123,8 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - the release of v0.10.0, when the user asks;
-   - then section 4 (password policy, in the "Domain" tab), 5, 6, 7.
+   - section 4 (password policy, in the "Domain" tab), for v0.11.0;
+   - then sections 5, 6, 7.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -424,7 +423,7 @@ Since A4 both are addcctl operations (`user unlock`, `user set` with
       picker for the last day of use, plus "never"; not offered for system
       accounts
 
-## 4. Password policy (high priority)
+## 4. Password policy (high priority) — v0.11.0
 
 `domain password-policy` reads every field of the domain policy; the page
 uses three of them (`PasswordPolicy` in `src/lib/types.ts`).
