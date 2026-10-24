@@ -3,8 +3,8 @@
 
 A wrapper around `samba-tool` to manage the objects of a Samba 4 AD DC (users,
 groups, computers, OUs), to provision user home directories and to manage
-shared folders. Designed to be
-driven both from playbooks and from the `samba` MCP tool.
+shared folders, from playbooks (`lineadicomando.samba_dc.samba`). An MCP
+client manages the same objects through `addcctl mcp` on the DC.
 
 Domain backup and restore live in the separate
 [`samba_dc_backup`](../samba_dc_backup/README.md) role.

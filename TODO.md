@@ -93,8 +93,8 @@ To resume:
    `deploy`; `ansible` for the collection); `deploy` needs podman or docker
    for `make deb` (the build image is made on first use).
 4. Next step: the v0.9.0 release when the user asks (then bump win_edulab's
-   pin), and the rest of A5: the orchestration MCP without the day-two
-   tools, then the integration suite.
+   pin, add `addcctl mcp` to its `.mcp.json`), and the rest of A5: the
+   integration suite.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -244,9 +244,14 @@ Measures on the test DC (2 vCPU), through the page:
       official MCP Python SDK as client: users, groups, shares with a mapped
       drive, previews, refusals (built-in account, bad name), read-only;
       `sysvolcheck` clean
-- [ ] The orchestration MCP (playbooks on the control node) keeps
-      `samba_dc_build` and `samba_dc_backup` and drops the day-two tools;
-      win_edulab's `.mcp.json` lists both
+- [x] The orchestration MCP (playbooks on the control node) keeps
+      `samba_dc_build` (new: playbook and tool, `force_provision` needs a
+      confirmation) and `samba_dc_backup` and drops the `samba` tool;
+      `lab.sh mcp` runs it against the test VMs; a DC built from `baseline`
+      through the tool
+- [ ] win_edulab's `.mcp.json` lists both servers (`addcctl mcp` over SSH
+      to its DC, with the sudoers rule and the key); after the v0.9.0
+      release, with the bump of its pin
 - [ ] The integration suite of section 0 runs through the MCP tools and
       through the Cockpit page's operations
 

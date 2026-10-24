@@ -22,6 +22,7 @@ test/vm/lab.sh root 'samba-tool user list' </dev/null
 test/vm/lab.sh ssh win 'Get-ComputerInfo -Property CsDomain'
 test/vm/lab.sh stop win
 test/vm/lab.sh ansible PLAYBOOK [ARGS]  # the collection of this tree against the VMs
+test/vm/lab.sh mcp                    # the collection's MCP server (stdio) against the VMs
 ```
 
 ## Snapshots
@@ -72,6 +73,16 @@ test/vm/lab.sh ansible test/vm/samba_dc_build.yaml          # build the DC from 
 test/vm/lab.sh ansible lineadicomando.samba_dc.samba \
     -e '{"samba_tool_object":"share","samba_tool_action":"list"}'
 ```
+
+`lab.sh mcp` starts the collection's MCP server (`ansible/mcp/server.py`)
+with the same inventory, for an MCP client that runs it from the repository
+root (e.g. the MCP Python SDK: `StdioServerParameters(command=
+"test/vm/lab.sh", args=["mcp"])`). Until v0.9.0 is released, a build needs
+the local packages: `make deb`, then `"args": {"cockpit_package_files":
+[…/build/*.deb]}`.
+
+`addcctl mcp` on the DC is reached as in the README ("MCP server on the
+DC"): a `t-` user with the sudoers rule and a key bound to the command.
 
 A DC built this way has a new domain: the client's machine account is not
 in it. Revert both VMs (`reset`) when done.
@@ -128,9 +139,11 @@ afterwards (`reset` removes it too). At the end: log out ("Sessione" →
 - `pgrep -f` / `pkill -f` match the shell that runs them when the pattern is
   in its own command line: write the pattern as `[s]amba-tool …`.
 
-- `root` runs the command with `sh -c` under `sudo`; the password is the
-  first line of its stdin, the rest of stdin reaches the command (`tar -cf -
-  … | lab.sh root 'tar -xf - …'`). With nothing to pass, give it `</dev/null`.
+- `root` runs the command with `sh -c` under `sudo`, and gives sudo the
+  password itself: what you pipe into `lab.sh root` reaches the command
+  as it is (`tar -cf - … | lab.sh root 'tar -xf - …'`). Never put a
+  password in front of it: the command would read it as data. With nothing
+  to pass, give it `</dev/null`.
 - SSH skips host key checks: the VMs are rebuilt and reverted, their keys
   change.
 - On the client, SSH lands in PowerShell as the local administrator. A

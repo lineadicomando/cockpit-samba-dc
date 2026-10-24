@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Dispatcher for building a Samba AD DC. Invokable by FQCN:
+#
+#   ansible-playbook lineadicomando.samba_dc.samba_dc_build -e '{"target_hosts":"dc"}'
+#
+# The samba_dc_build_* variables normally come from the inventory; extra vars
+# override them.
+# target_hosts: limit execution to specific hosts/groups (default: samba_dc)
+
+- name: Samba DC build dispatcher
+  hosts: "{{ target_hosts | default('samba_dc') }}"
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Run samba_dc_build
+      ansible.builtin.import_role:
+        name: lineadicomando.samba_dc.samba_dc_build

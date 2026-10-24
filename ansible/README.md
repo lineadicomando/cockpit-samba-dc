@@ -52,32 +52,24 @@ are aliases there).
 
 ## MCP service
 
-The collection ships machine-readable catalogs (`meta/mcp.yaml`) and an [MCP server](mcp/README.md) that expose two **MCP tools**, usable by any MCP-compatible client (Claude, Cursor, and similar):
+Two MCP servers, usable by any MCP-compatible client (Claude, Cursor, and
+similar):
 
-| Tool | Role | What it manages |
-|------|------|-----------------|
-| `samba` | `samba_tool` | Domain objects: users, groups, computers, OUs, home directories, shared folders |
-| `samba_dc_backup` | `samba_dc_backup` | Domain backup (online/offline) and destructive restore |
+- on the DC, `addcctl mcp`, reached through SSH, manages users, groups,
+  computers, home directories and shared folders, one tool per operation of
+  `addcctl`, with `"check": true` as preview (README of
+  [cockpit-samba-dc](https://github.com/lineadicomando/cockpit-samba-dc),
+  "MCP server on the DC");
+- on the control node, the collection's [MCP server](mcp/README.md) runs its
+  playbooks:
 
-### `samba` — AD objects
+| Tool | Role | What it does |
+|------|------|--------------|
+| `samba_dc_build` | `samba_dc_build` | Builds a DC; `force_provision` (destructive) requires `force_provision_confirm: true` |
+| `samba_dc_backup` | `samba_dc_backup` | Domain backup (online/offline) and destructive restore, which requires `restore_confirm: true` (catalog: `roles/samba_dc_backup/meta/mcp.yaml`) |
 
-| Object | Available actions |
-|--------|------------------|
-| `user` | `list`, `show`, `create`, `present`, `delete`, `absent`, `enable`, `disable`, `setpassword`, `setprimarygroup` |
-| `group` | `list`, `show`, `listmembers`, `add`, `create`, `delete`, `absent`, `addmembers`, `removemembers` |
-| `computer` | `list`, `show`, `create`, `delete`, `absent` |
-| `ou` | `list`, `listobjects`, `create`, `delete`, `absent` |
-| `home` | `provision`, `absent` |
-| `share` | `list`, `show`, `create`, `present`, `grant`, `revoke`, `delete`, `absent` |
-
-Read-only actions (`list`, `show`, `listmembers`, `listobjects`) never change state. Destructive actions (`delete`, `absent`, `setpassword`, `disable`, `removemembers`, `revoke`) are flagged in the catalog and should be previewed before execution.
-
-### `samba_dc_backup` — Backup & restore
-
-| Object | Action | Note |
-|--------|--------|------|
-| `backup` | `run` | Archives the domain (online/offline) and/or user files |
-| `restore` | `run` | **Destructive** — rebuilds the DC from a backup; requires `restore_confirm: true` |
+Every tool takes `preview: true`, which returns the `ansible-playbook`
+command without running it.
 
 ## Requirements
 
@@ -198,9 +190,12 @@ samba_dc_build_administrator_passwd: !vault |
         win_workman_domain_name: example.com
 ```
 
-Day-two operations are also available as dispatcher playbooks, callable by FQCN:
+The roles are also available as dispatcher playbooks, callable by FQCN:
 
 ```bash
+# Build the DCs of the inventory's samba_dc group
+ansible-playbook lineadicomando.samba_dc.samba_dc_build
+
 # Create a user
 ansible-playbook lineadicomando.samba_dc.samba \
   -e '{"target_hosts":"dc","samba_tool_object":"user","samba_tool_action":"create",

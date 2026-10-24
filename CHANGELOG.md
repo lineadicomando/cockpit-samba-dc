@@ -23,6 +23,9 @@ the README ("Versions and releases"). New entries go under
   per operation of `addcctl` and `"check": true` as preview; changes are
   logged to syslog without passwords; `--read-only` offers only the tools
   that change nothing (README, "MCP server on the DC").
+- Collection: playbook `samba_dc_build` and the MCP tool of the same name,
+  which builds a DC with the variables of the inventory (`preview` first;
+  `force_provision` also needs `force_provision_confirm`).
 
 ### Changed
 
@@ -36,6 +39,14 @@ the README ("Versions and releases"). New entries go under
   change from the page and one from Ansible at the same moment no longer lose
   an update. `samba_dc_build` installs `addcctl` before creating its
   accounts.
+
+### Removed
+
+- Collection: the `samba` MCP tool. Users, groups, computers, home
+  directories and shared folders are managed through `addcctl mcp` on the DC;
+  add it to the MCP client's servers (README, "MCP server on the DC"). OUs
+  are not in it yet: use the `samba` playbook. The collection's MCP server
+  keeps the build and the backup.
 
 ### Fixed
 

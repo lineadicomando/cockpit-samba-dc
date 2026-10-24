@@ -8,7 +8,8 @@ Configuration comes from the environment:
   ANSIBLE_MCP_DEFAULT_INVENTORY (optional) the <name> used when a call gives
                         none; without it, and without ANSIBLE_MCP_INVENTORY,
                         every call must name its inventory
-  ANSIBLE_MCP_TIMEOUT   (optional) per-run timeout in seconds, default 900
+  ANSIBLE_MCP_TIMEOUT   (optional) per-run timeout in seconds, default 3600 for a
+                        build and 900 for a backup
   ANSIBLE_MCP_LOG_DIR   (optional) log directory, default <root>/logs
 """
 from __future__ import annotations
@@ -21,16 +22,18 @@ from runlog import redactor, run_logged
 
 # Playbooks shipped by the collection, keyed by MCP tool name.
 PLAYBOOKS = {
-    "samba": "lineadicomando.samba_dc.samba",
+    "samba_dc_build": "lineadicomando.samba_dc.samba_dc_build",
     "samba_dc_backup": "lineadicomando.samba_dc.samba_dc_backup",
 }
 
-DEFAULT_TIMEOUT = 900
+# Seconds a run may take, per tool, unless ANSIBLE_MCP_TIMEOUT says otherwise:
+# a build upgrades the system and reboots.
+DEFAULT_TIMEOUTS = {"samba_dc_build": 3600, "samba_dc_backup": 900}
 
 # Arguments that carry a secret, per tool. Their values never reach the command
 # line, the run log or a preview.
 SECRET_ARGS = {
-    "samba": ("password",),
+    "samba_dc_build": ("administrator_passwd",),
     "samba_dc_backup": ("domain_password",),
 }
 
@@ -52,11 +55,11 @@ def _project_root() -> Path:
     return Path(root)
 
 
-def _timeout() -> int:
+def _timeout(tool: str) -> int:
     try:
-        return int(os.environ.get("ANSIBLE_MCP_TIMEOUT", DEFAULT_TIMEOUT))
+        return int(os.environ.get("ANSIBLE_MCP_TIMEOUT", DEFAULT_TIMEOUTS[tool]))
     except ValueError:
-        return DEFAULT_TIMEOUT
+        return DEFAULT_TIMEOUTS[tool]
 
 
 def _inventory_path(inventory: str | None) -> str:
@@ -90,17 +93,20 @@ def _build_command(
     return cmd
 
 
-def build_samba_command(
-    object_: str,
-    action: str,
+def build_build_command(
     args: dict | None = None,
     limit: str = "all",
     inventory: str | None = None,
 ) -> list[str]:
-    extra: dict = {"samba_tool_object": object_, "samba_tool_action": action}
-    if args:
-        extra["samba_tool_args"] = args
-    return _build_command("samba", extra, limit, inventory)
+    args = dict(args or {})
+    confirmed = args.pop("force_provision_confirm", False) is True
+    if args.get("force_provision") and not confirmed:
+        raise ValueError(
+            "force_provision destroys the existing domain: it also needs "
+            "force_provision_confirm=true"
+        )
+    extra = {f"samba_dc_build_{key}": value for key, value in args.items()}
+    return _build_command("samba_dc_build", extra, limit, inventory)
 
 
 def build_backup_command(
@@ -115,7 +121,7 @@ def build_backup_command(
     return _build_command("samba_dc_backup", extra, limit, inventory)
 
 
-def run_command(cmd: list[str], label: str = "samba", redact: list[str] | None = None) -> str:
+def run_command(cmd: list[str], tool: str, label: str, redact: list[str] | None = None) -> str:
     """Run an ansible-playbook command, streaming its output to a log file.
 
     With redact, the extra vars go to ansible-playbook through a private file
@@ -124,7 +130,7 @@ def run_command(cmd: list[str], label: str = "samba", redact: list[str] | None =
     Bounded by ANSIBLE_MCP_TIMEOUT: a playbook waiting on a prompt would
     otherwise block the MCP server forever.
     """
-    timeout = _timeout()
+    timeout = _timeout(tool)
     result = run_logged(cmd, _project_root(), label, timeout=timeout, redact=redact)
     output = result.output
     if result.timed_out:

@@ -166,7 +166,7 @@ provisions a Samba AD DC on Debian 13 and installs this module from its
 Debian package; `samba_tool`, `samba_share` and the other roles and modules
 manage users, groups, home directories and shared folders as the module
 does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
-an MCP server runs these playbooks for an MCP client. It has the version of
+an MCP server runs the build and the backup for an MCP client. It has the version of
 the repository (collection `X.Y.Z` is release `vX.Y.Z`, whose
 `samba_dc_build` installs this module `X.Y.Z`), and is installed from git:
 

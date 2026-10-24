@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""MCP server exposing the lineadicomando.samba_dc playbooks as tools."""
+"""MCP server exposing the lineadicomando.samba_dc playbooks as tools.
+
+It orchestrates from the control node: building a DC and backing it up.
+Users, groups, computers, home directories and shared folders are managed by
+`addcctl mcp`, the MCP server on the DC itself (README of the repository).
+"""
 import asyncio
 
 from mcp.server import Server
@@ -9,7 +14,7 @@ from mcp.types import TextContent, Tool, CallToolResult, ListToolsResult, Pagina
 
 from runner import (
     build_backup_command,
-    build_samba_command,
+    build_build_command,
     format_command,
     run_command,
     secret_values,
@@ -49,64 +54,32 @@ _PREVIEW_SCHEMA = {
 def _get_tools() -> list[Tool]:
     return [
         Tool(
-            name="samba",
+            name="samba_dc_build",
             description=(
-                "Manage the Samba AD Domain Controller via samba-tool, through the "
-                "lineadicomando.samba_dc.samba playbook. "
-                "Objects: user, group, computer, ou, home, share. "
-                "Read-only actions (list, show, listmembers, listobjects) never change "
-                "state. Mutating user actions are idempotent. "
-                "Destructive actions (delete, absent, disable, removemembers, revoke) "
-                "should be run with preview first to confirm with the user. "
-                "args.name is required for every action except list. "
-                "args.password is kept off the command line and masked in the run log "
-                "and in previews. "
-                "Common actions per object: "
-                "user [list, show, create, present, delete, absent, enable, disable, "
-                "setpassword, setprimarygroup]; "
-                "group [list, show, listmembers, add, create, delete, absent, addmembers, "
-                "removemembers]; "
-                "computer [list, show, create, delete, absent]; "
-                "ou [list, listobjects, create, delete, absent]; "
-                "home [provision, absent] — creates/removes the physical home directory "
-                "(/srv/samba/home/<user>), sets homeDrive and homeDirectory LDAP "
-                "attributes, and ensures the SMB share exists. "
-                "home args: name (required), home_drive (default H:). "
-                "share [list, show, create, present, grant, revoke, delete, absent] — "
-                "folders shared with domain users and groups, interchangeable with the "
-                "Shared folders tab of cockpit-samba-dc: /srv/samba/shares/<name>, "
-                "access enforced by the share and a POSIX ACL, optionally mapped as a "
-                "network drive at logon through a GPO. "
-                "share args: name (required except list); access, a list of "
-                "{name, kind (user|group, looked up when omitted), level (read|write, "
-                "default read)}, or the shorthands read and write (lists of names); "
-                "comment; browseable (bool); drive_letter (E-Z except H, \"\" removes "
-                "the mapping); drive_label; delete_data (bool, delete/absent only, "
-                "default false keeps the folder on disk). create/present replace the "
-                "access list when one is given; grant adds or changes entries; revoke "
-                "removes them."
+                "Build a Samba AD Domain Controller on Debian 13, through the "
+                "lineadicomando.samba_dc.samba_dc_build playbook: packages, network, "
+                "Kerberos, DNS, NTP, firewall, domain provisioning, addcctl and the "
+                "Cockpit page. The samba_dc_build_* variables normally come from the "
+                "inventory; args overrides them. Run again on a built DC, it brings the "
+                "configuration back and leaves the domain as it is. It changes the "
+                "system and may reboot it: always run with preview first and ask the "
+                "user to confirm. force_provision=true destroys the existing domain "
+                "and also needs force_provision_confirm=true. "
+                "Day-two management (users, groups, computers, home directories, "
+                "shared folders) is not here: it is the addcctl MCP server on the DC."
             ),
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "object": {
-                        "type": "string",
-                        "enum": ["user", "group", "computer", "ou", "home", "share"],
-                        "description": "The kind of AD object to act upon.",
-                    },
-                    "action": {
-                        "type": "string",
-                        "description": "The samba-tool verb (e.g. create, delete, list, show, addmembers).",
-                    },
                     "args": {
                         "type": "object",
                         "description": (
-                            "Action-specific arguments, e.g. "
-                            "{\"name\": \"alice\", \"password\": \"...\"} or "
-                            "{\"name\": \"staff\", \"members\": [\"alice\", \"bob\"]} or "
-                            "{\"name\": \"alice\", \"home_base\": \"/srv/samba/home\"} or "
-                            "{\"name\": \"Projects\", \"write\": [\"Staff\"], "
-                            "\"read\": [\"Domain Users\"], \"drive_letter\": \"P\"}."
+                            "Role variables without the samba_dc_build_ prefix, overriding "
+                            "the inventory, e.g. {\"realm\": \"EXAMPLE.COM\", "
+                            "\"domain\": \"EXAMPLE\", \"cockpit_install\": \"package\"}. "
+                            "administrator_passwd is kept off the command line and masked "
+                            "in the run log and in previews. force_provision (bool, "
+                            "destructive) needs force_provision_confirm=true."
                         ),
                         "default": {},
                     },
@@ -114,7 +87,6 @@ def _get_tools() -> list[Tool]:
                     "inventory": _INVENTORY_SCHEMA,
                     "preview": _PREVIEW_SCHEMA,
                 },
-                "required": ["object", "action"],
             },
         ),
         Tool(
@@ -165,10 +137,8 @@ def _command_for(name: str, arguments: dict) -> list[str] | None:
     inventory = arguments.get("inventory")
     args = arguments.get("args") or {}
 
-    if name == "samba":
-        return build_samba_command(
-            arguments["object"], arguments["action"], args or None, limit, inventory
-        )
+    if name == "samba_dc_build":
+        return build_build_command(args or None, limit, inventory)
     if name == "samba_dc_backup":
         return build_backup_command(arguments["action"], args or None, limit, inventory)
     return None
@@ -187,7 +157,7 @@ async def handle_call_tool(ctx: ServerRequestContext, params: CallToolRequestPar
     except ValueError as e:
         return CallToolResult(content=[TextContent(type="text", text=str(e))], isError=True)
     if cmd is None:
-        return CallToolResult(content=[TextContent(type="text", text=f"Unknown tool: {name}")])
+        return CallToolResult(content=[TextContent(type="text", text=f"Unknown tool: {name}")], isError=True)
 
     redact = secret_values(name, arguments.get("args"))
 
@@ -199,12 +169,8 @@ async def handle_call_tool(ctx: ServerRequestContext, params: CallToolRequestPar
             )
         ])
 
-    label = "-".join(
-        str(part)
-        for part in (name, arguments.get("object"), arguments.get("action"), arguments.get("l", "all"))
-        if part
-    )
-    output = await asyncio.to_thread(run_command, cmd, label, redact)
+    label = "-".join(str(part) for part in (name, arguments.get("action"), arguments.get("l", "all")) if part)
+    output = await asyncio.to_thread(run_command, cmd, name, label, redact)
     return CallToolResult(content=[TextContent(type="text", text=output)])
 
 
