@@ -90,8 +90,9 @@ schemas.
   `ansible` runs a playbook with the collection of this tree, `mcp` starts
   the collection's MCP server against the VMs) and configured by an
   untracked `.env` (see `.env.example`); skills `vm-lab` and `win-gui`.
-  They live on one workstation: check that you are on it before using
-  `lab.sh`. The Windows client is an evaluation edition.
+  Each workstation has its own, built from scratch by `lab.sh build dc`
+  and `lab.sh build win` (skill `vm-lab`). The Windows client is an
+  evaluation edition: rebuild it when it expires.
 - Integration suite: `test/vm/run-lib.sh test/vm/integration.ts [core]
   [page] [ansible] [mcp]`, after `deploy`; about 30 s, removes its data.
   It drives `addcctl mcp` over SSH with `sudo -S`, as the DC's admin user.
@@ -357,10 +358,12 @@ Measures on the test DC (2 vCPU), through the page:
       (A4), which fails on a missing user unless given a password
 - [ ] **Collection: sanity ignore files for ansible-core 2.16–2.18**, below
       `requires_ansible: ">=2.19.0"` and never run by CI: keep or delete
-- [ ] **Rebuild scripts.** `test/vm/build-dc.sh` and `build-win.sh` record
-      steps that were run by hand; they have not run end to end yet. Do it
-      at the next rebuild of the VMs (the Windows client is an evaluation
-      edition and expires).
+- [x] **Rebuild scripts.** The test VMs are built from scratch, with no
+      manual step, on a network of the lab's own (`test/vm/lab.conf`,
+      after cockpit-fleet's `test/vm/`): `lab.sh build dc` (Debian from the
+      installer of the mirror with `preseed.cfg`, then Samba: ~15 min),
+      `lab.sh build win` (Windows from `WIN_ISO` with `win/autounattend.xml`,
+      then the join: ~45 min). Run end to end on 2026-10-24
 
 ## 1. Versioning through git tags (done) — v0.1.0
 
@@ -529,9 +532,13 @@ which will also hold the policies of section 4.
         create` when `samba_dc_backup_targetdir` is unset or that directory
         (it is optional now); online backups, other directories and file
         backups stay in the role
-- [ ] Try it on the test DC (integration suite, its new steps): `samba-tool
-      dbcheck --cross-ncs` and `samba-tool processes` were not checked with
-      `--help` on Samba 4.22 yet, nor the tab in the browser
+- [ ] Try it on the test DC. The integration suite of 2026-10-24 (the new
+      lab): `domain info`, `domain check` (dbcheck `--cross-ncs`,
+      sysvolcheck, testparm), `samba_dc_info` and the MCP tools pass; the
+      page's backup fails, `samba-tool domain backup offline` wants
+      `tdbbackup`, from `tdb-tools`, which a DC lacks: make `addcctl`
+      depend on it (`debian/control`), with a clear error when it is
+      missing. Then the tab in the browser
 
 ## Left out — future implementation to be decided
 

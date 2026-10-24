@@ -214,10 +214,12 @@ Releases are made only when the user asks; pushing the tag publishes them.
 - A test DC is Debian 13 with `samba-ad-dc` provisioned, `registry shares =
   yes`, `acl`, and Cockpit. Drive mapping needs a Windows client joined to
   the domain (`gpupdate /force`, then a new logon).
-- The test VMs are described by `.env` (from `.env.example`, not tracked)
-  and driven by `test/vm/`: skill `vm-lab` for their lifecycle, SSH and
-  deploy, skill `win-gui` for the Windows interface. Load the skill before
-  using them.
+- The test VMs are described by `test/vm/lab.conf` (names, network,
+  addresses) and `.env` (from `.env.example`, not tracked: passwords, the
+  Windows ISO), built from scratch by `lab.sh build dc` and `lab.sh build
+  win`, and driven by `test/vm/`: skill `vm-lab` for their build, lifecycle,
+  SSH and deploy, skill `win-gui` for the Windows interface. Load the skill
+  before using them.
 - After a deploy, a Cockpit tab keeps running the old bundle until reloaded
   (F5): the shell keeps the module's iframe for the whole session. A copy in
   `~/.local/share/cockpit/samba-dc` shadows the one in `/usr/share/cockpit`

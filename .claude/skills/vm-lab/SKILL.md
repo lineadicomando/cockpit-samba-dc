@@ -5,14 +5,18 @@ description: Test VMs of cockpit-samba-dc (a Samba AD DC and a Windows client on
 
 # Test VMs
 
-Two libvirt VMs, both dedicated to this project, described by `.env` (copy
-of `.env.example`, not tracked): a Debian 13 Samba AD DC (`DC_*`, domain
-`DOMAIN_REALM`) and a Windows 11 client joined to it (`WIN_*`). Everything
-goes through `test/vm/lab.sh`, which reads `.env`; run it from the
-repository root.
+Two libvirt VMs, both dedicated to this project, on a NAT network of their
+own (`cockpit-samba`, `192.168.142.0/24`): a Debian 13 Samba AD DC (`DC_*`,
+domain `DOMAIN_REALM`) and a Windows 11 client joined to it (`WIN_*`). Names,
+addresses and sizes are in `test/vm/lab.conf` (tracked); the passwords and
+the Windows ISO in `.env` (copy of `.env.example`, not tracked), which may
+override `lab.conf`, and `.env.<host name>` overrides both on one
+workstation. Everything goes through `test/vm/lab.sh`; run it from the
+repository root. Both VMs are built from scratch by the scripts (see
+"Building").
 
 ```
-test/vm/lab.sh status                 # state and snapshots of both VMs
+test/vm/lab.sh status                 # the network, state and snapshots of both VMs
 test/vm/lab.sh reset                  # both back to lab_baseline, shut off
 test/vm/lab.sh resources dc win       # would they fit on the host now?
 test/vm/lab.sh start dc               # refuses when the host is short
@@ -29,7 +33,8 @@ test/vm/lab.sh mcp                    # the collection's MCP server (stdio) agai
 
 | Snapshot | VM | State |
 |---|---|---|
-| `baseline` | DC | Debian with its own name, address, machine-id and SSH keys; no Samba |
+| `baseline` | DC | Debian from the netinst installer, static address, `DC_ADMIN_USER` with sudo; no Samba |
+| `baseline` | client | Windows 11 Enterprise Evaluation, `WIN_ADMIN_USER`, OpenSSH Server; not joined |
 | `samba_baseline` | DC | domain provisioned, test accounts, module not installed; no client account |
 | `lab_baseline` | DC and client | as `samba_baseline`, plus the client joined to the domain; no user profiles |
 
@@ -151,8 +156,9 @@ afterwards (`reset` removes it too). At the end: log out ("Sessione" →
 - SSH skips host key checks: the VMs are rebuilt and reverted, their keys
   change.
 - On the client, SSH lands in PowerShell as the local administrator. A
-  command that changes the network drops the session: run it as a SYSTEM
-  task (see `build-win.sh`).
+  command that changes its address drops the session: run it as a SYSTEM
+  task. Its address comes from the network's DHCP, reserved for its MAC; its
+  DNS server is the DC, set at the join.
 - `qga.py VM [--stdin] CMD…` runs a command in the DC through the guest
   agent, with no network (the Windows client has no agent).
 - `deploy` builds the Debian packages (`make deb`, a podman container) and
@@ -163,19 +169,35 @@ afterwards (`reset` removes it too). At the end: log out ("Sessione" →
 - Wait for a condition, not a fixed time: `until lab.sh ssh win '…' | grep
   -q …; do sleep 5; done`.
 
-## Rebuilding
+## Building
 
-Only with the user's agreement (it creates VMs). The scripts record how the
-current VMs were made:
+Only with the user's agreement (it creates VMs). From nothing but the
+Windows ISO in `.env`, about an hour in all:
 
-- `test/vm/build-dc.sh BASE_VM`: clone of a shut-off Debian 13 VM with the
-  guest agent; identity and address through `dc-base.sh` (guest agent), then
-  `provision-dc.sh` (Samba, Cockpit, domain, test accounts). Snapshots
-  `baseline` and `samba_baseline`.
-- `test/vm/build-win.sh SOURCE_VM SOURCE_DISK SOURCE_IP`: copy of a clean
-  Windows 11 disk with the admin account and OpenSSH, hardware from
-  `SOURCE_VM` (`winxml.py`); new address and DNS, joined with the new name.
-  Snapshot `lab_baseline` of both VMs.
+```
+test/vm/lab.sh build dc       # ~15 min: Debian, then Samba (baseline, samba_baseline)
+test/vm/lab.sh build win      # 30-60 min, in the background: Windows, then the join (baseline, lab_baseline of both)
+test/vm/lab.sh rebuild dc     # destroy, then build; also win
+test/vm/lab.sh destroy win    # the VM with its disk, NVRAM, TPM and snapshots (never the ISO)
+```
 
-The Windows client runs an Enterprise Evaluation: when it expires
-(`slmgr /dlv`), it is rebuilt from a fresh image.
+- `build dc` (`build-dc.sh`): the lab's network (`lab.sh net`), then
+  `virt-install --location` on the Debian installer of the mirror (or
+  `DEBIAN_ISO`), driven by `preseed.cfg` (rendered by `render.py` into a
+  private directory: it holds the password's hash); `dc-base.sh` lays out
+  the network as `samba_dc_build` writes it; then `provision-dc.sh`
+  (Samba, Cockpit, the domain, the test accounts).
+- `build win` (`build-win.sh`): Windows Setup from `WIN_ISO` with
+  `win/autounattend.xml` (rendered with the password into a private
+  directory, uploaded to the pool, deleted at the end), Secure Boot, TPM 2.0,
+  SATA disk and e1000e NIC; `win/setup.ps1` at the first logon installs
+  OpenSSH Server. Then the DC at `samba_baseline`, the client's DNS pointed
+  at it, `Add-Computer`. Needs the DC built, and memory for both VMs at the
+  join.
+- When an unattended Windows build stops, look at its screen (`virt-viewer`,
+  or skill `win-gui`); `setup.ps1` logs to
+  `C:\Windows\Temp\cockpit-samba-setup.log`.
+
+The Windows client runs an Enterprise Evaluation of 90 days (`build win`
+prints the end date, also in the snapshot's description). Rebuild it then,
+from a freshly downloaded ISO; do not rearm or work around it.

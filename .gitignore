@@ -4,6 +4,9 @@ dist/
 Makefile.local
 CLAUDE.local.md
 .env
+# per-workstation overrides of the test VMs (test/vm/env.sh)
+.env.*
+!.env.example
 __pycache__/
 build/
 debian/changelog

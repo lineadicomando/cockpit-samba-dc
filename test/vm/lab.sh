@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
-# Test VMs of cockpit-samba-dc: lifecycle, SSH and deploy. Settings come from
-# .env (see .env.example). Targets: "dc" (the domain controller) or "win"
-# (the Windows client).
+# Test VMs of cockpit-samba-dc: build, lifecycle, SSH and deploy. Settings
+# come from lab.conf and .env (see .env.example). Targets: "dc" (the domain
+# controller) or "win" (the Windows client).
 #
 #   lab.sh status                      VMs, state and snapshots
+#   lab.sh net                         define and start the lab's network
+#   lab.sh build dc|win                build a VM from scratch (dc first: win joins it)
+#   lab.sh destroy dc|win              delete a VM with its disk, NVRAM, TPM, snapshots
+#   lab.sh rebuild dc|win              destroy, then build
 #   lab.sh resources dc win            would these fit on the host?
 #   lab.sh start dc|win                start (refuses if the host is short)
 #   lab.sh stop dc|win                 clean shutdown, waits until off
@@ -21,7 +25,7 @@
 #   lab.sh mcp                         the collection's MCP server against the VMs
 set -euo pipefail
 . "$(dirname "${BASH_SOURCE[0]}")/env.sh"
-export LC_ALL=C.UTF-8 # virsh and free are parsed below
+export LC_ALL=C.UTF-8 LANGUAGE= # virsh and free are parsed below (LANGUAGE wins over LC_ALL)
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=5)
 
@@ -45,15 +49,62 @@ is_running() { [[ $(state "$1") == "running" ]]; }
 
 mem_mib() { virsh dominfo "$1" | awk '/^Max memory:/ {print int($3/1024)}'; }
 vcpus() { virsh dominfo "$1" | awk '/^CPU\(s\):/ {print $2}'; }
+# Sizes of a VM that is not built yet, from lab.conf
+conf_mem() { case $1 in dc) echo "$DC_MEM_MIB" ;; win) echo "$WIN_MEM_MIB" ;; esac; }
+conf_cpu() { case $1 in dc) echo "$DC_VCPUS" ;; win) echo "$WIN_VCPUS" ;; esac; }
+
+# The lab's NAT network: DHCP hands each VM its address by MAC (the DC also
+# sets it statically, Windows keeps the lease).
+net_xml() {
+    cat <<XML
+<network>
+  <name>$LAB_NET</name>
+  <forward mode='nat'/>
+  <bridge name='$LAB_BRIDGE' stp='on' delay='0'/>
+  <ip address='$GATEWAY' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='$LAB_SUBNET.100' end='$LAB_SUBNET.199'/>
+      <host mac='$DC_MAC' name='$DC_VM' ip='$DC_HOST'/>
+      <host mac='$WIN_MAC' name='$WIN_VM' ip='$WIN_HOST'/>
+    </dhcp>
+  </ip>
+</network>
+XML
+}
+
+ensure_net() {
+    if ! virsh net-info "$LAB_NET" >/dev/null 2>&1; then
+        ip -4 route | grep -q "^$LAB_SUBNET\.0/" && die "$LAB_SUBNET.0/24 is already routed on this host: set LAB_SUBNET in .env"
+        local f; f=$(mktemp); net_xml > "$f"
+        virsh net-define "$f" >/dev/null; rm -f "$f"
+        virsh net-autostart "$LAB_NET" >/dev/null
+        echo "network $LAB_NET defined ($LAB_SUBNET.0/24)"
+    fi
+    virsh net-list --name | grep -qx "$LAB_NET" || virsh net-start "$LAB_NET" >/dev/null
+}
+
+# Delete a VM of the lab with what is its own: disks (not the media it may
+# still have attached, such as the Windows ISO), NVRAM, TPM, snapshots.
+destroy_vm() {
+    local vm=$1 disks
+    defined "$vm" || { echo "$vm is not defined"; return 0; }
+    is_running "$vm" && virsh destroy "$vm" >/dev/null
+    disks=$(virsh domblklist "$vm" --details | awk '$2 == "disk" && $4 != "-" {print $4}' | paste -sd, -)
+    virsh undefine "$vm" --nvram --tpm --snapshots-metadata ${disks:+--storage "$disks"} >/dev/null
+    echo "$vm deleted"
+}
 
 # Called in a condition, where "set -e" does not apply: check every step.
 resources() {
     local need_mem=0 need_cpu=0 vm t
     for t in "$@"; do
         vm=$(vm_of "$t") || exit 1
-        defined "$vm" || die "$vm is not defined"
-        is_running "$vm" && continue
-        need_mem=$((need_mem + $(mem_mib "$vm"))); need_cpu=$((need_cpu + $(vcpus "$vm")))
+        if defined "$vm"; then
+            is_running "$vm" && continue
+            need_mem=$((need_mem + $(mem_mib "$vm"))); need_cpu=$((need_cpu + $(vcpus "$vm")))
+        else
+            need_mem=$((need_mem + $(conf_mem "$t"))); need_cpu=$((need_cpu + $(conf_cpu "$t")))
+        fi
     done
     local run_cpu=0
     for vm in $(virsh list --name); do run_cpu=$((run_cpu + $(vcpus "$vm"))); done
@@ -122,10 +173,25 @@ INVENTORY
 cmd=${1:-status}; shift || true
 case $cmd in
     status)
+        printf '%-28s %s\n' "network $LAB_NET" "$(virsh net-info "$LAB_NET" 2>/dev/null | awk '/^Active:/ {print ($2 == "yes" ? "active" : "inactive")}' || true)${LAB_SUBNET:+ ($LAB_SUBNET.0/24)}"
         for vm in "$DC_VM" "$WIN_VM"; do
             printf '%-28s %s\n' "$vm" "$(state "$vm")"
             { virsh snapshot-list "$vm" --name 2>/dev/null || true; } | sed '/^$/d; s/^/    snapshot: /'
         done ;;
+    net)
+        ensure_net ;;
+    build)
+        case ${1:-} in
+            dc) exec "$VM_DIR/build-dc.sh" ;;
+            win) exec "$VM_DIR/build-win.sh" ;;
+            *) die "build dc or build win" ;;
+        esac ;;
+    destroy)
+        destroy_vm "$(vm_of "${1:-}")" ;;
+    rebuild)
+        vm=$(vm_of "${1:-}")
+        destroy_vm "$vm"
+        exec "$0" build "$1" ;;
     resources)
         [[ $# -gt 0 ]] || set -- dc win
         resources "$@" && echo "ok" || { echo "does not fit"; exit 1; } ;;
