@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-10-24
+
 ### Added
 
 - A **Domain** tab: the domain at a glance (names, Samba version, functional
