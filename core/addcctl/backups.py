@@ -5,15 +5,19 @@ account, so the directory and the archives are root's alone."""
 import datetime
 import os
 import re
+import shutil
+
+from .errors import AddcError
 
 BACKUP_DIR = "/var/backups/samba-dc"
 _ARCHIVE = re.compile(r"^samba-backup-.+\.tar\.bz2$")
 
 
 class Backups:
-    def __init__(self, runner, directory=BACKUP_DIR):
+    def __init__(self, runner, directory=BACKUP_DIR, which=shutil.which):
         self.runner = runner
         self.directory = directory
+        self.which = which
 
     def list(self):
         """The archives, newest first."""
@@ -34,6 +38,11 @@ class Backups:
         return found
 
     def create(self):
+        # samba-tool copies the tdb files with tdbbackup and fails halfway
+        # without it; Debian ships it apart from Samba, in tdb-tools.
+        if not self.which("tdbbackup"):
+            raise AddcError("tdbbackup is not installed (package tdb-tools): "
+                            "samba-tool domain backup offline needs it")
         before = {b["name"] for b in self.list()}
         if not os.path.isdir(self.directory):
             self.runner.record("mkdir -m 0700 %s" % self.directory)

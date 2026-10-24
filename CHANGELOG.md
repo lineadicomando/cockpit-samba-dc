@@ -25,6 +25,10 @@ the README ("Versions and releases"). New entries go under
 - Collection: `samba_dc_backup_targetdir` is optional; without it, or set to
   `/var/backups/samba-dc`, the offline domain backup is made by `addcctl`,
   as on the Cockpit page, and listed there.
+- The `addcctl` package depends on `tdb-tools`: `samba-tool domain backup
+  offline` needs its `tdbbackup`, which a DC does not have otherwise.
+  `samba_dc_build` installs it too, and `backup create` says so when it is
+  missing.
 
 ## [0.9.0] - 2026-10-24
 

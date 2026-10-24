@@ -39,9 +39,9 @@ on the test DC (skill `vm-lab`) before the commit.
 ## Where things stand
 
 Updated on 2026-10-24: v0.9.0 released (A3, A4, A5); A6 done but for the
-archive of the old repository; section 8 (the "Domain" tab) written, for
-v0.10.0, with one open item (a backup on the DC needs `tdb-tools`); the
-test VMs built from scratch by scripts; everything pushed, CI green.
+archive of the old repository; section 8 (the "Domain" tab) done and tried
+on the test DC, ready for v0.10.0; the test VMs built from scratch by
+scripts.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -67,8 +67,8 @@ test VMs built from scratch by scripts; everything pushed, CI green.
 - Releases: `v0.1.0`, `v0.2.1` (`v0.2.0` tagged, not published: its package
   failed `lintian`), `v0.8.0` (the first with the collection), `v0.9.0`
   (addcctl, `addcctl mcp`, the modules on the core). **v0.10.0** is
-  planned (section 8, under `[Unreleased]` in `CHANGELOG.md`) and not
-  ready: `make next-version` names its open item. Release only when the
+  planned (section 8, under `[Unreleased]` in `CHANGELOG.md`) and ready:
+  `make next-version` agrees with the plan. Release only when the
   user asks (run the integration suite first, then `make release` and `git
   push origin main vX.Y.Z`). Each release carries the page's tarball, the
   `.deb` of `cockpit-samba-dc` and of `addcctl`, and the collection's
@@ -124,10 +124,6 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - the open item of section 8: `tdb-tools` for the offline backup, then
-     the integration suite again (its page step makes a real backup), the
-     `samba_dc_backup` role through addcctl on the DC, and the "Domain" tab
-     in the browser;
    - the release of v0.10.0, when the user asks;
    - then section 4 (password policy, in the "Domain" tab), 5, 6, 7.
 
@@ -546,19 +542,14 @@ which will also hold the policies of section 4.
         create` when `samba_dc_backup_targetdir` is unset or that directory
         (it is optional now); online backups, other directories and file
         backups stay in the role
-- [ ] Try it on the test DC. The integration suite of 2026-10-24 (the new
-      lab) passes everything else: `domain info`, `domain check` (dbcheck
-      `--cross-ncs`, sysvolcheck, testparm; so both commands exist on Samba
-      4.22), `samba_dc_info`, the MCP tools (a backup in check mode), and
-      the modules with their generated options. Left:
-  - [ ] The page's backup fails: `samba-tool domain backup offline` wants
-        `tdbbackup`, from `tdb-tools`, which a DC lacks. Make `addcctl`
-        depend on it (`Depends` in `debian/control`), with a clear error
-        from `backup create` when it is missing; then the suite again
-  - [ ] `samba_dc_backup` with no `samba_dc_backup_targetdir` (the addcctl
-        branch) on the DC: `lab.sh ansible` with the collection's playbook
-  - [ ] The tab in the browser (skill `vm-lab`, "The interface in the
-        browser tools"): overview, a check with its output, a backup
+- [x] Tried on the test DC (2026-10-24): the integration suite passes
+      through every interface, the page's backup included; `samba_dc_backup`
+      with no `samba_dc_backup_targetdir` makes it through addcctl (`lab.sh
+      ansible`); the tab in the browser shows the overview, runs the checks
+      with their output and makes a backup. `samba-tool domain backup
+      offline` wants `tdbbackup` (`tdb-tools`), which a DC lacks: `addcctl`
+      depends on it, `samba_dc_build` installs it, and `backup create` says
+      so when it is missing
 
 ## Left out — future implementation to be decided
 

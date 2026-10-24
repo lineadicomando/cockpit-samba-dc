@@ -55,6 +55,7 @@ samba_dc_build_base_packages:
   - python3-pcp
   - rsync
   - sudo
+  - tdb-tools  # tdbbackup, for samba-tool domain backup offline
   - wget
 samba_dc_build_extra_packages:
   - btop

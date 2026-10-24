@@ -6,6 +6,7 @@ import unittest
 
 from addcctl.backups import Backups
 from addcctl.cli import execute
+from addcctl.errors import AddcError
 from addcctl.domain import Domain, _rdn_values
 from addcctl.operations import OPERATIONS
 from addcctl.runner import Runner
@@ -134,6 +135,10 @@ class TestCheck(unittest.TestCase):
         self.assertEqual(runner.commands, ["samba-tool ntacl sysvolreset"])
 
 
+def _found(name):
+    return "/usr/bin/" + name
+
+
 class TestBackups(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -150,7 +155,7 @@ class TestBackups(unittest.TestCase):
 
     def test_create_keeps_it_for_root(self):
         runner = FakeRunner(on_change=self.write_archive)
-        result = Backups(runner, self.dir).create()
+        result = Backups(runner, self.dir, which=_found).create()
         self.assertEqual(runner.commands, ["mkdir -m 0700 %s" % self.dir,
                                            "samba-tool domain backup offline --targetdir=%s" % self.dir])
         backup = result["backup"]
@@ -162,8 +167,14 @@ class TestBackups(unittest.TestCase):
 
     def test_check_mode_changes_nothing(self):
         runner = FakeRunner(check=True, on_change=self.write_archive)
-        self.assertEqual(Backups(runner, self.dir).create(), {"changed": True, "backup": None})
+        self.assertEqual(Backups(runner, self.dir, which=_found).create(), {"changed": True, "backup": None})
         self.assertFalse(os.path.exists(self.dir))
+
+    def test_create_without_tdbbackup(self):
+        runner = FakeRunner(check=True)
+        with self.assertRaisesRegex(AddcError, "tdb-tools"):
+            Backups(runner, self.dir, which=lambda name: None).create()
+        self.assertEqual(runner.commands, [])
 
     def test_list_only_archives(self):
         os.makedirs(self.dir)

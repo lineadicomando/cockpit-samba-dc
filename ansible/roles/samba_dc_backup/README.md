@@ -23,7 +23,7 @@ It runs **on the domain controller** and requires elevated privileges
 | `samba_dc_backup_targetdir` | `samba_dc_backup_addcctl_dir` | directory the archives are written to |
 | `samba_dc_backup_addcctl_dir` | `/var/backups/samba-dc` | where `addcctl` keeps the domain backups; an offline domain backup there is made by `addcctl backup create`, as on the Cockpit page, and listed there |
 | `samba_dc_backup_domain` | `true` | include a domain backup |
-| `samba_dc_backup_domain_type` | `offline` | `online` or `offline` |
+| `samba_dc_backup_domain_type` | `offline` | `online` or `offline`; `offline` needs `tdbbackup` on the DC (package `tdb-tools`, a dependency of `addcctl`) |
 | `samba_dc_backup_domain_server` | `localhost` | DC to contact (online only) |
 | `samba_dc_backup_domain_username` | — | username for authenticated online backups |
 | `samba_dc_backup_domain_password` | — | password; required when a username is given |

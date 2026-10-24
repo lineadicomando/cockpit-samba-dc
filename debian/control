@@ -35,6 +35,7 @@ Depends: ${misc:Depends},
          python3-samba,
          samba-ad-dc (>= 2:4.22),
          samba-common-bin,
+         tdb-tools,
          winbind,
 Description: operations of a Samba Active Directory domain controller, as JSON
  A command that runs on the domain controller, as root, and performs one
