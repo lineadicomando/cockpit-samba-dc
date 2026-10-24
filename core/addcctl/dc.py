@@ -301,31 +301,53 @@ class Dc:
         with its DNS records): argv, never a shell."""
         return self.runner.change(["samba-tool"] + args)
 
-    # -- NSS
+    # -- POSIX ids (winbind)
+    #
+    # By SID, read from sam.ldb, whenever it is known: a name goes through
+    # winbind's cache, which keeps the SID of a deleted account for a while,
+    # so a user or group deleted and created again under the same name would
+    # get the uid or gid of the old one.
 
-    def posix_account(self, name):
-        """(uid, gid of the login group) of a domain user through NSS, or None."""
+    def _sid_to_id(self, flag, sid):
+        out = self.runner.query(["wbinfo", flag, sid], ok=(0, 1)).strip()
+        return out if out.isdigit() else None
+
+    def posix_account(self, name, sid=None):
+        """(uid, gid of the login group) of a domain user, or None."""
         try:
-            entry = pwd.getpwnam("%s\\%s" % (self.workgroup, name))
+            if sid is None:
+                entry = pwd.getpwnam("%s\\%s" % (self.workgroup, name))
+            else:
+                uid = self._sid_to_id("--sid-to-uid", sid)
+                if uid is None:
+                    return None
+                entry = pwd.getpwuid(int(uid))
         except KeyError:
             return None
         return entry.pw_uid, entry.pw_gid
 
-    def posix_ids(self, name):
-        """{"u": uid, "g": gid} of a domain principal through NSS (winbind);
-        a missing mapping is absent. Users usually map to both, well-known
-        groups such as "Domain Users" only to a gid."""
-        key = name.lower()
+    def posix_ids(self, name, sid=None):
+        """{"u": uid, "g": gid} of a domain principal; a missing mapping is
+        absent. Users usually map to both, well-known groups such as "Domain
+        Users" only to a gid. Without a SID (a name left in a share by a
+        deleted account), through NSS."""
+        key = sid or name.lower()
         if key not in self._posix_ids:
-            qualified = "%s\\%s" % (self.workgroup, name)
             ids = {}
-            try:
-                ids["u"] = str(pwd.getpwnam(qualified).pw_uid)
-            except KeyError:
-                pass
-            try:
-                ids["g"] = str(grp.getgrnam(qualified).gr_gid)
-            except KeyError:
-                pass
+            if sid is not None:
+                for tag, flag in (("u", "--sid-to-uid"), ("g", "--sid-to-gid")):
+                    found = self._sid_to_id(flag, sid)
+                    if found is not None:
+                        ids[tag] = found
+            else:
+                qualified = "%s\\%s" % (self.workgroup, name)
+                try:
+                    ids["u"] = str(pwd.getpwnam(qualified).pw_uid)
+                except KeyError:
+                    pass
+                try:
+                    ids["g"] = str(grp.getgrnam(qualified).gr_gid)
+                except KeyError:
+                    pass
             self._posix_ids[key] = ids
         return self._posix_ids[key]

@@ -55,10 +55,10 @@ class Homes:
         record = self._user(request["name"])
         name = first(record, "sAMAccountName")
         drive = request.get("drive", "H:")
-        account = self.dc.posix_account(name)
+        account = self.dc.posix_account(name, first(record, "objectSid"))
         if account is None:
-            raise AddcError("user %s\\%s cannot be resolved through NSS; check that winbind is listed in "
-                            "/etc/nsswitch.conf" % (self.dc.workgroup, name))
+            raise AddcError("user %s\\%s cannot be resolved through winbind; check that winbind is running"
+                            % (self.dc.workgroup, name))
         uid, gid = account
         path = "%s/%s" % (HOMES_DIR, name)
         changed = False

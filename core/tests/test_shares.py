@@ -50,6 +50,7 @@ class FakeDc:
         self.registry = {}
         self.gpo = None
         self.linked = []
+        self.id_lookups = []
 
     def shares(self):
         return {k: dict(v) for k, v in self.registry.items()}
@@ -71,7 +72,8 @@ class FakeDc:
     def resolve_principals(self, names):
         return {n.lower(): PRINCIPALS[n.lower()] for n in names if n.lower() in PRINCIPALS}
 
-    def posix_ids(self, name):
+    def posix_ids(self, name, sid=None):
+        self.id_lookups.append((name, sid))
         return POSIX.get(name.lower(), {})
 
     def find_gpo(self, name):
@@ -165,6 +167,9 @@ class TestShareSet(Base):
         # Canonical names from the directory
         self.assertEqual([a["name"] for a in result["share"]["access"]], ["Staff", "Domain Users"])
         self.assertIsNone(result["diff"]["before"])
+        # The ids come from the SIDs of the directory, not from the names
+        self.assertIn(("Staff", "S-1-5-21-1-2-3-1108"), self.dc.id_lookups)
+        self.assertNotIn(("Staff", None), self.dc.id_lookups)
 
     def test_no_change_on_second_run(self):
         self.create()
@@ -273,6 +278,44 @@ class TestDrives(Base):
         self.assertEqual(result, {"changed": True, "shares": ["Docs"]})
         self.assertEqual(self.dc.registry["Docs"]["valid users"], '"SCHOOL\\mario.rossi"')
         self.assertIn('name="SCHOOL\\mario.rossi"', self.drives()[0]["filters"])
+
+
+class TestPosixIds(unittest.TestCase):
+    """Dc resolves ids by SID through wbinfo: winbind's cache of names keeps
+    the SID of a deleted account, which a new one with its name would get."""
+
+    class Wbinfo(Runner):
+        def __init__(self):
+            super().__init__()
+            self.ids = {("--sid-to-uid", "S-1-5-21-1-2-3-1200"): "3000020",
+                        ("--sid-to-gid", "S-1-5-21-1-2-3-1200"): "3000020",
+                        ("--sid-to-gid", "S-1-5-21-1-2-3-1108"): "3000010"}
+            self.calls = []
+
+        def query(self, args, input=None, ok=(0,)):
+            self.calls.append(args)
+            return self.ids.get((args[1], args[2]), "")
+
+    def test_by_sid(self):
+        from addcctl.dc import Dc
+        runner = self.Wbinfo()
+        dc = Dc(runner)
+        self.assertEqual(dc.posix_ids("Staff", "S-1-5-21-1-2-3-1108"), {"g": "3000010"})
+        self.assertEqual(dc.posix_ids("mrossi", "S-1-5-21-1-2-3-1200"), {"u": "3000020", "g": "3000020"})
+        dc.posix_ids("staff", "S-1-5-21-1-2-3-1108")
+        self.assertEqual(len(runner.calls), 4, "cached by SID")
+        self.assertEqual(runner.calls[0], ["wbinfo", "--sid-to-uid", "S-1-5-21-1-2-3-1108"])
+
+    def test_account_by_sid(self):
+        from unittest import mock
+        from addcctl.dc import Dc
+        dc = Dc(self.Wbinfo())
+        entry = mock.Mock(pw_uid=3000020, pw_gid=100)
+        with mock.patch("pwd.getpwuid", return_value=entry) as getpwuid, mock.patch("pwd.getpwnam") as getpwnam:
+            self.assertEqual(dc.posix_account("mrossi", "S-1-5-21-1-2-3-1200"), (3000020, 100))
+            getpwuid.assert_called_once_with(3000020)
+            getpwnam.assert_not_called()
+            self.assertIsNone(dc.posix_account("ghost", "S-1-5-21-1-2-3-9"))
 
 
 class TestWriteFile(unittest.TestCase):

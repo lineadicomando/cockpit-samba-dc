@@ -50,6 +50,11 @@ the README ("Versions and releases"). New entries go under
 
 ### Fixed
 
+- A user or group deleted and created again under the same name no longer
+  gets the old account's uid or gid on its shared folders and home
+  directory, which left its members without access: `addcctl` resolves them
+  by SID, not through winbind's cache of names. `addcctl` depends on
+  `winbind`.
 - Collection: `samba_tool` `enable`, `disable` and `setprimarygroup` on a
   missing user fail instead of creating it with a random password, and a
   failure of `samba-tool` is no longer read as "no such user".

@@ -89,11 +89,11 @@ class Shares:
     def _grants(self, access):
         grants = []
         for entry in access:
-            ids = self.dc.posix_ids(entry["name"])
+            ids = self.dc.posix_ids(entry["name"], entry.get("sid"))
             tag = "g" if entry["kind"] == "group" else "u"
             if tag not in ids:
-                raise AddcError("%s %s\\%s cannot be resolved to a %s through NSS; check that winbind is "
-                                "listed in /etc/nsswitch.conf" % (entry["kind"], self.dc.workgroup, entry["name"],
+                raise AddcError("%s %s\\%s cannot be resolved to a %s through winbind; check that winbind is "
+                                "running" % (entry["kind"], self.dc.workgroup, entry["name"],
                                                                   "gid" if tag == "g" else "uid"))
             grants.append((tag, ids[tag], entry["level"]))
         return grants
@@ -125,7 +125,7 @@ class Shares:
             return False
         stale = acl.named_ids(current)
         for entry in list(access) + list(old_access):
-            stale |= set(self.dc.posix_ids(entry["name"]).items())
+            stale |= set(self.dc.posix_ids(entry["name"], entry.get("sid")).items())
         stale -= {(tag, posix_id) for tag, posix_id, _ in grants}
         self.runner.change(acl.setfacl_args(path, grants, stale))
         return True
@@ -198,7 +198,7 @@ class Shares:
             drive = {"letter": letter, "label": label}
 
         changed = self._ensure_root(path)
-        changed = self._ensure_acl(path, access, current_access) or changed
+        changed = self._ensure_acl(path, resolved, current_access) or changed
 
         current_params = params if before else {}
         wanted = {}
