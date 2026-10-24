@@ -17,7 +17,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import cockpit from "cockpit";
 import {
-    addGroupMembers, createGroup, createUser, deleteGroup, deleteUser, modifyUser, provisionHomeDir, renameGroup,
+    addGroupMembers, createGroup, createUser, deleteGroup, deleteUser, getPasswordPolicy, modifyUser, provisionHomeDir,
+    renameGroup, setPasswordPolicy,
 } from "../../src/lib/samba.ts";
 import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
@@ -38,6 +39,18 @@ async function core(operation: string, input: object = {}): Promise<Record<strin
 
 interface Access { name: string; kind: "user" | "group"; level: "read" | "write" }
 
+// The password policy as addcctl reads and takes it: null for never
+interface Policy {
+    complexity: boolean;
+    min_length: number;
+    history_length: number;
+    min_age_days: number;
+    max_age_days: number | null;
+    lockout_threshold: number;
+    lockout_duration_minutes: number | null;
+    lockout_window_minutes: number | null;
+}
+
 interface Driver {
     name: string;
     createGroup(name: string): Promise<void>;
@@ -54,6 +67,8 @@ interface Driver {
     deleteGroup(name: string): Promise<void>;
     // The "Domain" tab: the overview, and a backup or its preview
     domain(): Promise<void>;
+    // Change the password policy; with check, only a preview, where the interface has one
+    setPolicy(changes: Partial<Policy>, check?: boolean): Promise<void>;
     close?(): void;
 }
 
@@ -94,6 +109,22 @@ const page: Driver = {
             await run(["rm", "-f", "--", backup.path]);
         }
     },
+    async setPolicy(changes, check) {
+        if (check) return;
+        const current = await getPasswordPolicy();
+        await setPasswordPolicy(current, {
+            complexityRequired: changes.complexity ?? current.complexityRequired,
+            minLength: changes.min_length ?? current.minLength,
+            historyLength: changes.history_length ?? current.historyLength,
+            minAgeDays: changes.min_age_days ?? current.minAgeDays,
+            maxAgeDays: "max_age_days" in changes ? changes.max_age_days! : current.maxAgeDays,
+            lockoutThreshold: changes.lockout_threshold ?? current.lockoutThreshold,
+            lockoutDurationMinutes: "lockout_duration_minutes" in changes
+                ? changes.lockout_duration_minutes! : current.lockoutDurationMinutes,
+            lockoutWindowMinutes: "lockout_window_minutes" in changes
+                ? changes.lockout_window_minutes! : current.lockoutWindowMinutes,
+        });
+    },
 };
 
 // --- the Ansible modules, one playbook per step
@@ -131,6 +162,9 @@ function ansibleDriver(): Driver {
         deleteUser: name => play("samba_user", { name, state: "absent" }),
         deleteGroup: name => play("samba_group", { name, state: "absent" }),
         domain: () => play("samba_dc_info", {}),
+        // 0 is never for the module, as for samba-tool
+        setPolicy: (changes, check) => play("samba_password_policy",
+            Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v === null ? 0 : v])), check),
         close: () => rmSync(dir, { recursive: true, force: true }),
     };
 }
@@ -201,6 +235,10 @@ async function mcpDriver(): Promise<Driver> {
             const preview = await tool("backup_create", { check: true });
             assert.equal(preview.backup, null);
             assert.equal(((await tool("backup_list", {})).backups as unknown[]).length, before, "a preview makes none");
+        },
+        async setPolicy(changes, check) {
+            const out = await tool("domain_set_password_policy", { ...changes, ...(check ? { check: true } : {}) });
+            assert.equal(out.changed, true);
         },
         close: () => child.stdin.end(),
     };
@@ -321,6 +359,37 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
         if (!removed) await sweep(p);
     }
     await step("the domain tab: overview, health check, backup", () => driver.domain());
+    await step("the password policy: a change, as samba-tool reads it, then restored", () => passwordPolicy(driver));
+}
+
+async function policyOnDc(): Promise<Policy> {
+    return (await core("domain password-policy")).policy as Policy;
+}
+
+async function passwordPolicy(driver: Driver): Promise<void> {
+    const before = await policyOnDc();
+    const changes: Partial<Policy> = {
+        min_length: before.min_length === 10 ? 11 : 10,
+        max_age_days: null,
+        lockout_threshold: 5,
+        lockout_duration_minutes: 20,
+        lockout_window_minutes: 15,
+    };
+    try {
+        await driver.setPolicy(changes, true);
+        assert.deepEqual(await policyOnDc(), before, "a preview changes nothing");
+        await driver.setPolicy(changes);
+        assert.deepEqual(await policyOnDc(), { ...before, ...changes });
+        const shown = await run(["samba-tool", "domain", "passwordsettings", "show"]);
+        for (const line of [`Minimum password length: ${changes.min_length}`, "Maximum password age (days): 0",
+            "Account lockout threshold (attempts): 5", "Account lockout duration (mins): 20",
+            "Reset account lockout after (mins): 15"]) {
+            assert.ok(shown.includes(line), `${line} not in:\n${shown}`);
+        }
+    } finally {
+        await core("domain set-password-policy", before);
+    }
+    assert.deepEqual(await policyOnDc(), before, "restored");
 }
 
 // The first of names that the list operation returns, if any

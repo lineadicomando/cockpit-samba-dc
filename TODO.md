@@ -46,7 +46,7 @@ policy) planned for v0.11.0; the test VMs built from scratch by scripts.
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
     `addcctl schema`, `--check`, a lock for changes): users, groups,
     computers, home directories, shared folders, drive mapping, password
-    policy (read), the domain overview, health checks and backups; 29
+    policy, the domain overview, health checks and backups; 30
     operations (`core/addcctl/operations.py`). `addcctl
     mcp` (`mcp.py`) serves them as MCP tools on stdio, reached through SSH
     and a sudoers rule (README, "MCP server on the DC"); `--read-only`.
@@ -56,7 +56,7 @@ policy) planned for v0.11.0; the test VMs built from scratch by scripts.
   - `ansible/`: the **collection** `lineadicomando.samba_dc` (roles
     `samba_dc_build`, `samba_tool`, `samba_dc_backup`; modules `samba_user`,
     `samba_group`, `samba_computer`, `samba_home`, `samba_share`,
-    `samba_share_info`, `samba_dc_info`, all on addcctl, their options generated from the
+    `samba_share_info`, `samba_dc_info`, `samba_password_policy`, all on addcctl, their options generated from the
     schemas by `make schema`; dispatcher playbooks `samba`,
     `samba_dc_build`, `samba_dc_backup`; an MCP server on the control node,
     `ansible/mcp/server.py`, with the tools `samba_dc_build` and
@@ -425,18 +425,19 @@ Since A4 both are addcctl operations (`user unlock`, `user set` with
 
 ## 4. Password policy (high priority) — v0.11.0
 
-`domain password-policy` reads every field of the domain policy; the page
-uses three of them (`PasswordPolicy` in `src/lib/types.ts`).
-
-- [ ] **Edit the domain policy**
-  - [ ] Core: `domain set-password-policy`, on the domain object through
-        SamDB (complexity, minimum length, history, minimum and maximum age,
-        lockout threshold, duration and reset window), with the checks of
-        `samba-tool domain passwordsettings set` (e.g. minimum age below
-        maximum age)
-  - [ ] Page: a form in the "Domain" tab (section 8); `PasswordPolicy` gets
-        every field; the cached policy (300 s TTL) is dropped on a change
-  - [ ] Ansible: module `samba_password_policy`
+- [x] **Edit the domain policy** (2026-10-24; tried on the test DC: the
+      integration suite changes and restores it through each interface,
+      `samba-tool domain passwordsettings show` reads the change, Samba
+      refuses a password below the new minimum, the form in the browser)
+  - [x] Core: `domain set-password-policy`, on the domain object through
+        SamDB, with the ranges (in the schema: the validator now knows
+        `minimum` and `maximum`) and checks of `samba-tool domain
+        passwordsettings set`, plus the lockout window within the lockout
+        duration; `null` for never
+  - [x] Page: a "Password policy" card in the "Domain" tab with an edit
+        modal; `PasswordPolicy` has every field; a change drops the cache
+  - [x] Ansible: module `samba_password_policy` (`0` for never, as
+        `samba-tool`)
 - [ ] **Fine-grained policies (PSO)** — what `samba-tool domain
       passwordsettings pso` does
   - [ ] Core: `pso list`, `pso get`, `pso create`, `pso set`, `pso delete`

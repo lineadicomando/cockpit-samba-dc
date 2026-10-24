@@ -8,7 +8,7 @@ import {
     listUsers, listGroups, listComputers, getUserDetails, refreshUser, createUser, deleteUser,
     enableUser, disableUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, setPrimaryGroup,
     getPasswordPolicy, listGroupMembers, addGroupMembers, removeGroupMembers, renameGroup, createGroup,
-    deleteComputer, provisionHomeDir,
+    deleteComputer, provisionHomeDir, setPasswordPolicy,
 } from "../src/lib/samba.ts";
 
 // Verbatim shape of addcctl's answers
@@ -160,6 +160,22 @@ describe("groups, computers, homes, policy", () => {
         await provisionHomeDir("nrossi");
         assert.deepEqual(sent("computer delete"), [{ name: "PC01" }]);
         assert.deepEqual(sent("home provision"), [{ name: "nrossi" }]);
-        assert.deepEqual(await getPasswordPolicy(), { complexityRequired: true, minLength: 7, historyLength: 24 });
+        assert.deepEqual(await getPasswordPolicy(), {
+            complexityRequired: true, minLength: 7, historyLength: 24, minAgeDays: 1, maxAgeDays: null,
+            lockoutThreshold: 0, lockoutDurationMinutes: 30, lockoutWindowMinutes: 30,
+        });
+    });
+
+    it("sends only the settings of the policy that change, and drops the cached one", async () => {
+        await fresh();
+        const current = await getPasswordPolicy();
+        await setPasswordPolicy(current, current);
+        assert.deepEqual(sent("domain set-password-policy"), []);
+        await setPasswordPolicy(current, { ...current, complexityRequired: false, maxAgeDays: 90, lockoutDurationMinutes: null });
+        assert.deepEqual(sent("domain set-password-policy"),
+            [{ complexity: false, max_age_days: 90, lockout_duration_minutes: null }]);
+        calls.length = 0;
+        await getPasswordPolicy();
+        assert.equal(sent("domain password-policy").length, 1);
     });
 });

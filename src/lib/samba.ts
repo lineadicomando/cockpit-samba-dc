@@ -1,5 +1,6 @@
 import { cache, checkName } from "./exec.ts";
 import { addcctl } from "./addcctl.ts";
+import type { DomainSetPasswordPolicyInput } from "./addcctl-schema.ts";
 import type { User, Group, Computer, PasswordPolicy } from "./types.ts";
 
 // Users, groups, computers, home directories and the password policy are
@@ -54,6 +55,11 @@ interface CorePolicy {
     complexity: boolean;
     min_length: number;
     history_length: number;
+    min_age_days: number;
+    max_age_days: number | null;
+    lockout_threshold: number;
+    lockout_duration_minutes: number | null;
+    lockout_window_minutes: number | null;
 }
 
 const KEY = (op: string, name = "") => `addcctl:${op}${name ? `\x1f${name.toLowerCase()}` : ""}`;
@@ -223,7 +229,35 @@ export async function setPrimaryGroup(username: string, groupName: string): Prom
 export async function getPasswordPolicy(): Promise<PasswordPolicy> {
     const { policy } = await cached<{ policy: CorePolicy }>(KEY("domain password-policy"), 300_000,
         () => addcctl("domain password-policy", {}));
-    return { complexityRequired: policy.complexity, minLength: policy.min_length, historyLength: policy.history_length };
+    return {
+        complexityRequired: policy.complexity,
+        minLength: policy.min_length,
+        historyLength: policy.history_length,
+        minAgeDays: policy.min_age_days,
+        maxAgeDays: policy.max_age_days,
+        lockoutThreshold: policy.lockout_threshold,
+        lockoutDurationMinutes: policy.lockout_duration_minutes,
+        lockoutWindowMinutes: policy.lockout_window_minutes,
+    };
+}
+
+// Sends only the settings that differ from the current policy
+export async function setPasswordPolicy(current: PasswordPolicy, wanted: PasswordPolicy): Promise<void> {
+    const changes: DomainSetPasswordPolicyInput = {};
+    if (wanted.complexityRequired !== current.complexityRequired) changes.complexity = wanted.complexityRequired;
+    if (wanted.minLength !== current.minLength) changes.min_length = wanted.minLength;
+    if (wanted.historyLength !== current.historyLength) changes.history_length = wanted.historyLength;
+    if (wanted.minAgeDays !== current.minAgeDays) changes.min_age_days = wanted.minAgeDays;
+    if (wanted.maxAgeDays !== current.maxAgeDays) changes.max_age_days = wanted.maxAgeDays;
+    if (wanted.lockoutThreshold !== current.lockoutThreshold) changes.lockout_threshold = wanted.lockoutThreshold;
+    if (wanted.lockoutDurationMinutes !== current.lockoutDurationMinutes) {
+        changes.lockout_duration_minutes = wanted.lockoutDurationMinutes;
+    }
+    if (wanted.lockoutWindowMinutes !== current.lockoutWindowMinutes) {
+        changes.lockout_window_minutes = wanted.lockoutWindowMinutes;
+    }
+    if (Object.keys(changes).length === 0) return;
+    await mutate(() => addcctl("domain set-password-policy", changes));
 }
 
 // --- groups ---

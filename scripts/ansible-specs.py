@@ -164,6 +164,23 @@ MODULES = {
             "sam_ldb_path": SAM_LDB_PATH,
         },
     },
+    "samba_password_policy": {
+        "ops": ["domain set-password-policy"],
+        "options": {
+            "complexity": field("domain set-password-policy"),
+            "min_length": field("domain set-password-policy"),
+            "history_length": field("domain set-password-policy"),
+            "min_age_days": field("domain set-password-policy"),
+            "max_age_days": field("domain set-password-policy", description=[
+                "Days after which a password expires, from 1 to 999; C(0): passwords never expire."]),
+            "lockout_threshold": field("domain set-password-policy"),
+            "lockout_duration_minutes": field("domain set-password-policy", description=[
+                "Minutes an account stays locked, from 1 to 99999; C(0): until an administrator unlocks it."]),
+            "lockout_window_minutes": field("domain set-password-policy", description=[
+                "Minutes after which the count of failed logons starts again, from 1 to 99999, at most "
+                "O(lockout_duration_minutes); C(0): never."]),
+        },
+    },
     "samba_dc_info": {
         "ops": ["domain info", "backup list"],
         "options": {},

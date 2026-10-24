@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy } from "../src/lib/validators.ts";
+import type { PasswordPolicy } from "../src/lib/types.ts";
 
 describe("validateUsername", () => {
     it("accepts typical usernames", () => {
@@ -130,5 +131,33 @@ describe("account expiry day", () => {
         assert.equal(validateExpiryDay("30/06/2027"), "invalid");
         assert.equal(validateExpiryDay("1960-01-01"), "invalid");
         assert.equal(validateExpiryDay("2028-02-29"), null);
+    });
+});
+
+describe("validatePasswordPolicy", () => {
+    const samba: PasswordPolicy = {
+        complexityRequired: true, minLength: 7, historyLength: 24, minAgeDays: 1, maxAgeDays: 42,
+        lockoutThreshold: 0, lockoutDurationMinutes: 30, lockoutWindowMinutes: 30,
+    };
+
+    it("accepts Samba's defaults and the never values", () => {
+        assert.equal(validatePasswordPolicy(samba), null);
+        assert.equal(validatePasswordPolicy({ ...samba, maxAgeDays: null, lockoutDurationMinutes: null,
+            lockoutWindowMinutes: null }), null);
+    });
+
+    it("keeps samba-tool's ranges", () => {
+        assert.equal(validatePasswordPolicy({ ...samba, minLength: 15 }), "minLength");
+        assert.equal(validatePasswordPolicy({ ...samba, minLength: NaN }), "minLength");
+        assert.equal(validatePasswordPolicy({ ...samba, historyLength: 2.5 }), "historyLength");
+        assert.equal(validatePasswordPolicy({ ...samba, maxAgeDays: 0 }), "maxAge");
+        assert.equal(validatePasswordPolicy({ ...samba, lockoutThreshold: 1000 }), "lockoutThreshold");
+    });
+
+    it("wants the maximum age above the minimum, and the reset within the lockout", () => {
+        assert.equal(validatePasswordPolicy({ ...samba, minAgeDays: 42 }), "ages");
+        assert.equal(validatePasswordPolicy({ ...samba, lockoutWindowMinutes: 31 }), "windowTooLong");
+        assert.equal(validatePasswordPolicy({ ...samba, lockoutWindowMinutes: null }), "windowNever");
+        assert.equal(validatePasswordPolicy({ ...samba, lockoutDurationMinutes: null, lockoutWindowMinutes: 600 }), null);
     });
 });

@@ -68,8 +68,10 @@ its DNS records (not a domain controller).
 A user's home directory under /srv/samba/home, mapped at logon; clear it, and
 with "delete_data" remove its folder.
 .TP
-.B domain password\-policy
-The domain password and lockout settings.
+.B domain password\-policy\fR, \fBdomain set\-password\-policy
+The domain password and lockout settings; change them, with the ranges and
+checks of "samba\-tool domain passwordsettings set" (the lockout window at
+most the lockout duration).
 .TP
 .B domain info
 The domain and its controllers: names, Samba version, functional levels, FSMO

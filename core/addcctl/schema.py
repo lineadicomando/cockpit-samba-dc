@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: LGPL-2.1-or-later
 """The subset of JSON Schema the operations use, so that addcctl needs no
 library beyond Samba's: type, properties, required, additionalProperties,
-items, enum, minLength, maxLength."""
+items, enum, minLength, maxLength, minimum, maximum."""
 
 _TYPES = {
     "object": lambda v: isinstance(v, dict),
@@ -29,6 +29,11 @@ def errors(schema, value, path="input"):
                          else "%s must be at least %d characters" % (path, schema["minLength"]))
         if "maxLength" in schema and len(value) > schema["maxLength"]:
             found.append("%s must be at most %d characters" % (path, schema["maxLength"]))
+    if _TYPES["integer"](value):
+        if "minimum" in schema and value < schema["minimum"]:
+            found.append("%s must be at least %d" % (path, schema["minimum"]))
+        if "maximum" in schema and value > schema["maximum"]:
+            found.append("%s must be at most %d" % (path, schema["maximum"]))
     if isinstance(value, list) and "items" in schema:
         for i, item in enumerate(value):
             found += errors(schema["items"], item, "%s[%d]" % (path, i))

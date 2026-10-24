@@ -244,6 +244,32 @@ OPERATIONS = {
         "mutates": False, "input": _NONE,
         "run": lambda ctx, req: {"policy": Domain(ctx.dc, ctx.runner).password_policy()},
     },
+    ("domain", "set-password-policy"): {
+        "description": ("Bring the domain password and lockout settings to the given values; "
+                        "settings left out keep their value"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "complexity": {"type": "boolean",
+                           "description": "Passwords must mix character classes and avoid the account name"},
+            "min_length": {"type": "integer", "minimum": 0, "maximum": 14,
+                           "description": "Minimum password length, from 0 to 14"},
+            "history_length": {"type": "integer", "minimum": 0, "maximum": 24,
+                               "description": "Earlier passwords that cannot be used again, from 0 to 24"},
+            "min_age_days": {"type": "integer", "minimum": 0, "maximum": 998,
+                             "description": "Days before a password can be changed again, from 0 to 998"},
+            "max_age_days": {"type": ["integer", "null"], "minimum": 1, "maximum": 999,
+                             "description": "Days after which a password expires, from 1 to 999; null: never"},
+            "lockout_threshold": {"type": "integer", "minimum": 0, "maximum": 999,
+                                  "description": "Failed logons that lock the account, from 0 to 999; 0: never locked"},
+            "lockout_duration_minutes": {"type": ["integer", "null"], "minimum": 1, "maximum": 99999,
+                                         "description": ("Minutes an account stays locked, from 1 to 99999; "
+                                                         "null: until an administrator unlocks it")},
+            "lockout_window_minutes": {"type": ["integer", "null"], "minimum": 1, "maximum": 99999,
+                                       "description": ("Minutes after which the count of failed logons "
+                                                       "starts again, from 1 to 99999 and at most the lockout duration; null: never")},
+        }, "additionalProperties": False},
+        "run": lambda ctx, req: Domain(ctx.dc, ctx.runner).set_password_policy(req),
+    },
     ("domain", "info"): {
         "description": ("The domain and its controllers: names, Samba version, functional levels, "
                         "FSMO role owners, the processes of this DC; read locally"),

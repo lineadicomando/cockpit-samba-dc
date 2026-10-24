@@ -30,7 +30,9 @@ import { Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
 
 import { createBackup, getDomainInfo, listBackups, runHealthChecks } from "../lib/domain.ts";
 import { forgetCachedData } from "../lib/exec.ts";
-import type { DomainBackup, DomainInfo, HealthCheck, HealthCheckName } from "../lib/types.ts";
+import { getPasswordPolicy } from "../lib/samba.ts";
+import type { DomainBackup, DomainInfo, HealthCheck, HealthCheckName, PasswordPolicy } from "../lib/types.ts";
+import { PasswordPolicyModal } from "./modals/PasswordPolicyModal.tsx";
 import { SysvolResetModal } from "./modals/SysvolResetModal.tsx";
 
 const BACKUP_DIR = "/var/backups/samba-dc";
@@ -147,6 +149,89 @@ function Overview({ info }: { info: DomainInfo }) {
 }
 
 // ---------------------------------------------------------------------------
+// Password policy
+// ---------------------------------------------------------------------------
+function PasswordPolicyView({ refreshToken }: { refreshToken: number }) {
+    const { t } = useTranslation();
+    const [policy, setPolicy] = useState<PasswordPolicy | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [editing, setEditing] = useState(false);
+    const [saved, setSaved] = useState(false);
+
+    const load = useCallback(async () => {
+        try {
+            setPolicy(await getPasswordPolicy());
+            setError(null);
+        } catch (e) {
+            setError(errorText(e));
+        }
+    }, []);
+
+    useEffect(() => { load(); }, [load, refreshToken]);
+
+    if (error) return <Alert variant="danger" isInline title={t("Failed to load password policy.")}>{error}</Alert>;
+    if (!policy) return <Spinner size="md" aria-label={t("Loading the password policy")} />;
+
+    const never = t("Never");
+    const rows: [string, string][] = [
+        [t("Complexity"), policy.complexityRequired ? t("Required") : t("Not required")],
+        [t("Minimum length"), t("policy_characters", { count: policy.minLength })],
+        [t("Password history"), t("policy_passwords", { count: policy.historyLength })],
+        [t("Minimum age"), t("policy_days", { count: policy.minAgeDays })],
+        [t("Maximum age"), policy.maxAgeDays === null ? never : t("policy_days", { count: policy.maxAgeDays })],
+        [t("Lockout threshold"), policy.lockoutThreshold === 0
+            ? t("Accounts are never locked")
+            : t("policy_failed_logons", { count: policy.lockoutThreshold })],
+        [t("Lockout duration"), policy.lockoutDurationMinutes === null
+            ? t("Until an administrator unlocks the account")
+            : t("policy_minutes", { count: policy.lockoutDurationMinutes })],
+        [t("Reset failed logons after"), policy.lockoutWindowMinutes === null
+            ? never
+            : t("policy_minutes", { count: policy.lockoutWindowMinutes })],
+    ];
+    return (
+        <Stack hasGutter>
+            <StackItem>
+                <Flex alignItems={{ default: "alignItemsCenter" }}>
+                    <FlexItem grow={{ default: "grow" }}>
+                        <Content component="p">{t("The policy of the whole domain: it applies to every account.")}</Content>
+                    </FlexItem>
+                    <FlexItem>
+                        <Button variant="secondary" onClick={() => { setSaved(false); setEditing(true); }}>{t("Edit")}</Button>
+                    </FlexItem>
+                </Flex>
+            </StackItem>
+            {saved && (
+                <StackItem>
+                    <Alert variant="success" isInline title={t("Password policy saved")} />
+                </StackItem>
+            )}
+            <StackItem>
+                <DescriptionList isHorizontal isCompact>
+                    {rows.map(([term, value]) => (
+                        <DescriptionListGroup key={term}>
+                            <DescriptionListTerm>{term}</DescriptionListTerm>
+                            <DescriptionListDescription>{value}</DescriptionListDescription>
+                        </DescriptionListGroup>
+                    ))}
+                </DescriptionList>
+            </StackItem>
+            {editing && (
+                <PasswordPolicyModal
+                    policy={policy}
+                    onClose={() => setEditing(false)}
+                    onSuccess={() => {
+                        setEditing(false);
+                        setSaved(true);
+                        load();
+                    }}
+                />
+            )}
+        </Stack>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Health checks
 // ---------------------------------------------------------------------------
 function HealthChecks() {
@@ -240,7 +325,7 @@ function HealthChecks() {
                                     <code>{results[name]?.command ?? name}</code>
                                 </Td>
                                 <Td dataLabel={t("Result")}>{status(name)}</Td>
-                                <Td isActionCell>
+                                <Td isActionCell modifier="nowrap">
                                     <Button variant="link" isInline onClick={() => run([name])}
                                         isDisabled={running.includes(name)}>
                                         {t("Run")}
@@ -426,6 +511,12 @@ export function DomainPage() {
                             {loading && <Spinner size="lg" aria-label={t("Loading the domain")} />}
                             {!loading && info && <Overview info={info} />}
                         </CardBody>
+                    </Card>
+                </StackItem>
+                <StackItem>
+                    <Card>
+                        <CardTitle>{t("Password policy")}</CardTitle>
+                        <CardBody><PasswordPolicyView refreshToken={refreshToken} /></CardBody>
                     </Card>
                 </StackItem>
                 <StackItem>

@@ -40,10 +40,18 @@ export interface Computer {
     lastLogon: string;
 }
 
+// null for an age or an interval: never (no maximum age, locked until an
+// administrator unlocks the account, a count of failed logons that never
+// starts again)
 export interface PasswordPolicy {
     complexityRequired: boolean;
     minLength: number;
     historyLength: number;
+    minAgeDays: number;
+    maxAgeDays: number | null;
+    lockoutThreshold: number;
+    lockoutDurationMinutes: number | null;
+    lockoutWindowMinutes: number | null;
 }
 
 export type ShareAccessLevel = "read" | "write";

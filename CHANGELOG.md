@@ -8,6 +8,16 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- **Domain** tab: the password and lockout policy of the domain, shown and
+  edited (complexity, minimum length, history, minimum and maximum age,
+  lockout threshold, duration and reset), with the checks of `samba-tool
+  domain passwordsettings set`.
+- `addcctl`: operation `domain set-password-policy`, also as a tool of
+  `addcctl mcp`.
+- Collection: module `samba_password_policy`.
+
 ## [0.10.0] - 2026-10-24
 
 ### Added

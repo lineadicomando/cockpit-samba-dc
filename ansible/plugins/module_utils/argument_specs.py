@@ -74,6 +74,16 @@ _SPECS = {
         'shares_dir': {'type': 'path', 'default': '/srv/samba/shares'},
         'sam_ldb_path': {'type': 'path', 'default': '/var/lib/samba/private/sam.ldb'},
     },
+    'samba_password_policy': {
+        'complexity': {'type': 'bool'},
+        'min_length': {'type': 'int'},
+        'history_length': {'type': 'int'},
+        'min_age_days': {'type': 'int'},
+        'max_age_days': {'type': 'int'},
+        'lockout_threshold': {'type': 'int'},
+        'lockout_duration_minutes': {'type': 'int'},
+        'lockout_window_minutes': {'type': 'int'},
+    },
     'samba_dc_info': {},
     'samba_share_info': {
         'name': {'type': 'str'},

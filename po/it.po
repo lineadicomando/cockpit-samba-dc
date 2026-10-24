@@ -1139,3 +1139,139 @@ msgstr "Esegue samba-tool ntacl sysvolreset, che imposta le ACL di ogni file in 
 
 msgid "This server"
 msgstr "Questo server"
+
+msgid "Password policy"
+msgstr "Policy delle password"
+
+msgid "The policy of the whole domain: it applies to every account."
+msgstr "La policy dell'intero dominio: vale per tutti gli account."
+
+msgid "Loading the password policy"
+msgstr "Caricamento della policy delle password"
+
+msgid "Password policy saved"
+msgstr "Policy delle password salvata"
+
+msgid "Edit password policy"
+msgstr "Modifica la policy delle password"
+
+msgid "Complexity"
+msgstr "Complessità"
+
+msgid "Required"
+msgstr "Richiesta"
+
+msgid "Not required"
+msgstr "Non richiesta"
+
+msgid "Passwords must be complex"
+msgstr "Le password devono essere complesse"
+
+msgid "Three of: uppercase, lowercase, digits, symbols; not the account name."
+msgstr "Tre tra maiuscole, minuscole, cifre e simboli; non il nome dell'account."
+
+msgid "Minimum length"
+msgstr "Lunghezza minima"
+
+msgid "Characters, from 0 to 14."
+msgstr "Caratteri, da 0 a 14."
+
+msgid "Password history"
+msgstr "Cronologia delle password"
+
+msgid "Earlier passwords that cannot be used again, from 0 to 24."
+msgstr "Password precedenti che non si possono riusare, da 0 a 24."
+
+msgid "Minimum age"
+msgstr "Durata minima"
+
+msgid "Days before a user can change the password again; 0 for no wait."
+msgstr "Giorni prima che un utente possa cambiare di nuovo la password; 0 per nessuna attesa."
+
+msgid "Maximum age"
+msgstr "Durata massima"
+
+msgid "Passwords never expire"
+msgstr "Le password non scadono mai"
+
+msgid "Days after which a password must be changed."
+msgstr "Giorni dopo i quali la password va cambiata."
+
+msgid "Lockout threshold"
+msgstr "Soglia di blocco"
+
+msgid "Accounts are never locked"
+msgstr "Gli account non vengono mai bloccati"
+
+msgid "Failed logons that lock the account; 0: accounts are never locked."
+msgstr "Accessi falliti che bloccano l'account; 0: gli account non vengono mai bloccati."
+
+msgid "Lockout duration"
+msgstr "Durata del blocco"
+
+msgid "Until an administrator unlocks the account"
+msgstr "Finché un amministratore non sblocca l'account"
+
+msgid "Minutes a locked account stays locked."
+msgstr "Minuti per cui un account bloccato resta bloccato."
+
+msgid "Reset failed logons after"
+msgstr "Azzera gli accessi falliti dopo"
+
+msgid "Minutes after which the count of failed logons starts again; at most the lockout duration."
+msgstr "Minuti dopo i quali il conteggio degli accessi falliti riparte da zero; al massimo la durata del blocco."
+
+msgid "The minimum length must be a whole number from 0 to 14."
+msgstr "La lunghezza minima deve essere un numero intero da 0 a 14."
+
+msgid "The password history must be a whole number from 0 to 24."
+msgstr "La cronologia delle password deve essere un numero intero da 0 a 24."
+
+msgid "The minimum age must be a whole number of days from 0 to 998."
+msgstr "La durata minima deve essere un numero intero di giorni da 0 a 998."
+
+msgid "The maximum age must be a whole number of days from 1 to 999."
+msgstr "La durata massima deve essere un numero intero di giorni da 1 a 999."
+
+msgid "The maximum age must be greater than the minimum age."
+msgstr "La durata massima deve essere maggiore della durata minima."
+
+msgid "The lockout threshold must be a whole number from 0 to 999."
+msgstr "La soglia di blocco deve essere un numero intero da 0 a 999."
+
+msgid "The lockout duration must be a whole number of minutes from 1 to 99999."
+msgstr "La durata del blocco deve essere un numero intero di minuti da 1 a 99999."
+
+msgid "The reset time must be a whole number of minutes from 1 to 99999."
+msgstr "Il tempo di azzeramento deve essere un numero intero di minuti da 1 a 99999."
+
+msgid "The count of failed logons must be reset within the lockout duration."
+msgstr "Il conteggio degli accessi falliti deve azzerarsi entro la durata del blocco."
+
+msgid "The reset time cannot be longer than the lockout duration."
+msgstr "Il tempo di azzeramento non può superare la durata del blocco."
+
+msgid "policy_characters"
+msgid_plural "policy_characters_plural"
+msgstr[0] "{{count}} carattere"
+msgstr[1] "{{count}} caratteri"
+
+msgid "policy_passwords"
+msgid_plural "policy_passwords_plural"
+msgstr[0] "{{count}} password"
+msgstr[1] "{{count}} password"
+
+msgid "policy_days"
+msgid_plural "policy_days_plural"
+msgstr[0] "{{count}} giorno"
+msgstr[1] "{{count}} giorni"
+
+msgid "policy_minutes"
+msgid_plural "policy_minutes_plural"
+msgstr[0] "{{count}} minuto"
+msgstr[1] "{{count}} minuti"
+
+msgid "policy_failed_logons"
+msgid_plural "policy_failed_logons_plural"
+msgstr[0] "{{count}} accesso fallito"
+msgstr[1] "{{count}} accessi falliti"

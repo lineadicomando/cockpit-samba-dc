@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { generatePassword, checkPasswordAgainstPolicy } from "../src/lib/passwordUtils.ts";
 import type { PasswordPolicy } from "../src/lib/types.ts";
 
-const complexPolicy: PasswordPolicy = { complexityRequired: true, minLength: 10, historyLength: 5 };
-const simplePolicy: PasswordPolicy = { complexityRequired: false, minLength: 6, historyLength: 0 };
+const complexPolicy: Pick<PasswordPolicy, "complexityRequired" | "minLength"> = { complexityRequired: true, minLength: 10 };
+const simplePolicy: Pick<PasswordPolicy, "complexityRequired" | "minLength"> = { complexityRequired: false, minLength: 6 };
 
 describe("generatePassword", () => {
     it("respects minLength", () => {

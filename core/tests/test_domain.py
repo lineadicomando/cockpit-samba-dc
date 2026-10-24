@@ -102,6 +102,94 @@ class TestInfo(unittest.TestCase):
         self.assertEqual(_rdn_values("CN=a\\,b,CN=c"), ["a,b", "c"])
 
 
+DAY = -864000000000
+MINUTE = -600000000
+
+
+class PolicyDc(FakeDc):
+    """A domain with Samba's default policy; modify() changes it as Dc does."""
+
+    def __init__(self, runner):
+        super().__init__()
+        self.runner = runner
+        self.entries[DOMAIN].update({
+            "pwdProperties": ["17"], "minPwdLength": ["7"], "pwdHistoryLength": ["24"],
+            "minPwdAge": [str(DAY)], "maxPwdAge": [str(43 * DAY)], "lockoutThreshold": ["0"],
+            "lockoutDuration": [str(30 * MINUTE)], "lockOutObservationWindow": [str(30 * MINUTE)],
+        })
+
+    def modify(self, dn, changes):
+        for attr, value in changes.items():
+            self.runner.record("sam.ldb: %s %s = %s" % (dn, attr, value))
+        if not self.runner.check:
+            self.entries[dn].update({a: [str(v)] for a, v in changes.items()})
+
+
+class TestPasswordPolicy(unittest.TestCase):
+    def setUp(self):
+        self.runner = FakeRunner()
+        self.dc = PolicyDc(self.runner)
+        self.domain = Domain(self.dc, self.runner)
+
+    def test_read(self):
+        self.assertEqual(self.domain.password_policy(), {
+            "complexity": True, "min_length": 7, "history_length": 24, "min_age_days": 1,
+            "max_age_days": 43, "lockout_threshold": 0, "lockout_duration_minutes": 30,
+            "lockout_window_minutes": 30})
+
+    def test_set_only_what_changes(self):
+        result = self.domain.set_password_policy({"complexity": False, "min_length": 7, "max_age_days": None,
+                                                  "lockout_threshold": 5, "lockout_duration_minutes": 15,
+                                                  "lockout_window_minutes": 10})
+        self.assertTrue(result["changed"])
+        entry = self.dc.entries[DOMAIN]
+        # The other bits of pwdProperties stay (0x10: store plaintext passwords)
+        self.assertEqual(entry["pwdProperties"], ["16"])
+        self.assertEqual(entry["maxPwdAge"], [str(-0x8000000000000000)])
+        self.assertEqual(entry["lockoutDuration"], [str(15 * MINUTE)])
+        self.assertEqual(entry["lockOutObservationWindow"], [str(10 * MINUTE)])
+        self.assertEqual(len(self.runner.commands), 5)
+        self.assertEqual(result["policy"]["max_age_days"], None)
+        self.assertEqual(result["diff"]["before"]["lockout_threshold"], 0)
+        self.assertEqual(result["diff"]["after"]["lockout_threshold"], 5)
+
+    def test_unchanged(self):
+        result = self.domain.set_password_policy({"min_length": 7, "complexity": True})
+        self.assertFalse(result["changed"])
+        self.assertEqual(self.runner.commands, [])
+
+    def test_check_mode_previews(self):
+        runner = FakeRunner(check=True)
+        dc = PolicyDc(runner)
+        result = Domain(dc, runner).set_password_policy({"min_length": 10})
+        self.assertTrue(result["changed"])
+        self.assertEqual(result["policy"]["min_length"], 10)
+        self.assertEqual(dc.entries[DOMAIN]["minPwdLength"], ["7"])
+        self.assertEqual(runner.commands, ["sam.ldb: %s minPwdLength = 10" % DOMAIN])
+
+    def test_ages_are_checked_together(self):
+        with self.assertRaisesRegex(AddcError, "greater than the minimum"):
+            self.domain.set_password_policy({"min_age_days": 43})
+        self.domain.set_password_policy({"max_age_days": None, "min_age_days": 100})
+        self.assertEqual(self.domain.password_policy()["min_age_days"], 100)
+
+    def test_lockout_window_within_duration(self):
+        with self.assertRaisesRegex(AddcError, "cannot be longer"):
+            self.domain.set_password_policy({"lockout_window_minutes": 31})
+        with self.assertRaisesRegex(AddcError, "within the lockout duration"):
+            self.domain.set_password_policy({"lockout_window_minutes": None})
+        # Locked until an administrator unlocks it: any window
+        self.domain.set_password_policy({"lockout_duration_minutes": None, "lockout_window_minutes": 600})
+        self.assertIsNone(self.domain.password_policy()["lockout_duration_minutes"])
+
+    def test_ranges_in_the_schema(self):
+        op = OPERATIONS[("domain", "set-password-policy")]
+        for request, message in (({"min_length": 15}, "at most 14"), ({"history_length": -1}, "at least 0"),
+                                 ({"max_age_days": 0}, "at least 1"), ({"complexity": 1}, "boolean")):
+            with self.assertRaisesRegex(Exception, message):
+                execute(op, request, check=True)
+
+
 class TestCheck(unittest.TestCase):
     def test_all_checks_report_failures_as_results(self):
         runner = FakeRunner(answers={"samba-tool ntacl sysvolcheck": (255, "ProvisioningError: mismatch\n")})

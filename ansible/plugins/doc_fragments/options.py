@@ -303,6 +303,43 @@ options:
     default: "/var/lib/samba/private/sam.ldb"
 '''
 
+    SAMBA_PASSWORD_POLICY = r'''
+options:
+  complexity:
+    description:
+      - Passwords must mix character classes and avoid the account name.
+    type: bool
+  min_length:
+    description:
+      - Minimum password length, from 0 to 14.
+    type: int
+  history_length:
+    description:
+      - Earlier passwords that cannot be used again, from 0 to 24.
+    type: int
+  min_age_days:
+    description:
+      - Days before a password can be changed again, from 0 to 998.
+    type: int
+  max_age_days:
+    description:
+      - "Days after which a password expires, from 1 to 999; C(0): passwords never expire."
+    type: int
+  lockout_threshold:
+    description:
+      - "Failed logons that lock the account, from 0 to 999; 0: never locked."
+    type: int
+  lockout_duration_minutes:
+    description:
+      - "Minutes an account stays locked, from 1 to 99999; C(0): until an administrator unlocks it."
+    type: int
+  lockout_window_minutes:
+    description:
+      - "Minutes after which the count of failed logons starts again, from 1 to 99999, at most
+        O(lockout_duration_minutes); C(0): never."
+    type: int
+'''
+
     SAMBA_DC_INFO = r'''
 options: {}
 '''

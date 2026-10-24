@@ -1,3 +1,5 @@
+import type { PasswordPolicy } from "./types.ts";
+
 // Characters AD forbids in sAMAccountName: " / \ [ ] : ; | = , + * ? < >
 const SAM_INVALID_CHARS = /["/\\[\]:;|=,+*?<>]/;
 // eslint-disable-next-line no-control-regex
@@ -141,5 +143,55 @@ export function expiryDateViolationMessage(t: (key: string) => string, violation
     switch (violation) {
         case "empty":   return t("Choose the last day the account can be used.");
         case "invalid": return t("Enter a date as YYYY-MM-DD.");
+    }
+}
+
+export type PasswordPolicyViolation =
+    | "minLength"
+    | "historyLength"
+    | "minAge"
+    | "maxAge"
+    | "ages"
+    | "lockoutThreshold"
+    | "lockoutDuration"
+    | "lockoutWindow"
+    | "windowNever"
+    | "windowTooLong";
+
+function inRange(value: number, low: number, high: number): boolean {
+    return Number.isInteger(value) && value >= low && value <= high;
+}
+
+// The ranges and checks of addcctl's domain set-password-policy (those of
+// samba-tool domain passwordsettings set, plus the lockout window within the
+// lockout duration).
+export function validatePasswordPolicy(p: PasswordPolicy): PasswordPolicyViolation | null {
+    if (!inRange(p.minLength, 0, 14)) return "minLength";
+    if (!inRange(p.historyLength, 0, 24)) return "historyLength";
+    if (!inRange(p.minAgeDays, 0, 998)) return "minAge";
+    if (p.maxAgeDays !== null && !inRange(p.maxAgeDays, 1, 999)) return "maxAge";
+    if (p.maxAgeDays !== null && p.minAgeDays >= p.maxAgeDays) return "ages";
+    if (!inRange(p.lockoutThreshold, 0, 999)) return "lockoutThreshold";
+    if (p.lockoutDurationMinutes !== null && !inRange(p.lockoutDurationMinutes, 1, 99999)) return "lockoutDuration";
+    if (p.lockoutWindowMinutes !== null && !inRange(p.lockoutWindowMinutes, 1, 99999)) return "lockoutWindow";
+    if (p.lockoutDurationMinutes !== null) {
+        if (p.lockoutWindowMinutes === null) return "windowNever";
+        if (p.lockoutWindowMinutes > p.lockoutDurationMinutes) return "windowTooLong";
+    }
+    return null;
+}
+
+export function passwordPolicyViolationMessage(t: (key: string) => string, violation: PasswordPolicyViolation): string {
+    switch (violation) {
+        case "minLength":        return t("The minimum length must be a whole number from 0 to 14.");
+        case "historyLength":    return t("The password history must be a whole number from 0 to 24.");
+        case "minAge":           return t("The minimum age must be a whole number of days from 0 to 998.");
+        case "maxAge":           return t("The maximum age must be a whole number of days from 1 to 999.");
+        case "ages":             return t("The maximum age must be greater than the minimum age.");
+        case "lockoutThreshold": return t("The lockout threshold must be a whole number from 0 to 999.");
+        case "lockoutDuration":  return t("The lockout duration must be a whole number of minutes from 1 to 99999.");
+        case "lockoutWindow":    return t("The reset time must be a whole number of minutes from 1 to 99999.");
+        case "windowNever":      return t("The count of failed logons must be reset within the lockout duration.");
+        case "windowTooLong":    return t("The reset time cannot be longer than the lockout duration.");
     }
 }

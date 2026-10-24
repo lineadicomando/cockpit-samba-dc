@@ -44,6 +44,26 @@ export type DomainInfoInput = Record<string, never>;
 /** domain password-policy: The domain password and lockout settings */
 export type DomainPasswordPolicyInput = Record<string, never>;
 
+/** domain set-password-policy: Bring the domain password and lockout settings to the given values; settings left out keep their value */
+export type DomainSetPasswordPolicyInput = {
+    /** Passwords must mix character classes and avoid the account name */
+    complexity?: boolean;
+    /** Earlier passwords that cannot be used again, from 0 to 24 */
+    history_length?: number;
+    /** Minutes an account stays locked, from 1 to 99999; null: until an administrator unlocks it */
+    lockout_duration_minutes?: number | null;
+    /** Failed logons that lock the account, from 0 to 999; 0: never locked */
+    lockout_threshold?: number;
+    /** Minutes after which the count of failed logons starts again, from 1 to 99999 and at most the lockout duration; null: never */
+    lockout_window_minutes?: number | null;
+    /** Days after which a password expires, from 1 to 999; null: never */
+    max_age_days?: number | null;
+    /** Days before a password can be changed again, from 0 to 998 */
+    min_age_days?: number;
+    /** Minimum password length, from 0 to 14 */
+    min_length?: number;
+};
+
 /** domain sysvol-reset: Reset the ACLs of sysvol (samba-tool ntacl sysvolreset), when sysvolcheck reports a mismatch */
 export type DomainSysvolResetInput = Record<string, never>;
 
@@ -259,6 +279,7 @@ export interface AddcctlInputs {
     "domain check": DomainCheckInput;
     "domain info": DomainInfoInput;
     "domain password-policy": DomainPasswordPolicyInput;
+    "domain set-password-policy": DomainSetPasswordPolicyInput;
     "domain sysvol-reset": DomainSysvolResetInput;
     "group create": GroupCreateInput;
     "group delete": GroupDeleteInput;

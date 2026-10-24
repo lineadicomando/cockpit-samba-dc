@@ -1,5 +1,7 @@
 import type { PasswordPolicy } from "./types.ts";
 
+type LengthAndComplexity = Pick<PasswordPolicy, "complexityRequired" | "minLength">;
+
 const UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const LOWER = "abcdefghijklmnopqrstuvwxyz";
 const DIGITS = "0123456789";
@@ -25,7 +27,7 @@ function shuffle(arr: string[]): string[] {
     return arr;
 }
 
-export function generatePassword(policy: PasswordPolicy): string {
+export function generatePassword(policy: LengthAndComplexity): string {
     const len = Math.max(policy.minLength, 8);
 
     if (!policy.complexityRequired) {
@@ -43,7 +45,7 @@ export type PasswordViolation = "minLength" | "complexity";
 // Windows/Samba complexity rule: at least 3 of the 4 character categories
 const CATEGORY_PATTERNS = [/[A-Z]/, /[a-z]/, /[0-9]/, /[^A-Za-z0-9]/];
 
-export function checkPasswordAgainstPolicy(policy: PasswordPolicy, password: string): PasswordViolation | null {
+export function checkPasswordAgainstPolicy(policy: LengthAndComplexity, password: string): PasswordViolation | null {
     if (password.length < policy.minLength) return "minLength";
     if (policy.complexityRequired) {
         const matched = CATEGORY_PATTERNS.filter(re => re.test(password)).length;
