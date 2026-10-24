@@ -192,6 +192,10 @@ Releases are made only when the user asks; pushing the tag publishes them.
 - What the mock cannot show (real `samba-tool` output, ACLs, smbd access,
   GPO applied on a Windows client, the interface) needs a DC with the module
   installed: test there before a commit that touches `src/lib/`.
+- `test/vm/integration.ts` (`test/vm/run-lib.sh`, after `lab.sh deploy`)
+  runs one scenario through the page's functions, the Ansible modules and
+  the tools of `addcctl mcp`, and checks the DC: run it before a release and
+  after a change to `core/`; a new operation gets its step there.
 
 ## Test environment
 

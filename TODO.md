@@ -93,8 +93,8 @@ To resume:
    `deploy`; `ansible` for the collection); `deploy` needs podman or docker
    for `make deb` (the build image is made on first use).
 4. Next step: the v0.9.0 release when the user asks (then bump win_edulab's
-   pin, add `addcctl mcp` to its `.mcp.json`), and the rest of A5: the
-   integration suite.
+   pin, add `addcctl mcp` to its `.mcp.json`: the last item of A5), then
+   A6. Before a release, run `test/vm/integration.ts` on the test DC.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -252,8 +252,8 @@ Measures on the test DC (2 vCPU), through the page:
 - [ ] win_edulab's `.mcp.json` lists both servers (`addcctl mcp` over SSH
       to its DC, with the sudoers rule and the key); after the v0.9.0
       release, with the bump of its pin
-- [ ] The integration suite of section 0 runs through the MCP tools and
-      through the Cockpit page's operations
+- [x] The integration suite of section 0 runs through the MCP tools, the
+      Ansible modules and the Cockpit page's operations
 
 ## A6. The roadmap in the new layout
 
@@ -303,11 +303,15 @@ Measures on the test DC (2 vCPU), through the page:
 - [ ] **Linter.** `validators.ts` carries an `eslint-disable` comment but
       ESLint is not set up: add a config, a script and a CI step;
       `src/lib/hooks.ts` mixes 2- and 4-space indentation.
-- [ ] **Integration checks.** `test/vm/review-smoke.ts` covers only the review
-      fixes and has not run since the page moved onto addcctl; grow it into
-      a suite run before each release (users, groups, home directories,
-      shares, drive mapping), with cleanup of its data, through the page's
-      operations, the Ansible modules and the MCP tools (A5).
+- [x] **Integration checks.** `test/vm/integration.ts` (run with
+      `run-lib.sh` before each release): one scenario (group, user, home
+      directory, share with a mapped drive, smbd access, renames, removal)
+      through the page's functions, the Ansible modules and the `addcctl mcp`
+      tools, the same checks on the DC, plus the core's own (CN vs account
+      name, the GPO linked again, hand-made shares left alone); 30 s on the
+      test DC. It replaces `review-smoke.ts`. Its second run found that a
+      user or group deleted and created again under the same name got the
+      old uid/gid (winbind's name cache): addcctl now resolves ids by SID
 - [ ] **`lab.sh root` lost its stdin once** (2026-10-23): a `tar | lab.sh
       root 'tar -x'` got no archive, and the same command worked right after.
       Not reproduced; if it happens again, look at how the first line (the

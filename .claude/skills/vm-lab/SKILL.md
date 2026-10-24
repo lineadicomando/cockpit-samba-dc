@@ -99,9 +99,13 @@ in it. Revert both VMs (`reset`) when done.
    drive): `resources win`, `start win`, `wait win`, then a domain logon in
    the GUI (skill `win-gui`). Mapped drives and `homeDrive` apply only at an
    interactive logon, not over SSH.
-5. Check what the module wrote: `net conf list`, `getfacl -R`, `ldbsearch -H
+5. The integration suite: `test/vm/run-lib.sh test/vm/integration.ts`
+   (optionally `core`, `page`, `ansible`, `mcp`), about 30 s; it removes
+   its `t-x-`, `t-p-`, `t-a-`, `t-m-` data. Before a release, and after a
+   change to `core/`.
+6. Check what the module wrote: `net conf list`, `getfacl -R`, `ldbsearch -H
    /var/lib/samba/private/sam.ldb …`, `samba-tool ntacl sysvolcheck`.
-6. Stop the VMs (or `reset`), and report what was tested and what was not.
+7. Stop the VMs (or `reset`), and report what was tested and what was not.
 
 ## The interface in the browser tools
 
