@@ -12,9 +12,9 @@ target before implementing, since some were renamed across releases (e.g.
 Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementation to be decided
 
 Order: sections A1–A6 before any other item of this list, so that what
-follows is written for the new layout (A6 rewrites it). Then section 8 (the
+follows is written for the new layout (A6 rewrote it). Then section 8 (the
 "Domain" tab, where section 4 puts the password policy), then sections 4, 5,
-6 and 7 (7 waits for a decision on authentication). Section 0 collects the
+6 and 7 (7 starts with a decision on access). Section 0 collects the
 follow-ups of the last review.
 
 Versions: only the next release is planned. The heading of each section
@@ -26,6 +26,10 @@ have no open item. Items of section 0 go into whichever release comes next,
 with no version of their own. Rule and procedure: README, "Versions and
 releases".
 
+Since A6, each item of sections 0 and 4–8 says what the core does
+(operations of `addcctl`), then what the page and the collection add. The
+MCP tool comes with the operation: `addcctl mcp` serves every one.
+
 Each feature item (sections 3–8) also needs what `CLAUDE.md` lists under
 "Adding things" (the operation in addcctl with its schema and tests, `make
 schema`, the page's call, validators, cache invalidation, translations, the
@@ -34,8 +38,8 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-24, at the end of A5 (but for one item that waits for
-the v0.9.0 release, now in A6).
+Updated on 2026-10-24: A5 done but for one item that waits for the v0.9.0
+release (now in A6); sections 0 and 4–8 rewritten for the core (A6).
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -114,9 +118,9 @@ To resume:
    on first use).
 4. Next steps, in order:
    - push the commits and the v0.9.0 release, when the user asks;
-   - then A6: the first item (win_edulab on v0.9.0, with `addcctl mcp` in
-     its `.mcp.json`), the decision on generated Ansible docs (ask the
-     user), the rewrite of sections 0 and 4–8;
+   - then the rest of A6: the first item (win_edulab on v0.9.0, with
+     `addcctl mcp` in its `.mcp.json`) and the decision on generated
+     Ansible docs (ask the user);
    - then section 8, the "Domain" tab.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
@@ -286,9 +290,9 @@ Measures on the test DC (2 vCPU), through the page:
       appearance: its `.mcp.json` starts `ansible/mcp/server.py` from a
       checkout of this repository, not from the pinned release, so where
       that checkout is on `main` the `samba` tool is already gone
-- [ ] Rewrite sections 0 and 4–8 as operations of the core with their three
+- [x] Rewrite sections 0 and 4–8 as operations of the core with their three
       interfaces; update "Where things stand", `docs/architecture.md` (its
-      "Today" section still describes the two repositories) and the README
+      "Today" section described the two repositories) and the README
 - [ ] Decide whether the Ansible modules' `argument_specs` and
       `DOCUMENTATION` are generated from the schemas, as the plan said, or
       stay hand-written (they differ from the core inputs: aliases,
@@ -303,20 +307,25 @@ Measures on the test DC (2 vCPU), through the page:
 - [ ] **Stale share entries after a delete.** Deleting a user or group leaves
       it in `valid users` / `read list` of its shares, on purpose: removing
       the only entry would leave the list empty, which opens the share to
-      every domain user. Show such entries as unknown in the share editor so
-      the administrator can remove them, and list the affected shares in the
-      delete confirmation.
+      every domain user (rule 6). Core: `share get` and `share list` mark
+      the entries that resolve to no account; `user delete` and `group
+      delete` return the shares that still list it (with `--check`, before
+      the delete). Page: such entries shown as unknown and removable in the
+      share editor, the shares listed in the delete confirmation. Ansible:
+      `samba_share_info` returns them.
 - [ ] **`registry shares` is not checked.** Samba's default is `no`, also on
       a DC; without it smbd should not serve the registry shares addcctl
-      creates (home, shared folders). addcctl can read it (loadparm:
-      `Dc.param("registry shares")`, `True` on the test DC): report it (e.g.
-      in `share list`) and warn on the Shared folders tab and before
-      provisioning home directories; confirm on a DC without it.
+      creates (home, shared folders). Core: `share list` returns it
+      (loadparm: `Dc.param("registry shares")`, `True` on the test DC), and
+      `share set` and `home provision` warn (or refuse: decide) without it.
+      Page: a warning on the Shared folders tab and before provisioning home
+      directories; Ansible: the modules' warnings. Confirm on a DC without
+      it.
 - [ ] **Home directory after a user rename.** The folder
       (`/srv/samba/home/<old name>`) and `homeDirectory` keep the old name
       (`user set` with `new_name` renames the account and its shares only).
-      Access still works (ownership follows the SID); decide whether to
-      rename both, in addcctl.
+      Access still works (ownership follows the SID); decide whether `user
+      set` renames both: the page and `samba_user` need no change.
 - [x] **`ensureHomeShare` remembers success for the whole session**: the
       promise is now kept only while it runs, so the next provisioning checks
       the share again.
@@ -411,99 +420,118 @@ Since A4 both are addcctl operations (`user unlock`, `user set` with
 
 ## 4. Password policy (high priority)
 
-The policy is read-only: `addcctl domain password-policy` reads every field
-from the domain object (complexity, lengths, ages, lockout), and the page
-uses three of them (`PasswordPolicy` in `src/lib/types.ts`, `samba.ts`).
+`domain password-policy` reads every field of the domain policy; the page
+uses three of them (`PasswordPolicy` in `src/lib/types.ts`).
 
-- [ ] **Edit the domain policy** — `samba-tool domain passwordsettings set`
-  - [ ] An addcctl operation to change it (SamDB on the domain object, or
-        `samba-tool domain passwordsettings set`); the page's
-        `PasswordPolicy` gets the fields addcctl already reads
-  - [ ] Settings form: `--complexity`, `--min-pwd-length`, `--history-length`,
-        `--min-pwd-age`, `--max-pwd-age`, `--account-lockout-threshold`,
-        `--account-lockout-duration`, `--reset-account-lockout-after`
-  - [ ] Invalidate the cached policy (300 s TTL) after a change
-  - [ ] Decide where it lives in the UI (new "Domain" tab, see section 8)
-- [ ] **Fine-grained policies (PSO)** — `samba-tool domain passwordsettings pso`
-  - [ ] List and detail: `pso list`, `pso show <name>`
-  - [ ] Create, edit, delete: `pso create <name> <precedence>`, `pso set`, `pso delete`
-  - [ ] Assign to users and groups: `pso apply`, `pso unapply`
-  - [ ] Effective policy on the user detail page: `pso show-user <username>`
-  - [ ] Make the password field in the create/reset modals validate against
-        the effective policy rather than the domain one
+- [ ] **Edit the domain policy**
+  - [ ] Core: `domain set-password-policy`, on the domain object through
+        SamDB (complexity, minimum length, history, minimum and maximum age,
+        lockout threshold, duration and reset window), with the checks of
+        `samba-tool domain passwordsettings set` (e.g. minimum age below
+        maximum age)
+  - [ ] Page: a form in the "Domain" tab (section 8); `PasswordPolicy` gets
+        every field; the cached policy (300 s TTL) is dropped on a change
+  - [ ] Ansible: module `samba_password_policy`
+- [ ] **Fine-grained policies (PSO)** — what `samba-tool domain
+      passwordsettings pso` does
+  - [ ] Core: `pso list`, `pso get`, `pso create`, `pso set`, `pso delete`
+        (objects in `CN=Password Settings Container,CN=System`), the users
+        and groups it applies to as a field of `pso set`
+        (`msDS-PSOAppliesTo`, account names in and out); `user get` returns
+        the effective policy (`msDS-ResultantPSO`, else the domain's)
+  - [ ] Page: list and editor in the "Domain" tab; the effective policy on
+        the user page; the reset modal checks the password against it
+  - [ ] Ansible: module `samba_pso`
 
 ## 5. Organizational units (high priority, largest change)
 
-No OU support in addcctl or the page: every object is created in the default
-container (`user create` and `computer create` take an `ou`, unused by the
-page). Only the collection's `samba_tool` role handles OUs, with `samba-tool`
-(no MCP tool since A5). This touches the navigation of all sections, so it
-should be designed as a whole.
+Every object is created in its default container: `user create` and
+`computer create` take an `ou`, unused by the page; `group create` does not.
+Only the collection's `samba_tool` role handles OUs, running `samba-tool`.
+This touches the navigation of every tab: design it as a whole.
 
-- [ ] **OU management** — `samba-tool ou`
-  - [ ] Tree view: `ou list`, `ou listobjects <ou_dn>`
-  - [ ] Create, rename, move: `ou add`, `ou rename`, `ou move`
-  - [ ] Delete: `ou delete`, with an explicit confirmation for
-        `--force-subtree-delete` on non-empty OUs
-- [ ] **Move objects between OUs** — `user move`, `group move`, `computer move`
-  - [ ] Single and bulk move from the list pages
-- [ ] **Create inside an OU** — `--userou` on `user add`, `--groupou` on `group add`
-- [ ] Show the OU as a column and filter in the users, groups and computers lists
-- [ ] Protect built-in containers (`Domain Controllers`, `Users`, `Computers`)
+- [ ] **Core**
+  - [ ] `ou list` (the tree: DN relative to the domain, name, description,
+        built-in or not, with the default containers `CN=Users` and
+        `CN=Computers`), `ou create`, `ou set` (rename, move, description),
+        `ou delete` (a non-empty OU only with `recursive`)
+  - [ ] Built-in containers (`Domain Controllers`, `Users`, `Computers`)
+        never renamed, moved or deleted
+  - [ ] `user`, `group` and `computer list` return the container;
+        `user`, `group` and `computer set` take `ou` (move); `group create`
+        takes `ou`
+  - [ ] DNs built with `ldb.Dn`, never by joining strings (rule 3)
+- [ ] **Page**: the OU tree (create, rename, move, delete with an explicit
+      confirmation for a non-empty OU); the container as a column and a
+      filter in the users, groups and computers lists; an OU selector in the
+      create modals; single and bulk move from the lists (`mapLimit`)
+- [ ] **Ansible**: module `samba_ou`, replacing the OU actions of
+      `samba_tool` (the last that change the DC through `samba-tool`); `ou`
+      on `samba_user`, `samba_group`, `samba_computer`
 
 ## 6. Richer create and edit forms (medium priority)
 
-addcctl already takes most of these (A4): the work is in the page.
+The core already takes most of these (A4), and so do the modules: the work
+is in the page.
 
 - [ ] **Users** — in the create modal: must change at next logon,
-      description, e-mail (`user create`: `must_change_password`,
-      `description`, `email`, also `title`, `department`, `company`)
-- [ ] **Groups** — in the create modal: description, scope
-      (Domain/Global/Universal), category (Security/Distribution)
-      (`group create`); edit the description of existing groups (`group set`);
-      e-mail is not in addcctl yet
-- [ ] **Computers**
-  - [ ] Detail page (`computer get`)
-  - [ ] Pre-create an account (`computer create`, with `ou`)
-  - [ ] Depends on section 5 for the OU selector
+      description, e-mail, title, department, company (`user create`)
+- [ ] **Groups** — in the create modal: description, scope, category
+      (`group create`); edit the description (`group set`); e-mail: `mail`
+      in `group create` and `group set` first, and in `samba_group`
+- [ ] **Computers** — a detail page (`computer get`); pre-create an account
+      (`computer create`), with the OU selector of section 5
 
 ## 7. DNS and Group Policy (medium priority)
 
-Both areas need a design decision first: these commands talk to the server
-over RPC/SMB and normally require domain credentials, while the rest of the
-module only runs as root against the local `sam.ldb`. Options to evaluate:
-machine account credentials (`-P`), an administrator password given to
-addcctl in its JSON input on stdin (as passwords already are), or direct
-local access as done for the "Cockpit - Mapped drives" GPO.
+`samba-tool dns` and most of `samba-tool gpo` talk to the server over RPC
+and want domain credentials, against rule 5. The records and the GPOs are
+in `sam.ldb` and sysvol, though, which the core already writes for the
+drive-mapping GPO: decide first, with a spike as in A3, whether the core
+reads and writes them locally (Samba's Python bindings: `samba.dnsserver`,
+`dsdb_dns`) or takes an administrator password in its JSON input
+(`writeOnly`) and needs Samba listening on loopback.
 
-- [ ] **Decide the authentication approach** for RPC-based commands
-- [ ] **DNS** — `samba-tool dns`
-  - [ ] Zones: `zonelist`, `zoneinfo`
-  - [ ] Records: `query`, `add`, `delete`, `update` (A, AAAA, CNAME, PTR, TXT, SRV, MX)
-  - [ ] Protect the records the domain depends on (`_msdcs`, `_ldap`, `_kerberos`, DC A records)
-- [ ] **Group Policy** — `samba-tool gpo`
-  - [ ] List and detail: `gpo listall`, `gpo show <gpo>`
-  - [ ] Links: `gpo getlink`, `gpo setlink`, `gpo dellink`, `gpo listcontainers`
-        (depends on section 5)
-  - [ ] Backup and restore: `gpo backup`, `gpo restore`
-  - [ ] Keep the module's own drive-mapping GPO out of destructive actions
+- [ ] **Decide the access** (spike, local first)
+- [ ] **DNS**
+  - [ ] Core: `dns zone list`, `dns record list` (zone, name),
+        `dns record set`, `dns record delete` (A, AAAA, CNAME, PTR, TXT,
+        SRV, MX); the records the domain depends on (`_msdcs`, `_ldap`,
+        `_kerberos`, `_gc`, `_kpasswd`, the DC's own, SOA and NS) never
+        changed
+  - [ ] Page: a "DNS" tab; Ansible: module `samba_dns_record`
+- [ ] **Group Policy**
+  - [ ] Core: `gpo list`, `gpo get` (with its links), `gpo link` and
+        `gpo unlink` (after section 5), backup and restore (`gpo backup`,
+        `gpo restore`: check what they need locally); the drive-mapping GPO,
+        managed by `share set`, out of every destructive operation
+  - [ ] Page: in the "Domain" tab, or a tab of its own; Ansible: module
+        `samba_gpo_link`
 
 ## 8. Domain status and maintenance (medium priority, low effort)
 
-A new, mostly read-only "Domain" tab.
+A new, mostly read-only "Domain" tab, which also holds the policies of
+section 4.
 
-- [ ] **Overview** — `domain level show`, `fsmo show`, `processes`; not
-      `domain info`, a CLDAP network query that fails when Samba does not
-      listen on loopback: read the same facts locally (rootDSE of `sam.ldb`,
-      loadparm), as addcctl does (`core/addcctl/dc.py`)
-- [ ] **Health checks** run on demand, with the raw output shown:
-  - [ ] `samba-tool dbcheck` (report only; `--fix` is not exposed)
-  - [ ] `samba-tool ntacl sysvolcheck`, with `sysvolreset` offered on failure
-  - [ ] `testparm -s`
-- [ ] **Backup** — `samba-tool domain backup offline --targetdir=<dir>`
-  - [ ] Choose and validate the target directory, list existing backups
-  - [ ] Long-running command: progress and error reporting
-  - [ ] Document restore as a manual procedure (`domain backup restore`)
+- [ ] **Overview** — core: `domain info`, read locally (rootDSE of
+      `sam.ldb`, functional levels, FSMO owners from `fSMORoleOwner`, the
+      domain controllers, the Samba version, loadparm) instead of `domain
+      info`'s CLDAP query, plus `samba-tool processes`; page: the tab's first
+      section; Ansible: module `samba_dc_info`
+- [ ] **Health checks**, run on demand — core: `domain check` (`samba-tool
+      dbcheck`, report only, no `--fix`; `samba-tool ntacl sysvolcheck`;
+      `testparm -s`: each with its status and raw output), `domain
+      sysvol-reset` (`ntacl sysvolreset`); page: the results with their
+      output, the reset offered when `sysvolcheck` fails
+- [ ] **Backup**
+  - [ ] Core: `backup create` (`samba-tool domain backup offline`) into a
+        directory of the project's own (e.g. `/var/backups/samba-dc`, rule
+        4), `backup list`; a long command: how the lock, the page and an MCP
+        client wait for it
+  - [ ] Page: list and create, with progress and errors; restore documented
+        as a manual procedure (`samba-tool domain backup restore`)
+  - [ ] Ansible: the offline backup of `samba_dc_backup` through `backup
+        create` (online backups and file backups stay in the role)
 
 ## Left out — future implementation to be decided
 

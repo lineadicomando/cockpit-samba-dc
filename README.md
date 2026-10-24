@@ -182,8 +182,9 @@ Roles, modules, variables and the MCP server: [`ansible/README.md`](ansible/READ
 
 ## Development
 
-How the project is built, and the plan to merge it with
-`ansible-collection-samba_dc` around a shared core: `docs/architecture.md`.
+How the project is built (a core on the DC, `addcctl`, with the page, the
+Ansible collection and an MCP server on top) and how far the plan has got:
+`docs/architecture.md`; the roadmap: `TODO.md`.
 
 ```bash
 # Install dependencies

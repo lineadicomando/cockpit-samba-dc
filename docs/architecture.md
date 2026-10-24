@@ -4,26 +4,34 @@ How the project is built, and where it is going. The work that leads from the
 first part to the second is planned in `TODO.md`, sections A1–A6; the table
 at the end says how far it has got.
 
+## Where it started
+
+Two repositories managed the same Samba AD DC, each with its own copy of the
+logic: this one, a Cockpit page whose TypeScript spawned `samba-tool`,
+`ldbsearch`, `net conf` and `setfacl` through the Cockpit bridge, and
+`ansible-collection-samba_dc`, whose Python modules and YAML tasks spawned
+the same tools. What the two created on the server was the same by design
+(home directories under `/srv/samba/home`, registry shares under
+`/srv/samba/shares` with POSIX ACLs, the "Cockpit - Mapped drives" GPO), but
+each side reimplemented it, so a change on one side had to be repeated on
+the other, and the two drifted (the sysvol ACL handling of v0.2.0 is one
+case). The collection also carried roles for Windows clients and the
+defaults of one school lab.
+
 ## Today
 
-Two repositories manage the same Samba AD DC, each with its own copy of the
-logic:
+The target below is reached for everything the project already did (A1–A5):
+one repository, `addcctl` on the DC with every operation of users, groups,
+computers, home directories, shared folders, drive mapping and the password
+policy (read), and three interfaces on it: the page, the collection's
+modules and `addcctl mcp`. What is left:
 
-| | cockpit-samba-dc (this repository) | ansible-collection-samba_dc |
-|---|---|---|
-| Interface | Cockpit page, in the browser | Ansible roles and modules, MCP server |
-| Logic | TypeScript in `src/lib/`, spawning `samba-tool`, `ldbsearch`, `net conf`, `setfacl` through the Cockpit bridge | Python modules (`samba_share`, `samba_tool_user`) and YAML tasks (`samba_tool`), spawning the same tools |
-| Runs on | the DC (commands), the browser (logic) | the DC (modules), the control node (playbooks, MCP) |
-
-What the two create on the server is the same by design: home directories
-under `/srv/samba/home`, registry shares under `/srv/samba/shares` with POSIX
-ACLs, the "Cockpit - Mapped drives" GPO. Each side reimplements it, so a
-change on one side has to be repeated on the other, and the two drift (the
-sysvol ACL handling of v0.2.0 is one case).
-
-The collection also carries things that are not about the DC: two roles that
-run on Windows clients (`samba_win_join`, `samba_win_status`) and defaults of
-one school lab (the `school` inventory, the `lab_win` group).
+- OUs are managed only by the collection's `samba_tool` role, which runs
+  `samba-tool` (`TODO.md`, section 5); its other read-only actions too.
+- The Ansible modules' `argument_specs` and `DOCUMENTATION` are written by
+  hand, not generated from the schemas (`TODO.md`, A6).
+- The roadmap (`TODO.md`, sections 4–8) adds every new feature as
+  operations of the core first.
 
 ## Target
 
@@ -62,13 +70,13 @@ project of its own, not part of Samba.
   creates, a share never left open to every user, local reads only.
 - **Local access**: the directory through the samba Python bindings
   (`SamDB` on `sam.ldb`, what `samba-tool` itself uses) rather than by
-  parsing `ldbsearch` output; the configuration through `testparm` and the
-  registry; no network query and no domain credentials.
+  parsing `ldbsearch` output; the configuration through Samba's loadparm
+  and the registry; no network query and no domain credentials.
 - **One schema per operation** (JSON Schema, in the repository): the command
-  validates its input against it, and the same file generates the Ansible
-  `argument_specs`, the MCP tool definitions and the TypeScript types. A
-  change of contract is made in one place; CI checks that the generated
-  files are up to date.
+  validates its input against it, and the same file gives the MCP tool
+  definitions and the TypeScript types (and perhaps the Ansible
+  `argument_specs`: to be decided, A6). A change of contract is made in one
+  place; CI checks that the generated files are up to date.
 
 ### The interfaces
 
@@ -130,4 +138,4 @@ collection may import the core.
 | Core: spike on shared folders and drive mapping, go/no-go | A3 | done: go; shared folders and drive mapping in `addcctl`, TypeScript types generated |
 | Core: every other operation | A4 | done: users, groups, computers, home directories, password policy; Ansible modules on the core |
 | MCP server on the DC | A5 | done but for win_edulab's `.mcp.json` (after v0.9.0): `addcctl mcp`, reached through SSH; the orchestration MCP keeps the build and the backup; an integration suite through the three interfaces |
-| Roadmap rewritten for the new layout | A6 | planned |
+| Roadmap rewritten for the new layout | A6 | under way: sections 0 and 4–8 rewritten as operations of the core; win_edulab on v0.9.0, the generated Ansible docs and the archive of the old repository still to do |
