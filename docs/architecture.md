@@ -136,5 +136,5 @@ collection may import the core.
 | The collection in this repository, one version | A2 | done: v0.8.0; win_edulab takes the collection from here |
 | Core: spike on shared folders and drive mapping, go/no-go | A3 | done: go; shared folders and drive mapping in `addcctl`, TypeScript types generated |
 | Core: every other operation | A4 | done: users, groups, computers, home directories, password policy; Ansible modules on the core |
-| MCP server on the DC | A5 | done but for win_edulab's `.mcp.json` (after v0.9.0): `addcctl mcp`, reached through SSH; the orchestration MCP keeps the build and the backup; an integration suite through the three interfaces |
-| Roadmap rewritten for the new layout | A6 | under way: sections 0 and 4–8 rewritten as operations of the core; the modules' options generated from the schemas; win_edulab on v0.9.0 and the archive of the old repository still to do |
+| MCP server on the DC | A5 | done: `addcctl mcp`, reached through SSH; the orchestration MCP keeps the build and the backup; an integration suite through the three interfaces |
+| Roadmap rewritten for the new layout | A6 | under way: sections 0 and 4–8 rewritten as operations of the core; the modules' options generated from the schemas; win_edulab on v0.9.0 with `addcctl mcp`; the archive of the old repository still to do |

@@ -81,8 +81,7 @@ schemas.
 - Other repositories: `ansible-collection-win_workman` has the Windows
   client roles (`domain`: join, leave, status; v0.3.0);
   `ansible-win_edulab` takes the collection from `cockpit-samba-dc.git#/ansible/`
-  at v0.8.0 (bump to v0.9.0, A6), but its `.mcp.json`
-  runs the MCP server of a checkout of this repository; the old
+  at v0.9.0 and documents `addcctl mcp` for its DC; the old
   `ansible-collection-samba_dc` points here and is archived at the end of
   the plan (A6).
 - Test environment: two VMs, a Samba AD DC and a Windows 11 client joined
@@ -115,8 +114,6 @@ To resume:
 4. Next steps, in order:
    - run the integration suite on `main` on the test VMs (the modules'
      generated options are not tried on a DC yet);
-   - the rest of A6: win_edulab on v0.9.0, with `addcctl mcp` in its
-     `.mcp.json` (another repository);
    - then section 8, the "Domain" tab.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
@@ -277,15 +274,12 @@ Measures on the test DC (2 vCPU), through the page:
 
 ## A6. The roadmap in the new layout
 
-- [ ] Once v0.9.0 is out: win_edulab's `requirements.yaml` on v0.9.0, and
-      its `.mcp.json` lists both servers, `samba-dc` (the collection's, now
-      build and backup only) and `addcctl mcp` over SSH to its DC (the
-      sudoers rule and a key bound to the command, README "MCP server on
-      the DC"); its skill `win-edulab-mcp` and `docs/mcp.md`, which name the
-      `samba` MCP tool, move to the `addcctl mcp` tools. Not urgent only in
-      appearance: its `.mcp.json` starts `ansible/mcp/server.py` from a
-      checkout of this repository, not from the pinned release, so where
-      that checkout is on `main` the `samba` tool is already gone
+- [x] win_edulab on v0.9.0 (2026-10-24): `requirements.yaml`, and
+      `.mcp.json.example`, `docs/mcp.md` and its skill `win-edulab-mcp` move
+      from the `samba` tool to `addcctl mcp` over SSH (sudoers rule and a key
+      bound to the command, README "MCP server on the DC"). Not tried on its
+      DC: setting up the `mcp` user there and adding the server to its own
+      `.mcp.json` are left to the developer of that lab
 - [x] Rewrite sections 0 and 4–8 as operations of the core with their three
       interfaces; update "Where things stand", `docs/architecture.md` (its
       "Today" section described the two repositories) and the README
