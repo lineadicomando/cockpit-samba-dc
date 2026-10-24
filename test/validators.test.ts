@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso } from "../src/lib/validators.ts";
 import type { PasswordPolicy } from "../src/lib/types.ts";
 
 describe("validateUsername", () => {
@@ -159,5 +159,28 @@ describe("validatePasswordPolicy", () => {
         assert.equal(validatePasswordPolicy({ ...samba, lockoutWindowMinutes: 31 }), "windowTooLong");
         assert.equal(validatePasswordPolicy({ ...samba, lockoutWindowMinutes: null }), "windowNever");
         assert.equal(validatePasswordPolicy({ ...samba, lockoutDurationMinutes: null, lockoutWindowMinutes: 600 }), null);
+    });
+});
+
+describe("PSOs", () => {
+    const samba: PasswordPolicy = {
+        complexityRequired: true, minLength: 7, historyLength: 24, minAgeDays: 1, maxAgeDays: 42,
+        lockoutThreshold: 0, lockoutDurationMinutes: 30, lockoutWindowMinutes: 30,
+    };
+
+    it("allows longer passwords and histories than the domain", () => {
+        assert.equal(validatePasswordPolicy({ ...samba, minLength: 20, historyLength: 100 }), "minLength");
+        assert.equal(validatePasswordPolicy({ ...samba, minLength: 20, historyLength: 100 }, true), null);
+        assert.equal(validatePasswordPolicy({ ...samba, minLength: 256 }, true), "minLength");
+    });
+
+    it("checks the name and the precedence", () => {
+        assert.equal(validatePso("Staff long", 10), null);
+        assert.equal(validatePso("", 10), "empty");
+        assert.equal(validatePso(" x", 10), "surroundingSpaces");
+        assert.equal(validatePso("x".repeat(65), 10), "tooLong");
+        assert.equal(validatePso("a\tb", 10), "invalidChars");
+        assert.equal(validatePso("x", 0), "precedence");
+        assert.equal(validatePso("x", NaN), "precedence");
     });
 });

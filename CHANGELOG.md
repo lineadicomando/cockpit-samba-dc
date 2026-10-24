@@ -14,9 +14,13 @@ the README ("Versions and releases"). New entries go under
   edited (complexity, minimum length, history, minimum and maximum age,
   lockout threshold, duration and reset), with the checks of `samba-tool
   domain passwordsettings set`.
-- `addcctl`: operation `domain set-password-policy`, also as a tool of
-  `addcctl mcp`.
-- Collection: module `samba_password_policy`.
+- **Domain** tab: fine-grained password policies (PSOs), listed, created,
+  edited and deleted, with the users and groups they apply to; the user
+  page names the policy that applies and checks a new password against it.
+- `addcctl`: operations `domain set-password-policy`, `pso list`, `pso get`,
+  `pso create`, `pso set`, `pso delete`, also as tools of `addcctl mcp`;
+  `user get` returns the password policy that applies to the user.
+- Collection: modules `samba_password_policy` and `samba_pso`.
 
 ## [0.10.0] - 2026-10-24
 

@@ -42,6 +42,7 @@ Windows clients join the domain through the `domain` role of
 | `samba_computer` | Computer accounts: create before a join, delete with their DNS records |
 | `samba_home` | Home directories: provision (folder, H: drive, home share), clear |
 | `samba_password_policy` | The domain password and lockout policy (complexity, length, history, ages, lockout) |
+| `samba_pso` | Fine-grained password policies (PSOs): create, change (settings, precedence, users and groups), delete |
 | `samba_share` | Idempotent management of shared folders for domain users and groups (access, POSIX ACL, drive mapping through a GPO), with check mode and diff; same model as cockpit-samba-dc |
 | `samba_share_info` | List shared folders with their access list and drive mapping |
 | `samba_dc_info` | The domain and its controllers (Samba version, functional levels, FSMO roles) and the offline backups |

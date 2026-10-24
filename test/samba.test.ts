@@ -8,7 +8,8 @@ import {
     listUsers, listGroups, listComputers, getUserDetails, refreshUser, createUser, deleteUser,
     enableUser, disableUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, setPrimaryGroup,
     getPasswordPolicy, listGroupMembers, addGroupMembers, removeGroupMembers, renameGroup, createGroup,
-    deleteComputer, provisionHomeDir, setPasswordPolicy,
+    deleteComputer, provisionHomeDir, setPasswordPolicy, getUserPasswordPolicy, listPsos, createPso, updatePso,
+    deletePso,
 } from "../src/lib/samba.ts";
 
 // Verbatim shape of addcctl's answers
@@ -24,9 +25,13 @@ const KRBTGT = { ...USER, name: "krbtgt", cn: "krbtgt", rid: "502", enabled: fal
 const GROUP = { name: "Teachers", description: "", email: "", sid: "S-1-5-21-1-2-3-1108", rid: "1108",
     members: ["mrossi"], primary_members: ["bianchi", "mrossi"], member_count: 2, scope: "global",
     category: "distribution", critical: false, protected: false };
+const CORE_POLICY = { complexity: true, min_length: 7, history_length: 24, min_age_days: 1, max_age_days: null,
+    lockout_threshold: 0, lockout_duration_minutes: 30, lockout_window_minutes: 30 };
+const PSO = { ...CORE_POLICY, name: "Staff long", precedence: 5, min_length: 14, applies_to: ["Teachers"] };
 const ANSWERS: Record<string, unknown> = {
     "user list": { users: [USER, KRBTGT] },
-    "user get": { user: USER },
+    "user get": { user: USER, password_policy: { pso: "Staff long", policy: { ...CORE_POLICY, min_length: 14 } } },
+    "pso list": { psos: [PSO] },
     "group list": { groups: [GROUP] },
     "group get": { group: GROUP },
     "computer list": { computers: [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", sid: "", rid: "1300", os: "",
@@ -177,5 +182,48 @@ describe("groups, computers, homes, policy", () => {
         calls.length = 0;
         await getPasswordPolicy();
         assert.equal(sent("domain password-policy").length, 1);
+    });
+});
+
+describe("fine-grained password policies", () => {
+    it("reads the policies and the one that applies to a user", async () => {
+        await fresh();
+        const [pso] = await listPsos();
+        assert.equal(pso.name, "Staff long");
+        assert.equal(pso.precedence, 5);
+        assert.equal(pso.policy.minLength, 14);
+        assert.equal(pso.policy.maxAgeDays, null);
+        assert.deepEqual(pso.appliesTo, ["Teachers"]);
+        const effective = await getUserPasswordPolicy("nrossi");
+        assert.equal(effective.pso, "Staff long");
+        assert.equal(effective.policy.minLength, 14);
+    });
+
+    it("creates with every setting, changes only what differs, deletes", async () => {
+        await fresh();
+        const [pso] = await listPsos();
+        await createPso({ ...pso, name: "New" });
+        assert.deepEqual(sent("pso create"), [{
+            name: "New", precedence: 5, applies_to: ["Teachers"], complexity: true, min_length: 14,
+            history_length: 24, min_age_days: 1, max_age_days: null, lockout_threshold: 0,
+            lockout_duration_minutes: 30, lockout_window_minutes: 30,
+        }]);
+        await updatePso(pso, { ...pso, appliesTo: ["teachers"] });
+        assert.deepEqual(sent("pso set"), [], "same users and groups, case aside: nothing to send");
+        await updatePso(pso, { ...pso, precedence: 1, appliesTo: ["Teachers", "nrossi"],
+            policy: { ...pso.policy, lockoutThreshold: 5 } });
+        assert.deepEqual(sent("pso set"), [{ name: "Staff long", lockout_threshold: 5, precedence: 1,
+            applies_to: ["Teachers", "nrossi"] }]);
+        await deletePso("Staff long");
+        assert.deepEqual(sent("pso delete"), [{ name: "Staff long" }]);
+        calls.length = 0;
+        await listPsos();
+        assert.equal(sent("pso list").length, 1, "a change drops the cached list");
+    });
+
+    it("refuses a name that would read as an option", async () => {
+        await fresh();
+        const [pso] = await listPsos();
+        await assert.rejects(createPso({ ...pso, appliesTo: ["-x"] }), /Invalid account name/);
     });
 });

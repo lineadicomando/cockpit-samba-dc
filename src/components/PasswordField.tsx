@@ -97,14 +97,24 @@ export function PasswordPolicyUnavailable() {
 
 interface PasswordPolicyInfoProps {
     policy: PasswordPolicy;
+    // Where the policy comes from, for a user: a PSO's name, or null for the
+    // domain's; left out where it is always the domain's
+    pso?: string | null;
 }
 
-export function PasswordPolicyInfo({ policy }: PasswordPolicyInfoProps) {
+export function PasswordPolicyInfo({ policy, pso }: PasswordPolicyInfoProps) {
     const { t } = useTranslation();
 
     return (
         <FormHelperText>
             <HelperText>
+                {pso !== undefined && (
+                    <HelperTextItem>
+                        {pso === null
+                            ? t("The domain password policy applies.")
+                            : t("The fine-grained policy {{name}} applies.", { name: pso })}
+                    </HelperTextItem>
+                )}
                 <HelperTextItem>
                     {t("Minimum length: {{n}} characters", { n: policy.minLength })}
                 </HelperTextItem>

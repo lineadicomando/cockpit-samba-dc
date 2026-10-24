@@ -10,6 +10,7 @@ from .accounts import Computers, Groups, Users
 from .backups import BACKUP_DIR, Backups
 from .domain import CHECKS, Domain
 from .homes import Homes
+from .psos import Psos
 from .shares import Shares
 
 _NAME = {"type": "string", "minLength": 1, "maxLength": 256}
@@ -63,6 +64,39 @@ _NAME_ONLY = lambda d, desc: {"type": "object", "properties": {"name": dict(d, d
 _NONE = {"type": "object", "properties": {}, "additionalProperties": False}
 
 
+def _policy_settings(max_length, max_history):
+    """The settings of a password policy: the domain's (samba-tool's ranges) or a PSO's."""
+    return {
+        "complexity": {"type": "boolean",
+                       "description": "Passwords must mix character classes and avoid the account name"},
+        "min_length": {"type": "integer", "minimum": 0, "maximum": max_length,
+                       "description": "Minimum password length, from 0 to %d" % max_length},
+        "history_length": {"type": "integer", "minimum": 0, "maximum": max_history,
+                           "description": "Earlier passwords that cannot be used again, from 0 to %d" % max_history},
+        "min_age_days": {"type": "integer", "minimum": 0, "maximum": 998,
+                         "description": "Days before a password can be changed again, from 0 to 998"},
+        "max_age_days": {"type": ["integer", "null"], "minimum": 1, "maximum": 999,
+                         "description": "Days after which a password expires, from 1 to 999; null: never"},
+        "lockout_threshold": {"type": "integer", "minimum": 0, "maximum": 999,
+                              "description": "Failed logons that lock the account, from 0 to 999; 0: never locked"},
+        "lockout_duration_minutes": {"type": ["integer", "null"], "minimum": 1, "maximum": 99999,
+                                     "description": ("Minutes an account stays locked, from 1 to 99999; "
+                                                     "null: until an administrator unlocks it")},
+        "lockout_window_minutes": {"type": ["integer", "null"], "minimum": 1, "maximum": 99999,
+                                   "description": ("Minutes after which the count of failed logons "
+                                                   "starts again, from 1 to 99999 and at most the lockout "
+                                                   "duration; null: never")},
+    }
+
+
+_PSO_NAME = {"type": "string", "minLength": 1, "maxLength": 64, "description": "Name of the PSO"}
+_PRECEDENCE = {"type": "integer", "minimum": 1, "maximum": 2147483647,
+               "description": "Among the PSOs that apply to a user, the lowest precedence wins"}
+_APPLIES_TO = {"type": "array", "items": dict(_NAME, description="sAMAccountName of a user or group"),
+               "description": ("Users and groups it applies to (a group: its members); "
+                               "one that names a user directly wins over its groups'")}
+
+
 def _shares(ctx):
     return Shares(ctx.dc, ctx.runner)
 
@@ -87,9 +121,10 @@ OPERATIONS = {
         "run": lambda ctx, req: {"users": _users(ctx).list()},
     },
     ("user", "get"): {
-        "description": "One domain user",
+        "description": "One domain user, with the password policy that applies to it (a PSO's, or the domain's)",
         "mutates": False, "input": _NAME_ONLY(_ACCOUNT, "sAMAccountName of the user"),
-        "run": lambda ctx, req: {"user": _users(ctx).get(req["name"])},
+        "run": lambda ctx, req: {"user": _users(ctx).get(req["name"]),
+                                 "password_policy": Psos(ctx.dc, ctx.runner).effective(req["name"])},
     },
     ("user", "create"): {
         "description": "Create a domain user",
@@ -248,27 +283,44 @@ OPERATIONS = {
         "description": ("Bring the domain password and lockout settings to the given values; "
                         "settings left out keep their value"),
         "mutates": True,
-        "input": {"type": "object", "properties": {
-            "complexity": {"type": "boolean",
-                           "description": "Passwords must mix character classes and avoid the account name"},
-            "min_length": {"type": "integer", "minimum": 0, "maximum": 14,
-                           "description": "Minimum password length, from 0 to 14"},
-            "history_length": {"type": "integer", "minimum": 0, "maximum": 24,
-                               "description": "Earlier passwords that cannot be used again, from 0 to 24"},
-            "min_age_days": {"type": "integer", "minimum": 0, "maximum": 998,
-                             "description": "Days before a password can be changed again, from 0 to 998"},
-            "max_age_days": {"type": ["integer", "null"], "minimum": 1, "maximum": 999,
-                             "description": "Days after which a password expires, from 1 to 999; null: never"},
-            "lockout_threshold": {"type": "integer", "minimum": 0, "maximum": 999,
-                                  "description": "Failed logons that lock the account, from 0 to 999; 0: never locked"},
-            "lockout_duration_minutes": {"type": ["integer", "null"], "minimum": 1, "maximum": 99999,
-                                         "description": ("Minutes an account stays locked, from 1 to 99999; "
-                                                         "null: until an administrator unlocks it")},
-            "lockout_window_minutes": {"type": ["integer", "null"], "minimum": 1, "maximum": 99999,
-                                       "description": ("Minutes after which the count of failed logons "
-                                                       "starts again, from 1 to 99999 and at most the lockout duration; null: never")},
-        }, "additionalProperties": False},
+        "input": {"type": "object", "properties": _policy_settings(14, 24), "additionalProperties": False},
         "run": lambda ctx, req: Domain(ctx.dc, ctx.runner).set_password_policy(req),
+    },
+    # -- fine-grained password policies
+    ("pso", "list"): {
+        "description": "List the fine-grained password policies (PSOs), lowest precedence first",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"psos": Psos(ctx.dc, ctx.runner).list()},
+    },
+    ("pso", "get"): {
+        "description": "One fine-grained password policy (PSO)",
+        "mutates": False, "input": _NAME_ONLY(_PSO_NAME, "Name of the PSO"),
+        "run": lambda ctx, req: {"pso": Psos(ctx.dc, ctx.runner).get(req["name"])},
+    },
+    ("pso", "create"): {
+        "description": ("Create a fine-grained password policy (PSO); settings left out take the "
+                        "domain's. Needs the domain functional level 2008 or higher"),
+        "mutates": True,
+        "input": {"type": "object", "properties": dict(_policy_settings(255, 1024), **{
+            "name": _PSO_NAME, "precedence": _PRECEDENCE, "applies_to": _APPLIES_TO,
+        }), "required": ["name", "precedence"], "additionalProperties": False},
+        "run": lambda ctx, req: Psos(ctx.dc, ctx.runner).create(req),
+    },
+    ("pso", "set"): {
+        "description": "Bring a PSO to the given settings; settings left out keep their value",
+        "mutates": True,
+        "input": {"type": "object", "properties": dict(_policy_settings(255, 1024), **{
+            "name": _PSO_NAME, "precedence": _PRECEDENCE, "applies_to": _APPLIES_TO,
+            "applies_to_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
+                                "description": ("replace: applies_to is the whole list; append: add these; "
+                                                "remove: drop these")},
+        }), "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: Psos(ctx.dc, ctx.runner).set(req),
+    },
+    ("pso", "delete"): {
+        "description": "Delete a PSO: its users get the next one, or the domain policy",
+        "mutates": True, "input": _NAME_ONLY(_PSO_NAME, "Name of the PSO"),
+        "run": lambda ctx, req: Psos(ctx.dc, ctx.runner).delete(req),
     },
     ("domain", "info"): {
         "description": ("The domain and its controllers: names, Samba version, functional levels, "

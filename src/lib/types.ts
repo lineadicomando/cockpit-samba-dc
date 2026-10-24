@@ -54,6 +54,21 @@ export interface PasswordPolicy {
     lockoutWindowMinutes: number | null;
 }
 
+// A fine-grained password policy (PSO): it applies to the users and groups
+// listed, a group's to its members; the lowest precedence wins
+export interface Pso {
+    name: string;
+    precedence: number;
+    policy: PasswordPolicy;
+    appliesTo: string[];
+}
+
+// The policy that applies to a user: a PSO's, or the domain's (pso null)
+export interface EffectivePolicy {
+    pso: string | null;
+    policy: PasswordPolicy;
+}
+
 export type ShareAccessLevel = "read" | "write";
 
 // A user or group granted access to a shared folder, by sAMAccountName

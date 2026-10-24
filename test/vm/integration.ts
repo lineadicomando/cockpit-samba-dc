@@ -18,7 +18,7 @@ import { join } from "node:path";
 import cockpit from "cockpit";
 import {
     addGroupMembers, createGroup, createUser, deleteGroup, deleteUser, getPasswordPolicy, modifyUser, provisionHomeDir,
-    renameGroup, setPasswordPolicy,
+    renameGroup, setPasswordPolicy, createPso, listPsos, updatePso, deletePso,
 } from "../../src/lib/samba.ts";
 import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
@@ -69,6 +69,10 @@ interface Driver {
     domain(): Promise<void>;
     // Change the password policy; with check, only a preview, where the interface has one
     setPolicy(changes: Partial<Policy>, check?: boolean): Promise<void>;
+    // A PSO with a minimum length, on these users and groups; add one more; delete it
+    createPso(name: string, minLength: number, appliesTo: string[]): Promise<void>;
+    appendToPso(name: string, account: string): Promise<void>;
+    deletePso(name: string): Promise<void>;
     close?(): void;
 }
 
@@ -125,6 +129,15 @@ const page: Driver = {
                 ? changes.lockout_window_minutes! : current.lockoutWindowMinutes,
         });
     },
+    async createPso(name, minLength, appliesTo) {
+        const domain = await getPasswordPolicy();
+        await createPso({ name, precedence: 10, appliesTo, policy: { ...domain, minLength } });
+    },
+    async appendToPso(name, account) {
+        const pso = (await listPsos()).find(p => p.name === name)!;
+        await updatePso(pso, { ...pso, appliesTo: [...pso.appliesTo, account] });
+    },
+    deletePso: name => deletePso(name),
 };
 
 // --- the Ansible modules, one playbook per step
@@ -163,6 +176,10 @@ function ansibleDriver(): Driver {
         deleteGroup: name => play("samba_group", { name, state: "absent" }),
         domain: () => play("samba_dc_info", {}),
         // 0 is never for the module, as for samba-tool
+        createPso: (name, minLength, appliesTo) =>
+            play("samba_pso", { name, precedence: 10, min_length: minLength, applies_to: appliesTo }),
+        appendToPso: (name, account) => play("samba_pso", { name, applies_to: [account], applies_to_mode: "append" }),
+        deletePso: name => play("samba_pso", { name, state: "absent" }),
         setPolicy: (changes, check) => play("samba_password_policy",
             Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v === null ? 0 : v])), check),
         close: () => rmSync(dir, { recursive: true, force: true }),
@@ -236,6 +253,13 @@ async function mcpDriver(): Promise<Driver> {
             assert.equal(preview.backup, null);
             assert.equal(((await tool("backup_list", {})).backups as unknown[]).length, before, "a preview makes none");
         },
+        createPso: async (name, minLength, appliesTo) => {
+            await tool("pso_create", { name, precedence: 10, min_length: minLength, applies_to: appliesTo });
+        },
+        appendToPso: async (name, account) => {
+            await tool("pso_set", { name, applies_to: [account], applies_to_mode: "append" });
+        },
+        deletePso: async name => { await tool("pso_delete", { name }); },
         async setPolicy(changes, check) {
             const out = await tool("domain_set_password_policy", { ...changes, ...(check ? { check: true } : {}) });
             assert.equal(out.changed, true);
@@ -290,6 +314,7 @@ async function step(name: string, fn: () => Promise<void>): Promise<boolean> {
 async function scenario(driver: Driver, letter: string): Promise<void> {
     const p = `t-${driver.name[0]}-`;
     const group = `${p}staff`, group2 = `${p}team`, user = `${p}user`, user2 = `${p}user2`, share = `${p}docs`;
+    const pso = `${p}pso`;
     const access: Access[] = [
         { name: group, kind: "group", level: "write" },
         { name: "student1", kind: "user", level: "read" },
@@ -340,6 +365,27 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
             const xml = await drivesXml();
             assert.ok(xml.includes(`name="${netbios}\\${group2}"`) && !xml.includes(`${netbios}\\${group}"`), xml);
             await smb(share, user2, "put /etc/hostname from-user2.txt");
+        });
+        await step(`PSO ${pso} on ${group2}: ${user2} gets it, Samba enforces it`, async () => {
+            try {
+                await driver.createPso(pso, 14, [group2]);
+                const got = await core("user get", { name: user2 });
+                const effective = got.password_policy as { pso: string; policy: Policy };
+                assert.equal(effective.pso, pso);
+                assert.equal(effective.policy.min_length, 14);
+                assert.match(await run(["samba-tool", "domain", "passwordsettings", "pso", "show-user", user2]),
+                    /Minimum password length: 14/);
+                await assert.rejects(core("user password", { name: user2, password: "Abcdef-12345", must_change: false }),
+                    /too short/);
+                await driver.appendToPso(pso, "student1");
+                const listed = ((await core("pso get", { name: pso })).pso as { applies_to: string[] }).applies_to;
+                assert.deepEqual(listed, ["student1", group2]);
+                await driver.deletePso(pso);
+                const after = (await core("user get", { name: user2 })).password_policy as { pso: string | null };
+                assert.equal(after.pso, null);
+            } finally {
+                await core("pso delete", { name: pso });
+            }
         });
     } finally {
         // Through the driver, then whatever is left through addcctl

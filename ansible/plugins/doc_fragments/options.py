@@ -340,6 +340,72 @@ options:
     type: int
 '''
 
+    SAMBA_PSO = r'''
+options:
+  name:
+    description:
+      - Name of the PSO.
+    type: str
+    required: true
+  state:
+    description:
+      - C(present) creates the PSO when it is missing (then O(precedence) is required) and brings it
+        to the given settings; C(absent) deletes it.
+    type: str
+    default: present
+    choices: [present, absent]
+  precedence:
+    description:
+      - Among the PSOs that apply to a user, the lowest precedence wins. Required to create a PSO.
+    type: int
+  applies_to:
+    description:
+      - "Users and groups the PSO applies to (a group: its members), by sAMAccountName; see
+        O(applies_to_mode)."
+    type: list
+    elements: str
+  applies_to_mode:
+    description:
+      - "replace: applies_to is the whole list; append: add these; remove: drop these."
+    type: str
+    default: replace
+    choices: [replace, append, remove]
+  complexity:
+    description:
+      - "Passwords must mix character classes and avoid the account name. Settings left unset take
+        the domain's when the PSO is created and keep their value on an existing one."
+    type: bool
+  min_length:
+    description:
+      - Minimum password length, from 0 to 255.
+    type: int
+  history_length:
+    description:
+      - Earlier passwords that cannot be used again, from 0 to 1024.
+    type: int
+  min_age_days:
+    description:
+      - Days before a password can be changed again, from 0 to 998.
+    type: int
+  max_age_days:
+    description:
+      - "Days after which a password expires, from 1 to 999; C(0): passwords never expire."
+    type: int
+  lockout_threshold:
+    description:
+      - "Failed logons that lock the account, from 0 to 999; 0: never locked."
+    type: int
+  lockout_duration_minutes:
+    description:
+      - "Minutes an account stays locked, from 1 to 99999; C(0): until an administrator unlocks it."
+    type: int
+  lockout_window_minutes:
+    description:
+      - "Minutes after which the count of failed logons starts again, from 1 to 99999, at most
+        O(lockout_duration_minutes); C(0): never."
+    type: int
+'''
+
     SAMBA_DC_INFO = r'''
 options: {}
 '''

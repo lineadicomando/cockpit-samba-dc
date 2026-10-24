@@ -21,7 +21,7 @@ class NotFound(Exception):
     """addcctl reported that the object does not exist."""
 
 
-_NOT_FOUND = re.compile(r'^(User|Group|Computer|Shared folder) ".*" not found$')
+_NOT_FOUND = re.compile(r'^(User|Group|Computer|Shared folder|PSO) ".*" not found$')
 
 
 def call(module, obj, action, request, check=False, not_found_ok=False):

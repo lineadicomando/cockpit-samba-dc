@@ -6,7 +6,7 @@ from .errors import AddcError
 
 _DOMAIN_PASSWORD_COMPLEX = 0x1
 # An interval that never ends, as samba-tool domain passwordsettings writes it
-_NEVER_INTERVAL = -0x8000000000000000
+NEVER_INTERVAL = -0x8000000000000000
 _DAY = 86400 * 10_000_000
 _MINUTE = 60 * 10_000_000
 # Each setting of the policy and its attribute on the domain object; the
@@ -23,6 +23,60 @@ POLICY_FIELDS = {
 }
 
 
+def read_policy(record, fields, complexity):
+    """The settings of a policy from its record: the domain object or a PSO,
+    fields mapping each setting to its attribute. None for an interval:
+    never; a lockout duration of 0 also locks until an administrator
+    unlocks the account."""
+    def number(key):
+        try:
+            return int(first(record, fields[key], "0"))
+        except ValueError:
+            return 0
+
+    def minutes(key):
+        return ad.interval_minutes(first(record, fields[key]))
+
+    def days(key):
+        value = minutes(key)
+        return None if value is None else value // 1440
+
+    return {
+        "complexity": complexity,
+        "min_length": number("min_length"),
+        "history_length": number("history_length"),
+        "min_age_days": days("min_age_days") or 0,
+        "max_age_days": days("max_age_days") or None,
+        "lockout_threshold": number("lockout_threshold"),
+        "lockout_duration_minutes": minutes("lockout_duration_minutes") or None,
+        "lockout_window_minutes": minutes("lockout_window_minutes"),
+    }
+
+
+def check_policy(policy):
+    """The checks of samba-tool beyond the ranges of the schema, plus the
+    lockout window within the lockout duration."""
+    if policy["max_age_days"] is not None and policy["min_age_days"] >= policy["max_age_days"]:
+        raise AddcError("The maximum password age (%d days) must be greater than the minimum (%d days)"
+                        % (policy["max_age_days"], policy["min_age_days"]))
+    window, duration = policy["lockout_window_minutes"], policy["lockout_duration_minutes"]
+    if duration is not None and window is None:
+        raise AddcError("The count of failed logons must start again within the lockout duration (%d minutes)"
+                        % duration)
+    if duration is not None and window > duration:
+        raise AddcError("The lockout window (%d minutes) cannot be longer than the lockout duration (%d minutes)"
+                        % (window, duration))
+
+
+def encode_setting(key, value):
+    """The attribute value of a setting other than complexity."""
+    if key.endswith("_days"):
+        return NEVER_INTERVAL if value is None else -value * _DAY
+    if key.endswith("_minutes"):
+        return NEVER_INTERVAL if value is None else -value * _MINUTE
+    return value
+
+
 class Domain:
     def __init__(self, dc, runner):
         self.dc = dc
@@ -31,69 +85,41 @@ class Domain:
     def password_policy(self):
         """The domain password and lockout settings (what samba-tool domain
         passwordsettings show prints)."""
-        r = self.dc.domain_attrs(["pwdProperties", "minPwdLength", "pwdHistoryLength", "minPwdAge",
-                                  "maxPwdAge", "lockoutThreshold", "lockoutDuration",
-                                  "lockOutObservationWindow"])
-
-        def number(attr):
-            try:
-                return int(first(r, attr, "0"))
-            except ValueError:
-                return 0
-
-        def days(attr):
-            minutes = ad.interval_minutes(first(r, attr))
-            return None if minutes is None else minutes // 1440
-
-        return {
-            "complexity": bool(number("pwdProperties") & _DOMAIN_PASSWORD_COMPLEX),
-            "min_length": number("minPwdLength"),
-            "history_length": number("pwdHistoryLength"),
-            # None: never (no maximum age), as the domain stores it
-            "min_age_days": days("minPwdAge") or 0,
-            "max_age_days": days("maxPwdAge") or None,
-            "lockout_threshold": number("lockoutThreshold"),
-            "lockout_duration_minutes": ad.interval_minutes(first(r, "lockoutDuration")),
-            "lockout_window_minutes": ad.interval_minutes(first(r, "lockOutObservationWindow")),
-        }
+        r = self.dc.domain_attrs(list(POLICY_FIELDS.values()))
+        try:
+            props = int(first(r, "pwdProperties", "0"))
+        except ValueError:
+            props = 0
+        return read_policy(r, POLICY_FIELDS, bool(props & _DOMAIN_PASSWORD_COMPLEX))
 
     def set_password_policy(self, request):
         """Bring the domain policy to the given settings; settings left out
-        keep their value. The ranges (in the schema) and checks of samba-tool
-        domain passwordsettings set, plus the lockout window within the
-        lockout duration. None for an interval: never."""
+        keep their value. The ranges are in the schema, the other checks in
+        check_policy."""
         before = self.password_policy()
         after = dict(before, **{k: request[k] for k in POLICY_FIELDS if k in request})
-        if after["max_age_days"] is not None and after["min_age_days"] >= after["max_age_days"]:
-            raise AddcError("The maximum password age (%d days) must be greater than the minimum (%d days)"
-                            % (after["max_age_days"], after["min_age_days"]))
-        window, duration = after["lockout_window_minutes"], after["lockout_duration_minutes"]
-        if duration is not None and window is None:
-            raise AddcError("The count of failed logons must start again within the lockout duration (%d minutes)"
-                            % duration)
-        if duration is not None and window > duration:
-            raise AddcError("The lockout window (%d minutes) cannot be longer than the lockout duration (%d minutes)"
-                            % (window, duration))
-
+        check_policy(after)
         changes = {}
         for key, attr in POLICY_FIELDS.items():
             if after[key] == before[key]:
                 continue
-            value = after[key]
             if key == "complexity":
                 props = int(first(self.dc.domain_attrs(["pwdProperties"]), "pwdProperties", "0") or 0)
-                changes[attr] = props | _DOMAIN_PASSWORD_COMPLEX if value else props & ~_DOMAIN_PASSWORD_COMPLEX
-            elif key.endswith("_days"):
-                changes[attr] = _NEVER_INTERVAL if value is None else -value * _DAY
-            elif key.endswith("_minutes"):
-                changes[attr] = _NEVER_INTERVAL if value is None else -value * _MINUTE
+                changes[attr] = props | _DOMAIN_PASSWORD_COMPLEX if after[key] else props & ~_DOMAIN_PASSWORD_COMPLEX
             else:
-                changes[attr] = value
+                changes[attr] = encode_setting(key, after[key])
         if changes:
             self.dc.modify(self.dc.domain_dn, changes)
             if not self.runner.check:
                 after = self.password_policy()
         return {"changed": bool(changes), "policy": after, "diff": {"before": before, "after": after}}
+
+    def level(self):
+        """The domain functional level, as msDS-Behavior-Version (0 when unknown)."""
+        try:
+            return int(first(self.dc.domain_attrs(["msDS-Behavior-Version"]), "msDS-Behavior-Version", "0"))
+        except ValueError:
+            return 0
 
     # -- overview, read locally: rootDSE-like facts from sam.ldb and loadparm,
     # not samba-tool domain info (a CLDAP query that fails when Samba does

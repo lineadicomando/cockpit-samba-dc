@@ -16,7 +16,7 @@ import {
 import { Table, Thead, Tbody, Tr, Th, Td } from "@patternfly/react-table";
 import { UserIcon, UsersIcon } from "@patternfly/react-icons";
 import cockpit from "cockpit";
-import { getUserDetails, listGroups, refreshUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, getPasswordPolicy, addGroupMembers, removeGroupMembers, setPrimaryGroup as savePrimaryGroup, provisionHomeDir } from "../lib/samba.ts";
+import { getUserDetails, listGroups, refreshUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, getUserPasswordPolicy, addGroupMembers, removeGroupMembers, setPrimaryGroup as savePrimaryGroup, provisionHomeDir } from "../lib/samba.ts";
 import { listShares, effectiveShareAccess, expandNestedGroups } from "../lib/shares.ts";
 import type { User } from "../lib/types.ts";
 import { usePasswordPolicy, usePasswordGenerator, useSingleLoad } from "../lib/hooks.ts";
@@ -522,7 +522,7 @@ function AuthenticationSection({ username }: { username: string }) {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
-    const { policy, policyError } = usePasswordPolicy();
+    const { policy, pso, policyError } = usePasswordPolicy(username);
     const { generate, copyState, revealCount } = usePasswordGenerator(policy);
 
     function handleGenerate() {
@@ -541,7 +541,7 @@ function AuthenticationSection({ username }: { username: string }) {
         setSuccess(false);
         try {
             // Fall back to a fresh fetch so validation never gets skipped
-            const pol = policy ?? await getPasswordPolicy();
+            const pol = policy ?? (await getUserPasswordPolicy(username)).policy;
             const violation = checkPasswordAgainstPolicy(pol, password);
             if (violation === "minLength") {
                 setError(t("Password must be at least {{min}} characters.", { min: pol.minLength }));
@@ -580,7 +580,7 @@ function AuthenticationSection({ username }: { username: string }) {
                             onGenerate={policy ? handleGenerate : undefined}
                             copyState={copyState}
                         />
-                        {policy ? <PasswordPolicyInfo policy={policy} /> : policyError && <PasswordPolicyUnavailable />}
+                        {policy ? <PasswordPolicyInfo policy={policy} pso={pso} /> : policyError && <PasswordPolicyUnavailable />}
                     </FormGroup>
                     <FormGroup label={t("Confirm password")} fieldId="ud-password-confirm">
                         <PasswordField

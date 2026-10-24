@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import cockpit from "cockpit";
-import { getPasswordPolicy, listGroups, listUsers } from "./samba.ts";
+import { getPasswordPolicy, getUserPasswordPolicy, listGroups, listUsers } from "./samba.ts";
 import { generatePassword } from "./passwordUtils.ts";
 import { forgetCachedData } from "./exec.ts";
 import type { PasswordPolicy } from "./types.ts";
@@ -173,21 +173,30 @@ export function usePrincipals(): {
 }
 
 // ---------------------------------------------------------------------------
-// usePasswordPolicy — loads domain password policy once at mount (cached)
+// usePasswordPolicy — the domain password policy, or with a username the one
+// that applies to that user (a PSO's or the domain's: pso null); cached
 // ---------------------------------------------------------------------------
-export function usePasswordPolicy(): { policy: PasswordPolicy | null; policyError: string | null } {
+export function usePasswordPolicy(username?: string): {
+    policy: PasswordPolicy | null;
+    pso: string | null;
+    policyError: string | null;
+} {
     const [policy, setPolicy] = useState<PasswordPolicy | null>(null);
+    const [pso, setPso] = useState<string | null>(null);
     const [policyError, setPolicyError] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
-        getPasswordPolicy()
-            .then(p => { if (!cancelled) setPolicy(p); })
+        const load = username
+            ? getUserPasswordPolicy(username)
+            : getPasswordPolicy().then(p => ({ pso: null, policy: p }));
+        load
+            .then(e => { if (!cancelled) { setPolicy(e.policy); setPso(e.pso); } })
             .catch((e: unknown) => { if (!cancelled) setPolicyError(e instanceof Error ? e.message : String(e)); });
         return () => { cancelled = true; };
-    }, []);
+    }, [username]);
 
-    return { policy, policyError };
+    return { policy, pso, policyError };
 }
 
 // ---------------------------------------------------------------------------

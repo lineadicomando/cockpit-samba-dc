@@ -126,6 +126,75 @@ export type HomeProvisionInput = {
     name: string;
 };
 
+/** pso create: Create a fine-grained password policy (PSO); settings left out take the domain's. Needs the domain functional level 2008 or higher */
+export type PsoCreateInput = {
+    /** Users and groups it applies to (a group: its members); one that names a user directly wins over its groups' */
+    applies_to?: string[];
+    /** Passwords must mix character classes and avoid the account name */
+    complexity?: boolean;
+    /** Earlier passwords that cannot be used again, from 0 to 1024 */
+    history_length?: number;
+    /** Minutes an account stays locked, from 1 to 99999; null: until an administrator unlocks it */
+    lockout_duration_minutes?: number | null;
+    /** Failed logons that lock the account, from 0 to 999; 0: never locked */
+    lockout_threshold?: number;
+    /** Minutes after which the count of failed logons starts again, from 1 to 99999 and at most the lockout duration; null: never */
+    lockout_window_minutes?: number | null;
+    /** Days after which a password expires, from 1 to 999; null: never */
+    max_age_days?: number | null;
+    /** Days before a password can be changed again, from 0 to 998 */
+    min_age_days?: number;
+    /** Minimum password length, from 0 to 255 */
+    min_length?: number;
+    /** Name of the PSO */
+    name: string;
+    /** Among the PSOs that apply to a user, the lowest precedence wins */
+    precedence: number;
+};
+
+/** pso delete: Delete a PSO: its users get the next one, or the domain policy */
+export type PsoDeleteInput = {
+    /** Name of the PSO */
+    name: string;
+};
+
+/** pso get: One fine-grained password policy (PSO) */
+export type PsoGetInput = {
+    /** Name of the PSO */
+    name: string;
+};
+
+/** pso list: List the fine-grained password policies (PSOs), lowest precedence first */
+export type PsoListInput = Record<string, never>;
+
+/** pso set: Bring a PSO to the given settings; settings left out keep their value */
+export type PsoSetInput = {
+    /** Users and groups it applies to (a group: its members); one that names a user directly wins over its groups' */
+    applies_to?: string[];
+    /** replace: applies_to is the whole list; append: add these; remove: drop these */
+    applies_to_mode?: "replace" | "append" | "remove";
+    /** Passwords must mix character classes and avoid the account name */
+    complexity?: boolean;
+    /** Earlier passwords that cannot be used again, from 0 to 1024 */
+    history_length?: number;
+    /** Minutes an account stays locked, from 1 to 99999; null: until an administrator unlocks it */
+    lockout_duration_minutes?: number | null;
+    /** Failed logons that lock the account, from 0 to 999; 0: never locked */
+    lockout_threshold?: number;
+    /** Minutes after which the count of failed logons starts again, from 1 to 99999 and at most the lockout duration; null: never */
+    lockout_window_minutes?: number | null;
+    /** Days after which a password expires, from 1 to 999; null: never */
+    max_age_days?: number | null;
+    /** Days before a password can be changed again, from 0 to 998 */
+    min_age_days?: number;
+    /** Minimum password length, from 0 to 255 */
+    min_length?: number;
+    /** Name of the PSO */
+    name: string;
+    /** Among the PSOs that apply to a user, the lowest precedence wins */
+    precedence?: number;
+};
+
 /** share delete: Remove a shared folder and its drive mapping */
 export type ShareDeleteInput = {
     /** Also delete the folder and everything in it */
@@ -212,7 +281,7 @@ export type UserDeleteInput = {
     name: string;
 };
 
-/** user get: One domain user */
+/** user get: One domain user, with the password policy that applies to it (a PSO's, or the domain's) */
 export type UserGetInput = {
     /** sAMAccountName of the user */
     name: string;
@@ -288,6 +357,11 @@ export interface AddcctlInputs {
     "group set": GroupSetInput;
     "home delete": HomeDeleteInput;
     "home provision": HomeProvisionInput;
+    "pso create": PsoCreateInput;
+    "pso delete": PsoDeleteInput;
+    "pso get": PsoGetInput;
+    "pso list": PsoListInput;
+    "pso set": PsoSetInput;
     "share delete": ShareDeleteInput;
     "share get": ShareGetInput;
     "share list": ShareListInput;

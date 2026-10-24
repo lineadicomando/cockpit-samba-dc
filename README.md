@@ -17,7 +17,7 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 - **Groups** — list, create, rename, delete, member management (add/remove)
 - **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
 - **Computers** — list, delete
-- **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), the password and lockout policy of the domain (complexity, length, history, minimum and maximum age, lockout threshold, duration and reset), offline backups of the domain
+- **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), the password and lockout policy of the domain (complexity, length, history, minimum and maximum age, lockout threshold, duration and reset) and fine-grained policies (PSOs) for chosen users and groups, the one that applies shown on the user page, offline backups of the domain
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
 - Live search and filters in every section (users also by locked out and expired)
 - English and Italian interface, following Cockpit's language
@@ -115,7 +115,7 @@ It reads the configuration and the directory locally (Samba's loadparm,
 `sam.ldb`), so it needs no domain credentials, and runs one change at a time,
 so the page and the Ansible collection can be used at the same moment. It
 handles users, groups, computers, home directories, shared folders, the drive
-mapping and the password policy, for the page, the collection and the
+mapping, the password policy and the fine-grained policies, for the page, the collection and the
 MCP server below (`docs/architecture.md`).
 
 ### MCP server on the DC

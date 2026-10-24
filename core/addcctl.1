@@ -73,6 +73,12 @@ The domain password and lockout settings; change them, with the ranges and
 checks of "samba\-tool domain passwordsettings set" (the lockout window at
 most the lockout duration).
 .TP
+.B pso list\fR, \fBpso get\fR, \fBpso create\fR, \fBpso set\fR, \fBpso delete
+Fine-grained password policies (Password Settings Objects): the settings of
+the domain policy, a precedence and the users and groups they apply to. A
+new PSO takes the domain's settings for those left out; "user get" returns
+the policy that applies to a user.
+.TP
 .B domain info
 The domain and its controllers: names, Samba version, functional levels, FSMO
 role owners, the processes of this DC. Read locally, with no network query.

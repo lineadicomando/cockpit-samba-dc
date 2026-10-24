@@ -1,7 +1,7 @@
 import { cache, checkName } from "./exec.ts";
 import { addcctl } from "./addcctl.ts";
-import type { DomainSetPasswordPolicyInput } from "./addcctl-schema.ts";
-import type { User, Group, Computer, PasswordPolicy } from "./types.ts";
+import type { DomainSetPasswordPolicyInput, PsoCreateInput } from "./addcctl-schema.ts";
+import type { User, Group, Computer, PasswordPolicy, Pso, EffectivePolicy } from "./types.ts";
 
 // Users, groups, computers, home directories and the password policy are
 // operations of addcctl, the core on the DC: it reads sam.ldb, makes the
@@ -60,6 +60,12 @@ interface CorePolicy {
     lockout_threshold: number;
     lockout_duration_minutes: number | null;
     lockout_window_minutes: number | null;
+}
+
+interface CorePso extends CorePolicy {
+    name: string;
+    precedence: number;
+    applies_to: string[];
 }
 
 const KEY = (op: string, name = "") => `addcctl:${op}${name ? `\x1f${name.toLowerCase()}` : ""}`;
@@ -153,11 +159,20 @@ export async function listComputers(): Promise<Computer[]> {
 
 // --- users ---
 
-export async function getUserDetails(username: string): Promise<User> {
+async function coreUser(username: string): Promise<{ user: CoreUser; password_policy?: { pso: string | null; policy: CorePolicy } }> {
     checkName(username);
-    const { user } = await cached<{ user: CoreUser }>(KEY("user get", username), 30_000,
-        () => addcctl("user get", { name: username }));
-    return toUser(user);
+    return cached(KEY("user get", username), 30_000, () => addcctl("user get", { name: username }));
+}
+
+export async function getUserDetails(username: string): Promise<User> {
+    return toUser((await coreUser(username)).user);
+}
+
+// The policy that applies to the user: a PSO's, or the domain's
+export async function getUserPasswordPolicy(username: string): Promise<EffectivePolicy> {
+    const effective = (await coreUser(username)).password_policy;
+    if (!effective) return { pso: null, policy: await getPasswordPolicy() };
+    return { pso: effective.pso, policy: toPolicy(effective.policy) };
 }
 
 export async function refreshUser(username: string): Promise<User> {
@@ -226,38 +241,83 @@ export async function setPrimaryGroup(username: string, groupName: string): Prom
     await mutate(() => addcctl("user set", { name: username, primary_group: groupName }));
 }
 
+function toPolicy(p: CorePolicy): PasswordPolicy {
+    return {
+        complexityRequired: p.complexity,
+        minLength: p.min_length,
+        historyLength: p.history_length,
+        minAgeDays: p.min_age_days,
+        maxAgeDays: p.max_age_days,
+        lockoutThreshold: p.lockout_threshold,
+        lockoutDurationMinutes: p.lockout_duration_minutes,
+        lockoutWindowMinutes: p.lockout_window_minutes,
+    };
+}
+
+// The settings of wanted that differ from current, as addcctl takes them
+function policyChanges(current: PasswordPolicy | null, wanted: PasswordPolicy): DomainSetPasswordPolicyInput {
+    const changes: DomainSetPasswordPolicyInput = {};
+    const differs = <K extends keyof PasswordPolicy>(key: K) => current === null || wanted[key] !== current[key];
+    if (differs("complexityRequired")) changes.complexity = wanted.complexityRequired;
+    if (differs("minLength")) changes.min_length = wanted.minLength;
+    if (differs("historyLength")) changes.history_length = wanted.historyLength;
+    if (differs("minAgeDays")) changes.min_age_days = wanted.minAgeDays;
+    if (differs("maxAgeDays")) changes.max_age_days = wanted.maxAgeDays;
+    if (differs("lockoutThreshold")) changes.lockout_threshold = wanted.lockoutThreshold;
+    if (differs("lockoutDurationMinutes")) changes.lockout_duration_minutes = wanted.lockoutDurationMinutes;
+    if (differs("lockoutWindowMinutes")) changes.lockout_window_minutes = wanted.lockoutWindowMinutes;
+    return changes;
+}
+
 export async function getPasswordPolicy(): Promise<PasswordPolicy> {
     const { policy } = await cached<{ policy: CorePolicy }>(KEY("domain password-policy"), 300_000,
         () => addcctl("domain password-policy", {}));
-    return {
-        complexityRequired: policy.complexity,
-        minLength: policy.min_length,
-        historyLength: policy.history_length,
-        minAgeDays: policy.min_age_days,
-        maxAgeDays: policy.max_age_days,
-        lockoutThreshold: policy.lockout_threshold,
-        lockoutDurationMinutes: policy.lockout_duration_minutes,
-        lockoutWindowMinutes: policy.lockout_window_minutes,
-    };
+    return toPolicy(policy);
 }
 
 // Sends only the settings that differ from the current policy
 export async function setPasswordPolicy(current: PasswordPolicy, wanted: PasswordPolicy): Promise<void> {
-    const changes: DomainSetPasswordPolicyInput = {};
-    if (wanted.complexityRequired !== current.complexityRequired) changes.complexity = wanted.complexityRequired;
-    if (wanted.minLength !== current.minLength) changes.min_length = wanted.minLength;
-    if (wanted.historyLength !== current.historyLength) changes.history_length = wanted.historyLength;
-    if (wanted.minAgeDays !== current.minAgeDays) changes.min_age_days = wanted.minAgeDays;
-    if (wanted.maxAgeDays !== current.maxAgeDays) changes.max_age_days = wanted.maxAgeDays;
-    if (wanted.lockoutThreshold !== current.lockoutThreshold) changes.lockout_threshold = wanted.lockoutThreshold;
-    if (wanted.lockoutDurationMinutes !== current.lockoutDurationMinutes) {
-        changes.lockout_duration_minutes = wanted.lockoutDurationMinutes;
-    }
-    if (wanted.lockoutWindowMinutes !== current.lockoutWindowMinutes) {
-        changes.lockout_window_minutes = wanted.lockoutWindowMinutes;
-    }
+    const changes = policyChanges(current, wanted);
     if (Object.keys(changes).length === 0) return;
     await mutate(() => addcctl("domain set-password-policy", changes));
+}
+
+// --- fine-grained password policies (PSOs) ---
+
+function toPso(p: CorePso): Pso {
+    return { name: p.name, precedence: p.precedence, policy: toPolicy(p), appliesTo: p.applies_to };
+}
+
+export async function listPsos(): Promise<Pso[]> {
+    const { psos } = await cached<{ psos: CorePso[] }>(KEY("pso list"), 60_000, () => addcctl("pso list", {}));
+    return psos.map(toPso);
+}
+
+export async function createPso(pso: Pso): Promise<void> {
+    checkName(...pso.appliesTo);
+    const input: PsoCreateInput = {
+        name: pso.name, precedence: pso.precedence, applies_to: pso.appliesTo, ...policyChanges(null, pso.policy),
+    };
+    await mutate(() => addcctl("pso create", input));
+}
+
+// Sends only what differs; the list of users and groups replaces the current one
+export async function updatePso(current: Pso, wanted: Pso): Promise<void> {
+    checkName(...wanted.appliesTo);
+    const sameTargets = current.appliesTo.length === wanted.appliesTo.length
+        && current.appliesTo.every(n => wanted.appliesTo.some(w => w.toLowerCase() === n.toLowerCase()));
+    const input = {
+        name: current.name,
+        ...policyChanges(current.policy, wanted.policy),
+        ...(wanted.precedence !== current.precedence ? { precedence: wanted.precedence } : {}),
+        ...(sameTargets ? {} : { applies_to: wanted.appliesTo }),
+    };
+    if (Object.keys(input).length === 1) return;
+    await mutate(() => addcctl("pso set", input));
+}
+
+export async function deletePso(name: string): Promise<void> {
+    await mutate(() => addcctl("pso delete", { name }));
 }
 
 // --- groups ---

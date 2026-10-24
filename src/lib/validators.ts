@@ -164,10 +164,10 @@ function inRange(value: number, low: number, high: number): boolean {
 
 // The ranges and checks of addcctl's domain set-password-policy (those of
 // samba-tool domain passwordsettings set, plus the lockout window within the
-// lockout duration).
-export function validatePasswordPolicy(p: PasswordPolicy): PasswordPolicyViolation | null {
-    if (!inRange(p.minLength, 0, 14)) return "minLength";
-    if (!inRange(p.historyLength, 0, 24)) return "historyLength";
+// lockout duration). A PSO allows longer passwords and histories.
+export function validatePasswordPolicy(p: PasswordPolicy, pso = false): PasswordPolicyViolation | null {
+    if (!inRange(p.minLength, 0, pso ? 255 : 14)) return "minLength";
+    if (!inRange(p.historyLength, 0, pso ? 1024 : 24)) return "historyLength";
     if (!inRange(p.minAgeDays, 0, 998)) return "minAge";
     if (p.maxAgeDays !== null && !inRange(p.maxAgeDays, 1, 999)) return "maxAge";
     if (p.maxAgeDays !== null && p.minAgeDays >= p.maxAgeDays) return "ages";
@@ -181,10 +181,14 @@ export function validatePasswordPolicy(p: PasswordPolicy): PasswordPolicyViolati
     return null;
 }
 
-export function passwordPolicyViolationMessage(t: (key: string) => string, violation: PasswordPolicyViolation): string {
+export function passwordPolicyViolationMessage(t: (key: string) => string, violation: PasswordPolicyViolation, pso = false): string {
     switch (violation) {
-        case "minLength":        return t("The minimum length must be a whole number from 0 to 14.");
-        case "historyLength":    return t("The password history must be a whole number from 0 to 24.");
+        case "minLength":        return pso
+            ? t("The minimum length must be a whole number from 0 to 255.")
+            : t("The minimum length must be a whole number from 0 to 14.");
+        case "historyLength":    return pso
+            ? t("The password history must be a whole number from 0 to 1024.")
+            : t("The password history must be a whole number from 0 to 24.");
         case "minAge":           return t("The minimum age must be a whole number of days from 0 to 998.");
         case "maxAge":           return t("The maximum age must be a whole number of days from 1 to 999.");
         case "ages":             return t("The maximum age must be greater than the minimum age.");
@@ -193,5 +197,28 @@ export function passwordPolicyViolationMessage(t: (key: string) => string, viola
         case "lockoutWindow":    return t("The reset time must be a whole number of minutes from 1 to 99999.");
         case "windowNever":      return t("The count of failed logons must be reset within the lockout duration.");
         case "windowTooLong":    return t("The reset time cannot be longer than the lockout duration.");
+    }
+}
+
+export type PsoViolation = "empty" | "tooLong" | "surroundingSpaces" | "invalidChars" | "precedence";
+
+// A PSO's name is the CN of its object, escaped by addcctl: control
+// characters and surrounding spaces are what it refuses
+export function validatePso(name: string, precedence: number): PsoViolation | null {
+    if (!name) return "empty";
+    if (name.length > 64) return "tooLong";
+    if (name !== name.trim()) return "surroundingSpaces";
+    if (CONTROL_CHARS.test(name)) return "invalidChars";
+    if (!inRange(precedence, 1, 2147483647)) return "precedence";
+    return null;
+}
+
+export function psoViolationMessage(t: (key: string) => string, violation: PsoViolation): string {
+    switch (violation) {
+        case "empty":             return t("Name is required.");
+        case "tooLong":           return t("Name cannot exceed 64 characters.");
+        case "surroundingSpaces": return t("Name cannot start or end with a space.");
+        case "invalidChars":      return t("Name contains invalid characters.");
+        case "precedence":        return t("The precedence must be a whole number of 1 or more.");
     }
 }

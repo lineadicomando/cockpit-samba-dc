@@ -26,13 +26,16 @@ import {
     ToolbarContent,
     ToolbarItem,
 } from "@patternfly/react-core";
-import { Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
+import { ActionsColumn, Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
+import type { IAction } from "@patternfly/react-table";
 
 import { createBackup, getDomainInfo, listBackups, runHealthChecks } from "../lib/domain.ts";
 import { forgetCachedData } from "../lib/exec.ts";
-import { getPasswordPolicy } from "../lib/samba.ts";
-import type { DomainBackup, DomainInfo, HealthCheck, HealthCheckName, PasswordPolicy } from "../lib/types.ts";
+import { getPasswordPolicy, listPsos } from "../lib/samba.ts";
+import type { DomainBackup, DomainInfo, HealthCheck, HealthCheckName, PasswordPolicy, Pso } from "../lib/types.ts";
+import { DeletePsoModal } from "./modals/DeletePsoModal.tsx";
 import { PasswordPolicyModal } from "./modals/PasswordPolicyModal.tsx";
+import { PsoModal } from "./modals/PsoModal.tsx";
 import { SysvolResetModal } from "./modals/SysvolResetModal.tsx";
 
 const BACKUP_DIR = "/var/backups/samba-dc";
@@ -194,7 +197,7 @@ function PasswordPolicyView({ refreshToken }: { refreshToken: number }) {
             <StackItem>
                 <Flex alignItems={{ default: "alignItemsCenter" }}>
                     <FlexItem grow={{ default: "grow" }}>
-                        <Content component="p">{t("The policy of the whole domain: it applies to every account.")}</Content>
+                        <Content component="p">{t("The policy of the whole domain: it applies to every account without a fine-grained policy.")}</Content>
                     </FlexItem>
                     <FlexItem>
                         <Button variant="secondary" onClick={() => { setSaved(false); setEditing(true); }}>{t("Edit")}</Button>
@@ -227,6 +230,125 @@ function PasswordPolicyView({ refreshToken }: { refreshToken: number }) {
                     }}
                 />
             )}
+        </Stack>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Fine-grained password policies
+// ---------------------------------------------------------------------------
+function PsoView({ refreshToken }: { refreshToken: number }) {
+    const { t } = useTranslation();
+    const [psos, setPsos] = useState<Pso[] | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [editing, setEditing] = useState<{ pso?: Pso; domainPolicy: PasswordPolicy } | null>(null);
+    const [deleting, setDeleting] = useState<Pso | null>(null);
+    const [opening, setOpening] = useState(false);
+
+    const load = useCallback(async () => {
+        try {
+            setPsos(await listPsos());
+            setError(null);
+        } catch (e) {
+            setError(errorText(e));
+        }
+    }, []);
+
+    useEffect(() => { load(); }, [load, refreshToken]);
+
+    // A new PSO starts from the domain policy as it is now
+    async function open(pso?: Pso) {
+        setOpening(true);
+        try {
+            setEditing({ pso, domainPolicy: await getPasswordPolicy() });
+        } catch (e) {
+            setError(errorText(e));
+        } finally {
+            setOpening(false);
+        }
+    }
+
+    function done() {
+        setEditing(null);
+        setDeleting(null);
+        load();
+    }
+
+    const rowActions = (pso: Pso): IAction[] => [
+        { title: t("Edit"), onClick: () => open(pso) },
+        { title: t("Delete"), onClick: () => setDeleting(pso), isDanger: true },
+    ];
+
+    return (
+        <Stack hasGutter>
+            <StackItem>
+                <Flex alignItems={{ default: "alignItemsCenter" }}>
+                    <FlexItem grow={{ default: "grow" }}>
+                        <Content component="p">
+                            {t("A fine-grained policy replaces the domain policy for the users and groups it applies to.")}
+                        </Content>
+                    </FlexItem>
+                    <FlexItem>
+                        <Button variant="secondary" onClick={() => open()} isLoading={opening} isDisabled={opening}>
+                            {t("Create policy")}
+                        </Button>
+                    </FlexItem>
+                </Flex>
+            </StackItem>
+            {error && (
+                <StackItem>
+                    <Alert variant="danger" isInline title={t("Failed to load the fine-grained policies")}>{error}</Alert>
+                </StackItem>
+            )}
+            <StackItem>
+                {psos === null
+                    ? !error && <Spinner size="md" aria-label={t("Loading the fine-grained policies")} />
+                    : psos.length === 0
+                        ? <Content component="p">{t("No fine-grained policies.")}</Content>
+                        : (
+                            <Table aria-label={t("Fine-grained password policies")} variant="compact">
+                                <Thead>
+                                    <Tr>
+                                        <Th>{t("Name")}</Th>
+                                        <Th>{t("Precedence")}</Th>
+                                        <Th>{t("Minimum length")}</Th>
+                                        <Th>{t("Maximum age")}</Th>
+                                        <Th>{t("Lockout threshold")}</Th>
+                                        <Th>{t("Applies to")}</Th>
+                                        <Th screenReaderText={t("Row actions")} />
+                                    </Tr>
+                                </Thead>
+                                <Tbody>
+                                    {psos.map(p => (
+                                        <Tr key={p.name}>
+                                            <Td dataLabel={t("Name")}>{p.name}</Td>
+                                            <Td dataLabel={t("Precedence")}>{p.precedence}</Td>
+                                            <Td dataLabel={t("Minimum length")}>{t("policy_characters", { count: p.policy.minLength })}</Td>
+                                            <Td dataLabel={t("Maximum age")}>
+                                                {p.policy.maxAgeDays === null ? t("Never") : t("policy_days", { count: p.policy.maxAgeDays })}
+                                            </Td>
+                                            <Td dataLabel={t("Lockout threshold")}>
+                                                {p.policy.lockoutThreshold === 0
+                                                    ? t("Never")
+                                                    : t("policy_failed_logons", { count: p.policy.lockoutThreshold })}
+                                            </Td>
+                                            <Td dataLabel={t("Applies to")}>
+                                                {p.appliesTo.length > 0 ? p.appliesTo.join(", ") : t("Nobody")}
+                                            </Td>
+                                            <Td isActionCell>
+                                                <ActionsColumn items={rowActions(p)} />
+                                            </Td>
+                                        </Tr>
+                                    ))}
+                                </Tbody>
+                            </Table>
+                        )}
+            </StackItem>
+            {editing && (
+                <PsoModal pso={editing.pso} domainPolicy={editing.domainPolicy}
+                    onClose={() => setEditing(null)} onSuccess={done} />
+            )}
+            {deleting && <DeletePsoModal pso={deleting} onClose={() => setDeleting(null)} onSuccess={done} />}
         </Stack>
     );
 }
@@ -517,6 +639,12 @@ export function DomainPage() {
                     <Card>
                         <CardTitle>{t("Password policy")}</CardTitle>
                         <CardBody><PasswordPolicyView refreshToken={refreshToken} /></CardBody>
+                    </Card>
+                </StackItem>
+                <StackItem>
+                    <Card>
+                        <CardTitle>{t("Fine-grained password policies")}</CardTitle>
+                        <CardBody><PsoView refreshToken={refreshToken} /></CardBody>
                     </Card>
                 </StackItem>
                 <StackItem>

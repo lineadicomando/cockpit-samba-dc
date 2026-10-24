@@ -46,8 +46,8 @@ policy) planned for v0.11.0; the test VMs built from scratch by scripts.
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
     `addcctl schema`, `--check`, a lock for changes): users, groups,
     computers, home directories, shared folders, drive mapping, password
-    policy, the domain overview, health checks and backups; 30
-    operations (`core/addcctl/operations.py`). `addcctl
+    policy and fine-grained policies (PSOs), the domain overview, health
+    checks and backups; 35 operations (`core/addcctl/operations.py`). `addcctl
     mcp` (`mcp.py`) serves them as MCP tools on stdio, reached through SSH
     and a sudoers rule (README, "MCP server on the DC"); `--read-only`.
   - `src/`: the **Cockpit page** (tabs Users, Groups, Shared folders,
@@ -56,7 +56,7 @@ policy) planned for v0.11.0; the test VMs built from scratch by scripts.
   - `ansible/`: the **collection** `lineadicomando.samba_dc` (roles
     `samba_dc_build`, `samba_tool`, `samba_dc_backup`; modules `samba_user`,
     `samba_group`, `samba_computer`, `samba_home`, `samba_share`,
-    `samba_share_info`, `samba_dc_info`, `samba_password_policy`, all on addcctl, their options generated from the
+    `samba_share_info`, `samba_dc_info`, `samba_password_policy`, `samba_pso`, all on addcctl, their options generated from the
     schemas by `make schema`; dispatcher playbooks `samba`,
     `samba_dc_build`, `samba_dc_backup`; an MCP server on the control node,
     `ansible/mcp/server.py`, with the tools `samba_dc_build` and
@@ -438,16 +438,21 @@ Since A4 both are addcctl operations (`user unlock`, `user set` with
         modal; `PasswordPolicy` has every field; a change drops the cache
   - [x] Ansible: module `samba_password_policy` (`0` for never, as
         `samba-tool`)
-- [ ] **Fine-grained policies (PSO)** — what `samba-tool domain
-      passwordsettings pso` does
-  - [ ] Core: `pso list`, `pso get`, `pso create`, `pso set`, `pso delete`
-        (objects in `CN=Password Settings Container,CN=System`), the users
-        and groups it applies to as a field of `pso set`
-        (`msDS-PSOAppliesTo`, account names in and out); `user get` returns
-        the effective policy (`msDS-ResultantPSO`, else the domain's)
-  - [ ] Page: list and editor in the "Domain" tab; the effective policy on
-        the user page; the reset modal checks the password against it
-  - [ ] Ansible: module `samba_pso`
+- [x] **Fine-grained policies (PSO)** (2026-10-24; tried on the test DC:
+      the integration suite through each interface, `samba-tool domain
+      passwordsettings pso show-user` and Samba's refusal of a short
+      password, a lockout until unlocked, the card and the user page in
+      the browser)
+  - [x] Core: `pso list`, `pso get`, `pso create` (settings left out: the
+        domain's; never plaintext passwords; domain level 2008 or higher),
+        `pso set` (`applies_to` with `applies_to_mode`), `pso delete`; the
+        PSO's DN built with `ldb.Dn`; `user get` returns `password_policy`
+        (`msDS-ResultantPSO`, else the domain's). A lockout duration of 0
+        reads as "until unlocked", as Samba applies it
+  - [x] Page: a card in the "Domain" tab (list, create, edit, delete); the
+        policy fields shared with the domain's form; the user page names
+        the policy that applies and checks the password against it
+  - [x] Ansible: module `samba_pso` (`0` for never)
 
 ## 5. Organizational units (high priority, largest change)
 

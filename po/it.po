@@ -1143,9 +1143,6 @@ msgstr "Questo server"
 msgid "Password policy"
 msgstr "Policy delle password"
 
-msgid "The policy of the whole domain: it applies to every account."
-msgstr "La policy dell'intero dominio: vale per tutti gli account."
-
 msgid "Loading the password policy"
 msgstr "Caricamento della policy delle password"
 
@@ -1275,3 +1272,87 @@ msgid "policy_failed_logons"
 msgid_plural "policy_failed_logons_plural"
 msgstr[0] "{{count}} accesso fallito"
 msgstr[1] "{{count}} accessi falliti"
+
+msgid "The policy of the whole domain: it applies to every account without a fine-grained policy."
+msgstr "La policy dell'intero dominio: vale per tutti gli account senza una policy specifica."
+
+msgid "Fine-grained password policies"
+msgstr "Policy delle password specifiche"
+
+msgid "A fine-grained policy replaces the domain policy for the users and groups it applies to."
+msgstr "Una policy specifica sostituisce quella del dominio per gli utenti e i gruppi a cui si applica."
+
+msgid "Create policy"
+msgstr "Crea policy"
+
+msgid "Failed to load the fine-grained policies"
+msgstr "Impossibile caricare le policy specifiche"
+
+msgid "Loading the fine-grained policies"
+msgstr "Caricamento delle policy specifiche"
+
+msgid "No fine-grained policies."
+msgstr "Nessuna policy specifica."
+
+msgid "Precedence"
+msgstr "Precedenza"
+
+msgid "Applies to"
+msgstr "Si applica a"
+
+msgid "Nobody"
+msgstr "Nessuno"
+
+msgid "Create fine-grained policy"
+msgstr "Crea una policy specifica"
+
+msgid "Edit fine-grained policy: {{name}}"
+msgstr "Modifica la policy specifica: {{name}}"
+
+msgid "Delete fine-grained policy: {{name}}"
+msgstr "Elimina la policy specifica: {{name}}"
+
+msgid "It replaces the domain policy for the users and groups it applies to."
+msgstr "Sostituisce la policy del dominio per gli utenti e i gruppi a cui si applica."
+
+msgid "When several policies apply to a user, the lowest precedence wins; one that names the user directly wins over its groups'."
+msgstr "Se a un utente si applicano più policy, vince quella con la precedenza più bassa; una che nomina direttamente l'utente vince su quelle dei suoi gruppi."
+
+msgid "A group's policy applies to its members."
+msgstr "La policy di un gruppo si applica ai suoi membri."
+
+msgid "Settings"
+msgstr "Impostazioni"
+
+msgid "Its users and groups ({{names}}) get the next fine-grained policy that applies to them, or the domain policy."
+msgstr "I suoi utenti e gruppi ({{names}}) passano alla successiva policy specifica che si applica a loro, o a quella del dominio."
+
+msgid "It applies to no user or group."
+msgstr "Non si applica a nessun utente o gruppo."
+
+msgid "Characters, from 0 to 255."
+msgstr "Caratteri, da 0 a 255."
+
+msgid "Earlier passwords that cannot be used again, from 0 to 1024."
+msgstr "Password precedenti che non si possono riusare, da 0 a 1024."
+
+msgid "The minimum length must be a whole number from 0 to 255."
+msgstr "La lunghezza minima deve essere un numero intero da 0 a 255."
+
+msgid "The password history must be a whole number from 0 to 1024."
+msgstr "La cronologia delle password deve essere un numero intero da 0 a 1024."
+
+msgid "Name cannot exceed 64 characters."
+msgstr "Il nome non può superare i 64 caratteri."
+
+msgid "Name contains invalid characters."
+msgstr "Il nome contiene caratteri non validi."
+
+msgid "The precedence must be a whole number of 1 or more."
+msgstr "La precedenza deve essere un numero intero maggiore o uguale a 1."
+
+msgid "The domain password policy applies."
+msgstr "Si applica la policy delle password del dominio."
+
+msgid "The fine-grained policy {{name}} applies."
+msgstr "Si applica la policy specifica {{name}}."

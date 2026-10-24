@@ -245,10 +245,13 @@ class Dc:
         return self.search("(objectClass=*)", attrs, scope="base")[0]
 
     def modify(self, dn, changes):
-        """Replace (value) or delete (None) attributes of one entry."""
+        """Replace (a value, or a list for every value) or delete (None)
+        attributes of one entry."""
         import ldb
         for attr, value in changes.items():
-            self.runner.record("sam.ldb: %s %s = %s" % (dn, attr, "(deleted)" if value is None else value))
+            shown = ("(deleted)" if value is None else "; ".join(map(str, value)) or "(none)" if isinstance(value, list)
+                     else value)
+            self.runner.record("sam.ldb: %s %s = %s" % (dn, attr, shown))
         if self.runner.check or not changes:
             return
         msg = ldb.Message()
@@ -256,9 +259,36 @@ class Dc:
         for attr, value in changes.items():
             if value is None:
                 msg[attr] = ldb.MessageElement([], ldb.FLAG_MOD_DELETE, attr)
+            elif isinstance(value, list):
+                msg[attr] = ldb.MessageElement([str(v) for v in value], ldb.FLAG_MOD_REPLACE, attr)
             else:
                 msg[attr] = ldb.MessageElement(str(value), ldb.FLAG_MOD_REPLACE, attr)
         self._samdb_call(self.samdb.modify, msg)
+
+    def add_entry(self, dn, attributes):
+        """Add an entry: {attribute: value or list of values}."""
+        self.runner.record("sam.ldb: add %s" % dn)
+        if self.runner.check:
+            return
+        message = {"dn": dn}
+        message.update({k: [str(x) for x in v] if isinstance(v, list) else str(v) for k, v in attributes.items()})
+        self._samdb_call(self.samdb.add, message)
+
+    def delete_entry(self, dn):
+        self.runner.record("sam.ldb: delete %s" % dn)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.delete, dn)
+
+    @property
+    def pso_container(self):
+        return "CN=Password Settings Container,CN=System,%s" % self.domain_dn
+
+    def pso_dn(self, name):
+        """The DN of a PSO, its name escaped by ldb (rule 3)."""
+        import ldb
+        dn = ldb.Dn(self.samdb, "CN=pso,%s" % self.pso_container)
+        dn.set_component(0, "CN", name)
+        return str(dn)
 
     def _samdb_call(self, fn, *args, **kwargs):
         """A SamDB call whose failure becomes an AddcError with Samba's message

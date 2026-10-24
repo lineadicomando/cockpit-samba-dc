@@ -181,6 +181,35 @@ MODULES = {
                 "O(lockout_duration_minutes); C(0): never."]),
         },
     },
+    "samba_pso": {
+        "ops": ["pso create", "pso set", "pso delete"],
+        "options": {
+            "name": field("pso set"),
+            "state": dict(STATE, own=dict(STATE["own"], description=[
+                "C(present) creates the PSO when it is missing (then O(precedence) is required) and brings it "
+                "to the given settings; C(absent) deletes it."])),
+            "precedence": field("pso create", description=[
+                "Among the PSOs that apply to a user, the lowest precedence wins. Required to create a PSO."]),
+            "applies_to": field("pso set", description=[
+                "Users and groups the PSO applies to (a group: its members), by sAMAccountName; "
+                "see O(applies_to_mode)."]),
+            "applies_to_mode": field("pso set"),
+            "complexity": field("pso create", description=[
+                "Passwords must mix character classes and avoid the account name. Settings left unset take "
+                "the domain's when the PSO is created and keep their value on an existing one."]),
+            "min_length": field("pso create"),
+            "history_length": field("pso create"),
+            "min_age_days": field("pso create"),
+            "max_age_days": field("pso create", description=[
+                "Days after which a password expires, from 1 to 999; C(0): passwords never expire."]),
+            "lockout_threshold": field("pso create"),
+            "lockout_duration_minutes": field("pso create", description=[
+                "Minutes an account stays locked, from 1 to 99999; C(0): until an administrator unlocks it."]),
+            "lockout_window_minutes": field("pso create", description=[
+                "Minutes after which the count of failed logons starts again, from 1 to 99999, at most "
+                "O(lockout_duration_minutes); C(0): never."]),
+        },
+    },
     "samba_dc_info": {
         "ops": ["domain info", "backup list"],
         "options": {},
