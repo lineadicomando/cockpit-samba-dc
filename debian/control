@@ -37,9 +37,11 @@ Depends: ${misc:Depends},
          samba-common-bin,
 Description: operations of a Samba Active Directory domain controller, as JSON
  A command that runs on the domain controller, as root, and performs one
- operation per call: shared folders with their POSIX ACLs and the network
- drives mapped at logon through a Group Policy Object. It reads a JSON
- object on standard input and writes one on standard output.
+ operation per call: users, groups, computers, home directories, shared
+ folders with their POSIX ACLs and the network drives mapped at logon
+ through a Group Policy Object. It reads a JSON object on standard input
+ and writes one on standard output; "addcctl mcp" offers the same
+ operations as the tools of an MCP server.
  .
  It reads the directory from the local sam.ldb and the configuration from
  smb.conf, so it needs no domain credentials. It is the core of

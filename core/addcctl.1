@@ -8,6 +8,9 @@ addcctl \- operations of a Samba Active Directory domain controller, as JSON
 .RI < input.json
 .br
 .B addcctl schema
+.br
+.B addcctl mcp
+.RB [ \-\-read\-only ]
 .SH DESCRIPTION
 .B addcctl
 runs on a Samba AD domain controller, as root, and performs one operation:
@@ -20,19 +23,57 @@ lineadicomando.samba_dc and the MCP server call it.
 .PP
 .B addcctl schema
 prints every operation with the JSON Schema of its input.
+.PP
+.B addcctl mcp
+is an MCP (Model Context Protocol) server on standard input and output, one
+JSON-RPC message per line: one tool per operation, named
+.IR object _ action
+(dashes become underscores), with the operation's input. A tool that changes
+something also takes "check": true, the preview of
+.BR \-\-check .
+Every change is written to syslog (facility authpriv, tag addcctl-mcp) with
+the user who started the server and the passwords masked. It is meant to be
+started by an MCP client through SSH and sudo.
 .SH OPTIONS
 .TP
 .B \-\-check
 Report what the operation would change, in the "commands" field of the
 output, and change nothing.
-.SH OPERATIONS
 .TP
-.B share list
+.B \-\-read\-only
+With
+.BR mcp ,
+offer only the operations that change nothing.
+.SH OPERATIONS
+Names are sAMAccountNames. The input of each operation, with its fields and
+their meaning, is in
+.BR "addcctl schema" .
+.TP
+.B user list\fR, \fBuser get
+The domain users, with their groups, status, lockout and expiry.
+.TP
+.B user create\fR, \fBuser set\fR, \fBuser password\fR, \fBuser unlock\fR, \fBuser delete
+Create a user; bring it to the given settings (a new name also renames it in
+the shared folders); set its password; unlock it; delete it. Passwords come
+in the input and are never written out. The built-in accounts are protected.
+.TP
+.B group list\fR, \fBgroup get\fR, \fBgroup create\fR, \fBgroup set\fR, \fBgroup delete
+The groups with their members, and their changes.
+.TP
+.B computer list\fR, \fBcomputer get\fR, \fBcomputer create\fR, \fBcomputer delete
+The computer accounts; create one before the computer joins; delete one with
+its DNS records (not a domain controller).
+.TP
+.B home provision\fR, \fBhome delete
+A user's home directory under /srv/samba/home, mapped at logon; clear it, and
+with "delete_data" remove its folder.
+.TP
+.B domain password\-policy
+The domain password and lockout settings.
+.TP
+.B share list\fR, \fBshare get
 The shared folders under /srv/samba/shares, with their access list and drive
 mapping.
-.TP
-.B share get
-One shared folder: {"name": ...}.
 .TP
 .B share set
 Create a shared folder, or bring it to the given settings: name, access,

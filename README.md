@@ -112,9 +112,52 @@ operations with the JSON Schema of their input, `--check` reports what an
 operation would change without changing it, and `man addcctl` describes it.
 It reads the configuration and the directory locally (Samba's loadparm,
 `sam.ldb`), so it needs no domain credentials, and runs one change at a time,
-so the page and the Ansible collection can be used at the same moment. It is
-the core the plan in `docs/architecture.md` grows: for now it handles the
-shared folders and the drive mapping.
+so the page and the Ansible collection can be used at the same moment. It
+handles users, groups, computers, home directories, shared folders, the drive
+mapping and the password policy (read), for the page, the collection and the
+MCP server below (`docs/architecture.md`).
+
+### MCP server on the DC
+
+`addcctl mcp` is an MCP server on standard input and output, for an MCP
+client (Claude, Cursor, …) that manages the DC: one tool per operation of
+`addcctl` (`user_create`, `share_set`, …, the list is `addcctl schema`), with
+the same input. A tool that changes something takes `"check": true`, which
+reports what it would do and changes nothing. Passwords are never in a
+result; every change goes to the system log (`journalctl -t addcctl-mcp`)
+with the user who started the server and the passwords masked.
+`addcctl mcp --read-only` offers only the tools that change nothing.
+
+The client starts it through SSH, as a user that may run that command alone
+as root. On the DC, for a user `mcp`, in `/etc/sudoers.d/addcctl-mcp` (edit
+it with `visudo -f`):
+
+```
+mcp ALL=(root) NOPASSWD: /usr/bin/addcctl mcp
+```
+
+and, to bind its SSH key to that command, in `~mcp/.ssh/authorized_keys`:
+
+```
+restrict,command="sudo -n /usr/bin/addcctl mcp" ssh-ed25519 AAAA… client
+```
+
+On the client:
+
+```json
+{
+  "mcpServers": {
+    "samba-dc": {
+      "command": "ssh",
+      "args": ["-T", "mcp@dc.example.org", "sudo", "-n", "/usr/bin/addcctl", "mcp"]
+    }
+  }
+}
+```
+
+The `mcp` user has the power of a domain administrator over what `addcctl`
+manages: guard its key as such, or give it `addcctl mcp --read-only` (in
+both files) when the client only needs to look.
 
 ## Ansible collection
 

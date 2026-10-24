@@ -7,6 +7,7 @@ or would do with --check). On error the output is {"error": message}, the
 message also goes to stderr, and the exit code is 1.
 
   addcctl schema    the operations and the JSON Schema of their input
+  addcctl mcp       an MCP server on stdio, one tool per operation (mcp.py)
 """
 import argparse
 import contextlib
@@ -52,41 +53,57 @@ def _fail(message, code=1):
     return code
 
 
+class InvalidInput(AddcError):
+    """The request does not fit the operation's schema (exit code 2)."""
+
+
+def execute(op, request, check, lock=None):
+    """Validate request against op's schema and run it; the result, with
+    "commands" and "check" for a mutation. Raises AddcError."""
+    problems = schema_errors(op["input"], request)
+    if problems:
+        raise InvalidInput("Invalid input: %s" % "; ".join(problems))
+    ctx = Context(check)
+    if op["mutates"] and not check:
+        with (lock or _lock)():
+            result = op["run"](ctx, request)
+    else:
+        result = op["run"](ctx, request)
+    if op["mutates"]:
+        result = dict(result, commands=ctx.runner.commands, check=check)
+    return result
+
+
 def run(argv, stdin):
     parser = argparse.ArgumentParser(prog="addcctl", description="Operations of a Samba AD DC, as JSON.")
     parser.add_argument("object")
     parser.add_argument("action", nargs="?")
     parser.add_argument("--check", action="store_true", help="report what would change, change nothing")
+    parser.add_argument("--read-only", action="store_true", help="mcp: offer only the operations that change nothing")
     args = parser.parse_args(argv)
 
     if args.object == "schema" and args.action is None:
         _emit(schemas())
         return 0
+    if args.object == "mcp" and args.action is None:
+        from .mcp import serve
+        return serve(stdin.buffer, sys.stdout, read_only=args.read_only)
     op = OPERATIONS.get((args.object, args.action))
     if op is None:
         known = ", ".join("%s %s" % key for key in sorted(OPERATIONS))
-        return _fail("Unknown operation %s %s (known: schema, %s)" % (args.object, args.action or "", known), 2)
+        return _fail("Unknown operation %s %s (known: schema, mcp, %s)" % (args.object, args.action or "", known), 2)
 
     raw = "" if stdin.isatty() else stdin.read()
     try:
         request = json.loads(raw) if raw.strip() else {}
     except ValueError as e:
         return _fail("The input is not JSON: %s" % e, 2)
-    problems = schema_errors(op["input"], request)
-    if problems:
-        return _fail("Invalid input: %s" % "; ".join(problems), 2)
-
-    ctx = Context(args.check)
     try:
-        if op["mutates"] and not args.check:
-            with _lock():
-                result = op["run"](ctx, request)
-        else:
-            result = op["run"](ctx, request)
+        result = execute(op, request, args.check)
+    except InvalidInput as e:
+        return _fail(str(e), 2)
     except AddcError as e:
         return _fail(str(e))
-    if op["mutates"]:
-        result = dict(result, commands=ctx.runner.commands, check=args.check)
     _emit(result)
     return 0
 

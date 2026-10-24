@@ -19,6 +19,10 @@ the README ("Versions and releases"). New entries go under
   `samba_home`, on `addcctl`, with check mode and diff; `samba_user` also
   sets groups, expiry and renames, `samba_group` scope, category and renames,
   `samba_computer` pre-creates accounts.
+- `addcctl mcp`: an MCP server on the DC, reached through SSH, with one tool
+  per operation of `addcctl` and `"check": true` as preview; changes are
+  logged to syslog without passwords; `--read-only` offers only the tools
+  that change nothing (README, "MCP server on the DC").
 
 ### Changed
 

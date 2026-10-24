@@ -4,6 +4,8 @@
 # download, so dist/ is built beforehand (`make deb`, or the release
 # workflow) and only copied here.
 
+include /usr/share/dpkg/pkg-info.mk
+
 # Where the .deb goes; `make deb` sets it to build/.
 DEB_OUT ?= ..
 
@@ -26,6 +28,7 @@ override_dh_auto_install:
 	install -d debian/addcctl/usr/lib/addcctl/addcctl debian/addcctl/usr/bin
 	install -m 644 core/addcctl/*.py debian/addcctl/usr/lib/addcctl/addcctl/
 	install -m 755 core/bin/addcctl debian/addcctl/usr/bin/addcctl
+	echo 'VERSION = "$(DEB_VERSION)"' > debian/addcctl/usr/lib/addcctl/addcctl/version.py
 
 # CHANGELOG.md is not a Debian changelog: install it as a document.
 override_dh_installchangelogs:
