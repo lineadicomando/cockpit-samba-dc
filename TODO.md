@@ -90,10 +90,8 @@ schemas.
   `ansible` runs a playbook with the collection of this tree, `mcp` starts
   the collection's MCP server against the VMs) and configured by an
   untracked `.env` (see `.env.example`); skills `vm-lab` and `win-gui`.
-  **To rebuild**: on 2026-10-24 neither VM was defined any more, nor their
-  disks; rebuild them (section 0, "Rebuild scripts", with the user's
-  agreement) before the next test on a DC. The Windows client is an
-  evaluation edition.
+  They live on one workstation: check that you are on it before using
+  `lab.sh`. The Windows client is an evaluation edition.
 - Integration suite: `test/vm/run-lib.sh test/vm/integration.ts [core]
   [page] [ansible] [mcp]`, after `deploy`; about 30 s, removes its data.
   It drives `addcctl mcp` over SSH with `sudo -S`, as the DC's admin user.
@@ -115,9 +113,8 @@ To resume:
    `deploy` needs podman or docker for `make deb` (the build image is made
    on first use).
 4. Next steps, in order:
-   - rebuild the test VMs (ask the user: it creates VMs), then run the
-     integration suite on `main` (the modules' generated options are not
-     tried on a DC yet);
+   - run the integration suite on `main` on the test VMs (the modules'
+     generated options are not tried on a DC yet);
    - the rest of A6: win_edulab on v0.9.0, with `addcctl mcp` in its
      `.mcp.json` (another repository);
    - then section 8, the "Domain" tab.
