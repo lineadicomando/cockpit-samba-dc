@@ -138,8 +138,8 @@ The collection (`ansible/`):
 - Role variables carry the role name as prefix (`samba_dc_build_*`);
   each role documents them in `README.md` and `meta/argument_specs.yaml`.
 - Modules that change the DC call addcctl (`module_utils/addcctl.py`): check
-  mode is `addcctl --check`, diff comes from its answer. Only the OUs and the
-  read-only actions of `samba_tool` still run `samba-tool` directly.
+  mode is `addcctl --check`, diff comes from its answer. Only the read-only
+  actions of `samba_tool` (`list`, `show`) still run `samba-tool` directly.
 - A module's options are generated (`make schema`, `scripts/ansible-specs.py`)
   into the doc fragment `plugins/doc_fragments/options.py` and
   `module_utils/argument_specs.py`: those of a core setting from its schema,
