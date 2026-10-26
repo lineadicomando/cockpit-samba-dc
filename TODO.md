@@ -37,10 +37,11 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-26: v0.12.0 released (section 5, organizational units;
-CI and the release workflow green); section 6 done and planned as v0.13.0,
-not released yet; A6 done but for the archive of the old repository; the
-test VMs built from scratch by scripts.
+Updated on 2026-10-26: v0.13.0 released (section 6, richer create and edit
+forms; CI and the release workflow green); no release planned yet (section
+7 is next: give its heading a version when the work starts); A6 done but
+for the archive of the old repository; the test VMs built from scratch by
+scripts.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -74,7 +75,8 @@ test VMs built from scratch by scripts.
   failed `lintian`), `v0.8.0` (the first with the collection), `v0.9.0`
   (addcctl, `addcctl mcp`, the modules on the core), `v0.10.0` (the "Domain"
   tab: overview, health checks, backups), `v0.11.0` (the domain password
-  policy edited, fine-grained policies), `v0.12.0` (organizational units).
+  policy edited, fine-grained policies), `v0.12.0` (organizational units),
+  `v0.13.0` (richer create and edit forms, a page for each computer).
   Release only when the user asks (run the integration suite first, then
   `make release` and `git push origin main vX.Y.Z`). Each release carries
   the page's tarball, the `.deb` of `cockpit-samba-dc` and of `addcctl`, and
@@ -141,8 +143,8 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - release v0.13.0 (section 6) when the user asks; then section 7;
-     section 0 when convenient.
+   - section 7, starting with its spike on the access (local reads and
+     writes, rule 5); section 0 when convenient.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
