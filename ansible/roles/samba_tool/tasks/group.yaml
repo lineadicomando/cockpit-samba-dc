@@ -44,6 +44,7 @@
     description: "{{ samba_tool_args.description | default(omit) }}"
     scope: "{{ samba_tool_args.scope | default(omit) }}"
     category: "{{ samba_tool_args.category | default(omit) }}"
+    ou: "{{ samba_tool_args.ou | default(omit) }}"
 
 # Only the delta is applied, compared case-insensitively as AD does; the
 # group must exist.

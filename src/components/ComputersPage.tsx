@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
@@ -26,18 +26,26 @@ import {
 import type { IAction } from "@patternfly/react-table";
 
 import { listComputers } from "../lib/samba.ts";
-import { useSingleLoad, usePagination, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
+import { useSingleLoad, usePagination, useOus, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
 import type { Computer } from "../lib/types.ts";
 import { DeleteComputerModal } from "./modals/DeleteComputerModal.tsx";
+import { MoveModal } from "./modals/MoveModal.tsx";
+import { ContainerFilter, ContainerLabel, sameContainer } from "./ContainerSelect.tsx";
 
 // ---------------------------------------------------------------------------
 // ComputersPage
 // ---------------------------------------------------------------------------
 type ModalState =
     | { kind: "none" }
-    | { kind: "delete"; computer: Computer };
+    | { kind: "delete"; computer: Computer }
+    | { kind: "move"; computer: Computer };
 
-export function ComputersPage() {
+interface Props {
+    // Bumped when OUs change: renaming or moving one moves the computers in it
+    refreshToken?: number;
+}
+
+export function ComputersPage({ refreshToken = 0 }: Props) {
     const { t } = useTranslation();
     const {
         items: computers,
@@ -46,28 +54,45 @@ export function ComputersPage() {
         error,
         reload: loadComputers,
         reloadFresh: loadComputersFresh,
+        refresh: refreshComputers,
     } = useSingleLoad(listComputers);
+    const { ous, reload: reloadOus } = useOus();
+
+    useEffect(() => {
+        if (refreshToken > 0) { refreshComputers(); reloadOus(); }
+    }, [refreshToken, refreshComputers, reloadOus]);
 
     const [search, setSearch] = useState("");
+    const [containerFilter, setContainerFilter] = useState<string | null>(null);
     const [modal, setModal] = useState<ModalState>({ kind: "none" });
 
     const filtered = useMemo<Computer[]>(() => {
-        if (!search) return computers;
+        let result = computers;
+        if (containerFilter !== null) result = result.filter(c => sameContainer(c.container, containerFilter));
+        if (!search) return result;
         const q = search.toLowerCase();
-        return computers.filter(c =>
+        return result.filter(c =>
             c.name.toLowerCase().includes(q) ||
             c.os.toLowerCase().includes(q) ||
             c.id.toLowerCase().includes(q)
         );
-    }, [computers, search]);
+    }, [computers, search, containerFilter]);
 
-    const { page, perPage, paginated, onSetPage, onPerPageSelect } = usePagination(filtered, search);
+    const { page, perPage, paginated, onSetPage, onPerPageSelect } =
+        usePagination(filtered, `${search}\x1f${containerFilter ?? ""}`);
 
     function rowActions(computer: Computer): IAction[] {
         return [
             {
+                title: t("Move"),
+                onClick: () => setModal({ kind: "move", computer }),
+                isDisabled: computer.isDomainController,
+            },
+            { isSeparator: true, title: "" },
+            {
                 title: t("Delete computer"),
                 onClick: () => setModal({ kind: "delete", computer }),
+                isDisabled: computer.isDomainController,
                 isDanger: true,
             },
         ];
@@ -86,6 +111,9 @@ export function ComputersPage() {
                             onClear={() => setSearch("")}
                             aria-label={t("Filter computers")}
                         />
+                    </ToolbarItem>
+                    <ToolbarItem>
+                        <ContainerFilter ous={ous} value={containerFilter} onChange={setContainerFilter} />
                     </ToolbarItem>
                     <ToolbarItem>
                         <Label color="blue">{t("computers_count", { count: computers.length })}</Label>
@@ -119,11 +147,13 @@ export function ComputersPage() {
             {/* ---- Empty state ---- */}
             {!loading && !error && filtered.length === 0 && (
                 <EmptyState
-                    titleText={search ? t("No computers match the filter") : t("No computers found")}
+                    titleText={search || containerFilter !== null ? t("No computers match the filter") : t("No computers found")}
                     headingLevel="h4"
                 >
                     <EmptyStateBody>
-                        {search ? t("Try clearing the search filter.") : t("No domain computers are available.")}
+                        {search || containerFilter !== null
+                            ? t("Try clearing the search or container filter.")
+                            : t("No domain computers are available.")}
                     </EmptyStateBody>
                 </EmptyState>
             )}
@@ -137,6 +167,7 @@ export function ComputersPage() {
                             <Th>{t("ID")}</Th>
                             <Th>{t("OS")}</Th>
                             <Th>{t("Last logon")}</Th>
+                            <Th>{t("Container")}</Th>
                             <Th aria-label={t("Row actions")} />
                         </Tr>
                     </Thead>
@@ -147,6 +178,7 @@ export function ComputersPage() {
                                 <Td dataLabel={t("ID")}>{c.id}</Td>
                                 <Td dataLabel={t("OS")}>{c.os}</Td>
                                 <Td dataLabel={t("Last logon")}>{c.lastLogon || t("Never")}</Td>
+                                <Td dataLabel={t("Container")}><ContainerLabel dn={c.container} /></Td>
                                 <Td isActionCell>
                                     <ActionsColumn items={rowActions(c)} />
                                 </Td>
@@ -169,6 +201,14 @@ export function ComputersPage() {
             )}
 
             {/* ---- Modals ---- */}
+            {modal.kind === "move" && (
+                <MoveModal
+                    kind="computer"
+                    items={[{ name: modal.computer.name, container: modal.computer.container, fixed: modal.computer.isDomainController }]}
+                    onClose={() => setModal({ kind: "none" })}
+                    onSuccess={() => { setModal({ kind: "none" }); loadComputers(); }}
+                />
+            )}
             {modal.kind === "delete" && (
                 <DeleteComputerModal
                     computer={modal.computer}

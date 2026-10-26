@@ -17,7 +17,8 @@ description:
     controller itself; it needs elevated privileges (typically C(become=true)).
   - Settings left unset keep their current value. The built-in accounts are
     protected by addcctl, which refuses to delete them, to change the status
-    of Administrator and krbtgt, or to give a system account an expiry date.
+    of Administrator and krbtgt, to give a system account an expiry date, or
+    to move one to another OU.
 extends_documentation_fragment:
   - lineadicomando.samba_dc.options.samba_user
 author:
@@ -38,6 +39,11 @@ EXAMPLES = r"""
     surname: Rossi
     groups: [Staff]
     primary_group: Staff
+
+- name: Move the user to its class's OU
+  lineadicomando.samba_dc.samba_user:
+    name: mrossi
+    ou: OU=Class 1A,OU=Students
 
 - name: Expire an account at the end of June
   lineadicomando.samba_dc.samba_user:
@@ -75,7 +81,7 @@ def settings(params):
     """The input of `addcctl user set` besides the name."""
     request = given(params, FIELDS)
     request.update(given(params, dict(enabled="enabled", groups="groups", primary_group="primary_group",
-                                      new_name="new_name")))
+                                      new_name="new_name", ou="ou")))
     if params.get("groups") is not None:
         request["groups_mode"] = params["groups_mode"]
     if params.get("expires") is not None:
@@ -115,7 +121,7 @@ def run_module():
         commands += result["commands"]
         changed = True
         # The rest applies to the new user, which check mode did not create
-        for key in list(FIELDS) + ["groups", "groups_mode"]:
+        for key in list(FIELDS) + ["groups", "groups_mode", "ou"]:
             rest.pop(key, None)
         if check:
             rest = {}

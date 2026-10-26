@@ -8,10 +8,10 @@ import {
   type SetStateAction,
 } from "react";
 import cockpit from "cockpit";
-import { getPasswordPolicy, getUserPasswordPolicy, listGroups, listUsers } from "./samba.ts";
+import { getPasswordPolicy, getUserPasswordPolicy, listGroups, listOus, listUsers } from "./samba.ts";
 import { generatePassword } from "./passwordUtils.ts";
 import { forgetCachedData } from "./exec.ts";
-import type { PasswordPolicy } from "./types.ts";
+import type { Ou, PasswordPolicy } from "./types.ts";
 
 export function useCockpitLocation() {
   const [location, setLocation] = useState(cockpit.location);
@@ -134,6 +134,35 @@ export function useGroupNames(enabled = true): {
     }, [enabled]);
 
     return { groupNames, loading, error };
+}
+
+// ---------------------------------------------------------------------------
+// useOus — the OUs and default containers, each after its parent (for
+// pickers, filters and the container column); reload after a change
+// ---------------------------------------------------------------------------
+export function useOus(): {
+    ous: Ou[];
+    loading: boolean;
+    error: string | null;
+    reload: () => void;
+} {
+    const [ous, setOus] = useState<Ou[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [generation, setGeneration] = useState(0);
+
+    useEffect(() => {
+        let cancelled = false;
+        setError(null);
+        listOus()
+            .then(rows => { if (!cancelled) setOus(rows); })
+            .catch((e: unknown) => { if (!cancelled) setError(e instanceof Error ? e.message : String(e)); })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [generation]);
+
+    const reload = useCallback(() => setGeneration(g => g + 1), []);
+    return { ous, loading, error, reload };
 }
 
 // ---------------------------------------------------------------------------

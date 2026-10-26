@@ -30,12 +30,14 @@ import {
 import type { IAction } from "@patternfly/react-table";
 
 import { listGroups, refreshGroup } from "../lib/samba.ts";
-import { useSingleLoad, usePagination, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
+import { useSingleLoad, usePagination, useOus, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
 import type { Group } from "../lib/types.ts";
 import { CreateGroupModal } from "./modals/CreateGroupModal.tsx";
 import { ManageMembersModal } from "./modals/ManageMembersModal.tsx";
 import { DeleteGroupModal } from "./modals/DeleteGroupModal.tsx";
 import { RenameGroupModal } from "./modals/RenameGroupModal.tsx";
+import { MoveModal } from "./modals/MoveModal.tsx";
+import { ContainerFilter, ContainerLabel, sameContainer } from "./ContainerSelect.tsx";
 
 // ---------------------------------------------------------------------------
 // GroupsPage
@@ -45,6 +47,7 @@ type ModalState =
     | { kind: "create" }
     | { kind: "manageMembers"; group: Group }
     | { kind: "rename"; group: Group }
+    | { kind: "move"; group: Group }
     | { kind: "delete"; group: Group };
 
 interface Props {
@@ -65,13 +68,16 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
         refresh: refreshGroups,
     } = useSingleLoad(listGroups);
 
+    const { ous, reload: reloadOus } = useOus();
+
     useEffect(() => {
-        if (refreshToken > 0) refreshGroups();
-    }, [refreshToken, refreshGroups]);
+        if (refreshToken > 0) { refreshGroups(); reloadOus(); }
+    }, [refreshToken, refreshGroups, reloadOus]);
 
     const [search, setSearch] = useState("");
     const [typeFilter, setTypeFilter] = useState<"all" | "protected" | "custom">("all");
     const [typeSelectOpen, setTypeSelectOpen] = useState(false);
+    const [containerFilter, setContainerFilter] = useState<string | null>(null);
     const [modal, setModal] = useState<ModalState>({ kind: "none" });
 
     const filtered = useMemo<Group[]>(() => {
@@ -85,10 +91,14 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
         }
         if (typeFilter !== "all")
             result = result.filter(g => g.isProtected === (typeFilter === "protected"));
+        if (containerFilter !== null)
+            result = result.filter(g => sameContainer(g.container, containerFilter));
         return result;
-    }, [groups, search, typeFilter]);
+    }, [groups, search, typeFilter, containerFilter]);
 
-    const { page, perPage, paginated, onSetPage, onPerPageSelect } = usePagination(filtered, `${search}\x1f${typeFilter}`);
+    const { page, perPage, paginated, onSetPage, onPerPageSelect } =
+        usePagination(filtered, `${search}\x1f${typeFilter}\x1f${containerFilter ?? ""}`);
+    const filtering = Boolean(search) || typeFilter !== "all" || containerFilter !== null;
 
     function rowActions(g: Group): IAction[] {
         return [
@@ -99,6 +109,11 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
             {
                 title: t("Rename group"),
                 onClick: () => setModal({ kind: "rename", group: g }),
+                isDisabled: g.isProtected,
+            },
+            {
+                title: t("Move"),
+                onClick: () => setModal({ kind: "move", group: g }),
                 isDisabled: g.isProtected,
             },
             { isSeparator: true, title: "" },
@@ -152,6 +167,9 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                         </Select>
                     </ToolbarItem>
                     <ToolbarItem>
+                        <ContainerFilter ous={ous} value={containerFilter} onChange={setContainerFilter} />
+                    </ToolbarItem>
+                    <ToolbarItem>
                         <Label color="blue">{t("groups_count", { count: groups.length })}</Label>
                     </ToolbarItem>
                     <ToolbarItem align={{ default: "alignEnd" }}>
@@ -191,12 +209,12 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
             {/* ---- Empty state ---- */}
             {!loading && !error && filtered.length === 0 && (
                 <EmptyState
-                    titleText={search || typeFilter !== "all" ? t("No groups match the filter") : t("No groups found")}
+                    titleText={filtering ? t("No groups match the filter") : t("No groups found")}
                     headingLevel="h4"
                 >
                     <EmptyStateBody>
-                        {search || typeFilter !== "all"
-                            ? t("Try clearing the search or type filter.")
+                        {filtering
+                            ? t("Try clearing the search, type or container filter.")
                             : t("No domain groups are available.")}
                     </EmptyStateBody>
                 </EmptyState>
@@ -211,6 +229,7 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                             <Th>{t("ID")}</Th>
                             <Th>{t("Members")}</Th>
                             <Th>{t("Type")}</Th>
+                            <Th>{t("Container")}</Th>
                             <Th aria-label={t("Row actions")} />
                         </Tr>
                     </Thead>
@@ -225,6 +244,7 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                                         ? <Label color="orange">{t("Protected")}</Label>
                                         : <Label color="blue">{t("Custom")}</Label>}
                                 </Td>
+                                <Td dataLabel={t("Container")}><ContainerLabel dn={g.container} /></Td>
                                 <Td isActionCell>
                                     <ActionsColumn items={rowActions(g)} />
                                 </Td>
@@ -272,6 +292,14 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
             {modal.kind === "rename" && (
                 <RenameGroupModal
                     group={modal.group}
+                    onClose={() => setModal({ kind: "none" })}
+                    onSuccess={() => { setModal({ kind: "none" }); loadGroups(); }}
+                />
+            )}
+            {modal.kind === "move" && (
+                <MoveModal
+                    kind="group"
+                    items={[{ name: modal.group.name, container: modal.group.container, fixed: modal.group.isProtected }]}
                     onClose={() => setModal({ kind: "none" })}
                     onSuccess={() => { setModal({ kind: "none" }); loadGroups(); }}
                 />

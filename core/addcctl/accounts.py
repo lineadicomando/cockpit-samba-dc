@@ -7,7 +7,9 @@ deleting a computer with its DNS records). Built-in accounts are protected
 here, so every interface gets the same rules.
 """
 from . import ad
+from .ad import first
 from .errors import AddcError
+from .ous import Ous
 from .shares import Shares, check_principal_names
 
 _USER_ATTRS = [
@@ -19,7 +21,7 @@ _USER_ATTRS = [
 _GROUP_ATTRS = ["sAMAccountName", "description", "member", "objectSid", "isCriticalSystemObject",
                 "groupType", "mail"]
 _COMPUTER_ATTRS = ["sAMAccountName", "operatingSystem", "operatingSystemVersion", "objectSid",
-                   "dNSHostName", "lastLogon", "lastLogonTimestamp", "description"]
+                   "dNSHostName", "lastLogon", "lastLogonTimestamp", "description", "userAccountControl"]
 _USERS = "(&(objectClass=user)(!(objectClass=computer)))"
 
 # Settings of "user set" and the attributes they write directly
@@ -28,11 +30,6 @@ _DIRECT_ATTRS = {"description": "description", "title": "title", "department": "
 # Settings that "samba-tool user rename" writes, and its options
 _RENAME_OPTIONS = {"given_name": "--given-name", "surname": "--surname", "email": "--mail-address",
                    "new_name": "--samaccountname"}
-
-
-def first(record, attr, default=""):
-    values = record.get(attr) or [default]
-    return values[0]
 
 
 def _latest(*raws):
@@ -72,6 +69,10 @@ class Directory:
 
     def rid_groups(self):
         return {ad.rid(first(g, "objectSid")): first(g, "sAMAccountName") for g in self.groups()}
+
+    def container(self, record):
+        """The container of an entry, relative to the domain."""
+        return ad.relative_dn(ad.parent_dn(first(record, "dn")), self.dc.domain_dn)
 
     def name_of(self, dn, names):
         if dn.lower() in names:
@@ -120,6 +121,7 @@ class Users:
             "critical": first(record, "isCriticalSystemObject").upper() == "TRUE",
             "home_drive": first(record, "homeDrive"),
             "home_directory": first(record, "homeDirectory"),
+            "container": self.directory.container(record),
         }
 
     def _record(self, name):
@@ -160,7 +162,7 @@ class Users:
             "jobtitle": request.get("title") or None,
             "department": request.get("department") or None,
             "company": request.get("company") or None,
-            "userou": request.get("ou") or None,
+            "userou": _new_container(self.dc, self.runner, request.get("ou")),
         }
         self.dc.new_user(name, request["password"], **attributes)
         groups = request.get("groups") or []
@@ -226,6 +228,10 @@ class Users:
                                 % (new_name, request["primary_group"]))
             self.dc.samba_tool(["user", "setprimarygroup", new_name, request["primary_group"]])
             changed = True
+
+        if request.get("ou"):
+            refusal = "%s is a built-in account and cannot be moved" % before["name"] if self.protected(before) else None
+            changed = _move(self.dc, self.runner, self._dn(new_name, before), request["ou"], refusal) or changed
 
         if new_name != name:
             _follow_rename(self.dc, self.runner, "user", name, new_name)
@@ -319,6 +325,7 @@ class Groups:
             "category": category,
             "critical": critical,
             "protected": name.lower() in ad.PROTECTED_GROUPS or critical,
+            "container": self.directory.container(record),
         }
 
     def _primary_members(self):
@@ -355,7 +362,8 @@ class Groups:
         if self._record(name) is not None:
             raise AddcError('Group "%s" already exists' % name)
         grouptype = ad.group_type_value(request.get("scope", "global"), request.get("category", "security"))
-        self.dc.new_group(name, grouptype, description=request.get("description") or None)
+        self.dc.new_group(name, grouptype, description=request.get("description") or None,
+                          ou=_new_container(self.dc, self.runner, request.get("ou")))
         if request.get("members"):
             self.dc.change_members(name, request["members"], add=True)
         if self.runner.check:
@@ -387,6 +395,12 @@ class Groups:
         if "members" in request:
             changed = self._set_members(new_name, before, request["members"],
                                         request.get("members_mode", "replace")) or changed
+        if request.get("ou"):
+            if new_name != before["name"] and not self.runner.check:
+                self.directory = Directory(self.dc)
+            record = self._record(new_name) or self._record(before["name"])
+            refusal = "%s is a built-in group and cannot be moved" % before["name"] if before["protected"] else None
+            changed = _move(self.dc, self.runner, first(record, "dn"), request["ou"], refusal) or changed
         if new_name != before["name"]:
             _follow_rename(self.dc, self.runner, "group", before["name"], new_name)
         if changed and not self.runner.check:
@@ -435,10 +449,11 @@ class Computers:
     def __init__(self, dc, runner):
         self.dc = dc
         self.runner = runner
+        self.directory = Directory(dc)
 
-    @staticmethod
-    def _describe(record):
+    def _describe(self, record):
         sid = first(record, "objectSid")
+        uac = int(first(record, "userAccountControl", "0") or 0)
         return {
             "name": first(record, "sAMAccountName").rstrip("$"),
             "dn": first(record, "dn"),
@@ -449,6 +464,9 @@ class Computers:
             "dns_name": first(record, "dNSHostName"),
             "description": first(record, "description"),
             "last_logon": _latest(first(record, "lastLogonTimestamp"), first(record, "lastLogon")),
+            "container": self.directory.container(record),
+            "domain_controller": bool(uac & ad.UF_SERVER_TRUST_ACCOUNT)
+            or "ou=domain controllers," in first(record, "dn").lower(),
         }
 
     def _record(self, name):
@@ -461,20 +479,39 @@ class Computers:
                      if first(r, "sAMAccountName")]
         return sorted(computers, key=lambda c: c["name"].lower())
 
-    def get(self, name):
+    def _require(self, name):
         check_principal_names([name])
         record = self._record(name)
         if record is None:
             raise AddcError('Computer "%s" not found' % name)
-        return self._describe(record)
+        return record
+
+    def get(self, name):
+        return self._describe(self._require(name))
 
     def create(self, request):
         name = request["name"].rstrip("$")
         check_principal_names([name])
         if self._record(name) is not None:
             raise AddcError('Computer "%s" already exists' % name)
-        self.dc.new_computer(name, ou=request.get("ou") or None, description=request.get("description") or None)
+        self.dc.new_computer(name, ou=_new_container(self.dc, self.runner, request.get("ou")),
+                             description=request.get("description") or None)
         return {"changed": True, "computer": None if self.runner.check else self.get(name)}
+
+    def set(self, request):
+        """Bring a computer account to the given settings; settings left out
+        keep their value."""
+        record = self._require(request["name"].rstrip("$"))
+        before = self._describe(record)
+        changed = False
+        if "description" in request and (request["description"] or "") != before["description"]:
+            self.dc.modify(before["dn"], {"description": request["description"] or None})
+            changed = True
+        if request.get("ou"):
+            refusal = "%s is a domain controller and cannot be moved" % before["name"] if before["domain_controller"] else None
+            changed = _move(self.dc, self.runner, before["dn"], request["ou"], refusal) or changed
+        after = self.get(before["name"]) if changed and not self.runner.check else before
+        return {"changed": changed, "computer": after, "diff": {"before": before, "after": after}}
 
     def delete(self, request):
         name = request["name"].rstrip("$")
@@ -483,11 +520,30 @@ class Computers:
         if record is None:
             return {"changed": False, "diff": {"before": None, "after": None}}
         before = self._describe(record)
-        if "OU=Domain Controllers," in before["dn"]:
+        if before["domain_controller"]:
             raise AddcError("%s is a domain controller and cannot be deleted" % before["name"])
         # Also removes its DNS records
         self.dc.samba_tool(["computer", "delete", before["name"]])
         return {"changed": True, "diff": {"before": before, "after": None}}
+
+
+def _new_container(dc, runner, ou):
+    """The container a new account goes in, relative to the domain; None for the default."""
+    if not ou:
+        return None
+    ous = Ous(dc, runner)
+    return ous.relative(ous.container(ou))
+
+
+def _move(dc, runner, dn, ou, refusal=None):
+    """Move the account dn into the container ou, unless it is there;
+    refusal: the error when it may not move."""
+    ous = Ous(dc, runner)
+    if ad.parent_dn(dn).lower() == ous.container(ou).lower():
+        return False
+    if refusal:
+        raise AddcError(refusal)
+    return ous.move(dn, ou)
 
 
 def _follow_rename(dc, runner, kind, old, new):

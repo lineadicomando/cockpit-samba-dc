@@ -16,8 +16,8 @@ description:
     page does.
   - Runs C(addcctl group ...), the core of cockpit-samba-dc, on the domain
     controller itself; it needs elevated privileges (typically C(become=true)).
-  - Settings left unset keep their current value. addcctl refuses to delete
-    or rename the built-in groups.
+  - Settings left unset keep their current value. addcctl refuses to delete,
+    rename or move the built-in groups.
 extends_documentation_fragment:
   - lineadicomando.samba_dc.options.samba_group
 author:
@@ -41,6 +41,11 @@ EXAMPLES = r"""
     members: [verdi]
     members_mode: append
     create: false
+
+- name: Keep the group in the school's OU
+  lineadicomando.samba_dc.samba_group:
+    name: Staff
+    ou: OU=School
 """
 
 RETURN = r"""
@@ -78,7 +83,7 @@ def run_module():
     if before is None:
         if not p["create"]:
             module.fail_json(msg='Group "%s" not found' % p["name"])
-        request = dict(given(p, dict(description="description", scope="scope", category="category")),
+        request = dict(given(p, dict(description="description", scope="scope", category="category", ou="ou")),
                        name=p["name"])
         if p["members"] and p["members_mode"] != "remove":
             request["members"] = p["members"]
@@ -93,7 +98,7 @@ def run_module():
     for option in ("scope", "category"):
         if p[option] is not None and p[option] != before[option]:
             module.warn("The %s of an existing group is not changed: %s is %s" % (option, before["name"], before[option]))
-    request = given(p, dict(description="description", members="members", new_name="new_name"))
+    request = given(p, dict(description="description", members="members", new_name="new_name", ou="ou"))
     if p["members"] is not None:
         request["members_mode"] = p["members_mode"]
     if not request:

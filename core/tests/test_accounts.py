@@ -34,12 +34,20 @@ def group(name, rid, members=(), gtype="-2147483646", critical=False):
     return record
 
 
+def ou(dn, critical=False, cls="organizationalUnit"):
+    record = {"dn": ["%s,%s" % (dn, BASE)], "name": [dn.split(",")[0].split("=")[1]], "objectClass": ["top", cls]}
+    if critical:
+        record["isCriticalSystemObject"] = ["TRUE"]
+    return record
+
+
 class FakeDirDc:
     """A directory in memory, answering the filters addcctl uses."""
     workgroup = "SCHOOL"
     netbios_name = "DC"
     realm = "SCHOOL.INTERNAL"
     sysvol = "/nonexistent"
+    domain_dn = BASE
 
     def __init__(self, runner):
         self.runner = runner
@@ -56,11 +64,21 @@ class FakeDirDc:
                            "objectSid": [SID + "1300"], "objectClass": ["computer"]},
                           {"dn": ["CN=DC,OU=Domain Controllers,%s" % BASE], "sAMAccountName": ["DC$"],
                            "objectSid": [SID + "1000"], "objectClass": ["computer"]}]
+        self.containers = [ou("CN=Users", True, "container"), ou("CN=Computers", True, "container"),
+                           ou("CN=System", True, "container"), ou("OU=Domain Controllers", True),
+                           ou("OU=School"), ou("OU=Students,OU=School")]
         self.modified = []
         self.calls = []
 
+    def entries(self):
+        return self.users + self.groups + self.computers + self.containers
+
     def search(self, expression, attrs, base=None, scope="sub"):
         name = re.search(r"sAMAccountName=([^)]*)", expression)
+        if expression == "(objectClass=organizationalUnit)":
+            return [dict(r) for r in self.containers if "organizationalUnit" in r["objectClass"]]
+        if expression == "(objectClass=*)":
+            return [dict(r) for r in self.entries() if ad.is_under(r["dn"][0], base)]
         if "objectClass=group" in expression:
             pool = self.groups
         elif "objectClass=computer)" in expression and "!(" not in expression:
@@ -73,7 +91,51 @@ class FakeDirDc:
             pool = [r for r in pool if r["sAMAccountName"][0].lower() == name.group(1).lower()]
         return [dict(r) for r in pool]
 
+    def entry(self, dn, attrs):
+        found = [r for r in self.entries() if r["dn"][0].lower() == dn.lower()]
+        return dict(found[0]) if found else None
+
+    def absolute_dn(self, relative):
+        if not relative:
+            return BASE
+        if not all(c[:3].upper() in ("OU=", "CN=") for c in ad.split_dn(ad.relative_dn(relative, BASE))):
+            raise AddcError('Invalid DN: "%s"' % relative)
+        return relative if ad.is_under(relative, BASE) else "%s,%s" % (relative, BASE)
+
+    def child_dn(self, parent, attr, value):
+        return "%s=%s,%s" % (attr, value.replace(",", "\\,"), parent)
+
+    def rdn(self, dn):
+        attr, value = ad.split_dn(dn)[0].split("=", 1)
+        return attr, value
+
+    def rename_entry(self, old, new):
+        self._do("rename", old, new)
+        if not self.runner.check:
+            for r in self.entries():
+                if ad.is_under(r["dn"][0], old):
+                    r["dn"] = [r["dn"][0][:-len(old)] + new]
+
+    def new_ou(self, dn, description=None):
+        self._do("new_ou", dn)
+        if not self.runner.check:
+            record = {"dn": [dn], "name": [self.rdn(dn)[1]], "objectClass": ["top", "organizationalUnit"]}
+            if description:
+                record["description"] = [description]
+            self.containers.append(record)
+
+    def delete_entry(self, dn, tree=False):
+        self._do("delete", dn, tree)
+        if not self.runner.check:
+            for pool in (self.users, self.groups, self.computers, self.containers):
+                pool[:] = [r for r in pool if not ad.is_under(r["dn"][0], dn)]
+
     def domain_attrs(self, attrs):
+        if attrs == ["wellKnownObjects"]:
+            return {"wellKnownObjects": [
+                "B:32:A9D1CA15768811D1ADED00C04FD8D5CD:CN=Users," + BASE,
+                "B:32:AA312825768811D1ADED00C04FD8D5CD:CN=Computers," + BASE,
+                "B:32:A361B2FFFFD211D1AA4B00C04FD7D83A:OU=Domain Controllers," + BASE]}
         return {"pwdProperties": ["1"], "minPwdLength": ["7"], "pwdHistoryLength": ["24"],
                 "minPwdAge": ["-864000000000"], "maxPwdAge": ["-9223372036854775808"],
                 "lockoutThreshold": ["5"], "lockoutDuration": ["-18000000000"],
@@ -88,7 +150,7 @@ class FakeDirDc:
         self.modified.append((dn, changes))
 
     def new_user(self, name, password, **attributes):
-        self._do("new_user", name)
+        self._do("new_user", name, attributes.get("userou"))
         self.users.append(user(name, "1500"))
         self.last_password = password
 
@@ -107,15 +169,18 @@ class FakeDirDc:
     def change_members(self, grp, members, add):
         self._do("members", grp, "add" if add else "remove", tuple(members))
 
-    def new_group(self, name, grouptype, description=None):
-        self._do("new_group", name, grouptype)
+    def new_group(self, name, grouptype, description=None, ou=None):
+        self._do("new_group", name, grouptype, ou)
         self.groups.append(group(name, "1600"))
 
     def delete_group(self, name):
         self._do("delete_group", name)
 
     def new_computer(self, name, ou=None, description=None):
-        self._do("new_computer", name)
+        self._do("new_computer", name, ou)
+        self.computers.append({"dn": ["CN=%s,%s,%s" % (name, ou or "CN=Computers", BASE)],
+                               "sAMAccountName": [name + "$"], "objectSid": [SID + "1400"],
+                               "objectClass": ["computer"]})
 
     def samba_tool(self, args):
         self._do("samba-tool", *args)

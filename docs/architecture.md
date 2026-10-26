@@ -22,13 +22,13 @@ defaults of one school lab.
 
 The target below is reached for everything the project already did (A1–A5):
 one repository, `addcctl` on the DC with every operation of users, groups,
-computers, home directories, shared folders, drive mapping, the password
-policy (read), the domain overview, health checks and backups, and three
-interfaces on it: the page, the collection's
+computers, organizational units, home directories, shared folders, drive
+mapping, the password policy, the domain overview, health checks and
+backups, and three interfaces on it: the page, the collection's
 modules and `addcctl mcp`. What is left:
 
-- OUs are managed only by the collection's `samba_tool` role, which runs
-  `samba-tool` (`TODO.md`, section 5); its other read-only actions too.
+- The read-only actions of the collection's `samba_tool` role still run
+  `samba-tool` directly.
 - The roadmap (`TODO.md`, sections 4–8) adds every new feature as
   operations of the core first.
 

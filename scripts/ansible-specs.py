@@ -63,9 +63,10 @@ MODULES = {
             "title": field("user set", aliases=["job_title"]),
             "department": field("user set"),
             "company": field("user set"),
-            "ou": field("user create", description=[
-                "Container the user is created in, relative to the domain (e.g. C(OU=Students)). "
-                "Only used when the user is created."]),
+            "ou": field("user set", description=[
+                "Container of the user, relative to the domain (e.g. C(OU=Students,OU=School)): an OU or a "
+                "default container such as C(CN=Users). The user is created in it, or moved to it. "
+                "Default for a new user: C(CN=Users)."]),
             "enabled": field("user set"),
             "expires": field("user set", description=[
                 "When the account stops working, ISO 8601 with a time zone (e.g. C(2027-07-01T00:00:00+02:00)); "
@@ -100,16 +101,47 @@ MODULES = {
                 "this is already belong to it."]),
             "members_mode": field("group set"),
             "new_name": field("group set", description=["Rename the group; its shared folders follow the new name."]),
+            "ou": field("group set", description=[
+                "Container of the group, relative to the domain (e.g. C(OU=School)): an OU or a default "
+                "container such as C(CN=Users). The group is created in it, or moved to it. "
+                "Default for a new group: C(CN=Users)."]),
         },
     },
     "samba_computer": {
-        "ops": ["computer create", "computer delete"],
+        "ops": ["computer create", "computer set", "computer delete"],
         "options": {
             "name": field("computer delete"),
             "state": dict(STATE, own=dict(STATE["own"], description=[
-                "C(present) creates the account when it is missing; C(absent) deletes it."])),
-            "ou": field("computer create"),
-            "description": field("computer create", description=["Description, set when the account is created."]),
+                "C(present) creates the account when it is missing and brings it to the given settings; "
+                "C(absent) deletes it."])),
+            "ou": field("computer set", description=[
+                "Container of the account, relative to the domain (e.g. C(OU=Lab)): an OU or a default "
+                "container such as C(CN=Computers). The account is created in it, or moved to it. "
+                "Default for a new account: C(CN=Computers). A domain controller is never moved."]),
+            "description": field("computer set"),
+        },
+    },
+    "samba_ou": {
+        "ops": ["ou create", "ou set", "ou delete"],
+        "options": {
+            "name": field("ou create", required=True),
+            "parent": field("ou create", description=[
+                "The OU it is in, relative to the domain (e.g. C(OU=School)); empty: the domain itself."]),
+            "state": dict(STATE, own=dict(STATE["own"], description=[
+                "C(present) creates the OU when it is missing and brings it to the given settings; "
+                "C(absent) deletes it."])),
+            "description": field("ou set", description=[
+                "Description; an empty string removes it. Unset: kept on an existing OU."]),
+            "new_name": field("ou set", description=[
+                "Rename the OU. When O(name) is missing but O(new_name) exists, the OU was already renamed: "
+                "nothing to do."]),
+            "new_parent": field("ou set", "parent", description=[
+                "Move the OU, with everything in it, into this OU (relative to the domain); empty: the domain "
+                "itself. When O(name) is missing in O(parent) but present here, it was already moved."]),
+            "recursive": field("ou delete", description=[
+                "With O(state=absent), also delete the users, groups, computers and OUs in it; without it, an "
+                "OU that is not empty is not deleted. Home directories and entries in shared folders stay. "
+                "Built-in objects and domain controllers are never deleted: an OU holding one is refused."]),
         },
     },
     "samba_home": {

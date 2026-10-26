@@ -9,7 +9,7 @@ import {
     enableUser, disableUser, unlockUser, setAccountExpiry, modifyUser, setUserPassword, setPrimaryGroup,
     getPasswordPolicy, listGroupMembers, addGroupMembers, removeGroupMembers, renameGroup, createGroup,
     deleteComputer, provisionHomeDir, setPasswordPolicy, getUserPasswordPolicy, listPsos, createPso, updatePso,
-    deletePso,
+    deletePso, listOus, createOu, updateOu, deleteOu, moveUser, moveGroup, moveComputer, containerPath,
 } from "../src/lib/samba.ts";
 
 // Verbatim shape of addcctl's answers
@@ -18,13 +18,13 @@ const USER = {
     title: "", department: "", company: "", uid_number: "", sid: "S-1-5-21-1-2-3-1112", rid: "1112",
     enabled: true, locked_out: true, expires: "2025-08-18T14:13:20Z", last_logon: "2026-10-21T18:48:20Z",
     groups: ["Domain Admins", "Domain Users"], primary_group: "Domain Users", critical: false,
-    home_drive: "H:", home_directory: "\\\\DC\\home\\nrossi",
+    home_drive: "H:", home_directory: "\\\\DC\\home\\nrossi", container: "OU=Staff",
 };
 const KRBTGT = { ...USER, name: "krbtgt", cn: "krbtgt", rid: "502", enabled: false, locked_out: false, expires: null,
     last_logon: null, groups: ["Domain Users"], critical: true };
 const GROUP = { name: "Teachers", description: "", email: "", sid: "S-1-5-21-1-2-3-1108", rid: "1108",
     members: ["mrossi"], primary_members: ["bianchi", "mrossi"], member_count: 2, scope: "global",
-    category: "distribution", critical: false, protected: false };
+    category: "distribution", critical: false, protected: false, container: "CN=Users" };
 const CORE_POLICY = { complexity: true, min_length: 7, history_length: 24, min_age_days: 1, max_age_days: null,
     lockout_threshold: 0, lockout_duration_minutes: 30, lockout_window_minutes: 30 };
 const PSO = { ...CORE_POLICY, name: "Staff long", precedence: 5, min_length: 14, applies_to: ["Teachers"] };
@@ -34,8 +34,16 @@ const ANSWERS: Record<string, unknown> = {
     "pso list": { psos: [PSO] },
     "group list": { groups: [GROUP] },
     "group get": { group: GROUP },
+    "ou list": { ous: [
+        { dn: "CN=Users", name: "Users", description: "", parent: "", kind: "container", builtin: true,
+            default_for: "users" },
+        { dn: "OU=School", name: "School", description: "", parent: "", kind: "ou", builtin: false, default_for: null },
+        { dn: "OU=Rossi\\, Mario,OU=School", name: "Rossi, Mario", description: "x", parent: "OU=School", kind: "ou",
+            builtin: false, default_for: null },
+    ] },
     "computer list": { computers: [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", sid: "", rid: "1300", os: "",
-        os_version: "", dns_name: "", description: "", last_logon: null }] },
+        os_version: "", dns_name: "", description: "", last_logon: null, container: "CN=Computers",
+        domain_controller: false }] },
     "domain password-policy": { policy: { complexity: true, min_length: 7, history_length: 24, min_age_days: 1,
         max_age_days: null, lockout_threshold: 0, lockout_duration_minutes: 30, lockout_window_minutes: 30 } },
 };
@@ -74,6 +82,7 @@ describe("users", () => {
         assert.ok(k.isProtected && k.isStatusLocked);
         assert.equal(k.status, "Disabled");
         assert.equal(k.lastActivity, "");
+        assert.equal(u.container, "OU=Staff");
     });
 
     it("caches reads until a mutation", async () => {
@@ -160,7 +169,8 @@ describe("groups, computers, homes, policy", () => {
 
     it("computers, home directories and the password policy", async () => {
         await fresh();
-        assert.deepEqual(await listComputers(), [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", id: "1300", os: "-", lastLogon: "" }]);
+        assert.deepEqual(await listComputers(), [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", id: "1300", os: "-", lastLogon: "",
+            container: "CN=Computers", isDomainController: false }]);
         await deleteComputer("PC01");
         await provisionHomeDir("nrossi");
         assert.deepEqual(sent("computer delete"), [{ name: "PC01" }]);
@@ -225,5 +235,60 @@ describe("fine-grained password policies", () => {
         await fresh();
         const [pso] = await listPsos();
         await assert.rejects(createPso({ ...pso, appliesTo: ["-x"] }), /Invalid account name/);
+    });
+});
+
+describe("organizational units", () => {
+    it("reads the tree and the containers of accounts", async () => {
+        await fresh();
+        const ous = await listOus();
+        assert.deepEqual(ous.map(o => o.path), ["Users", "School", "School/Rossi, Mario"]);
+        assert.ok(ous[0].builtIn && !ous[0].isOu && ous[0].defaultFor === "users");
+        assert.equal(containerPath("OU=Students,OU=School"), "School/Students");
+        assert.equal(containerPath(""), "");
+    });
+
+    it("creates, changes only what differs, deletes", async () => {
+        await fresh();
+        const [, school, inner] = await listOus();
+        await createOu("1A", "OU=School", "");
+        assert.deepEqual(sent("ou create"), [{ name: "1A", parent: "OU=School" }]);
+        await updateOu(inner, { name: inner.name, parent: "ou=school", description: "x" });
+        assert.deepEqual(sent("ou set"), [], "nothing changed, case aside");
+        await updateOu(inner, { name: "Bianchi", parent: "", description: "" });
+        await updateOu(school, { name: "School", parent: "", description: "Main" });
+        assert.deepEqual(sent("ou set"), [
+            { dn: "OU=Rossi\\, Mario,OU=School", new_name: "Bianchi", parent: "", description: "" },
+            { dn: "OU=School", description: "Main" },
+        ]);
+        setSpawnHandler(() => JSON.stringify({ changed: true, deleted_accounts: ["s1"], commands: [], check: false }));
+        assert.deepEqual(await deleteOu("OU=School", true), ["s1"]);
+        assert.deepEqual(JSON.parse(calls[calls.length - 1].input!), { dn: "OU=School", recursive: true });
+    });
+
+    it("creates accounts in an OU and moves them", async () => {
+        await fresh();
+        await createUser("s1", "S3cret!pw", undefined, undefined, "OU=School");
+        await createGroup("g1", "OU=School");
+        await createGroup("g2");
+        assert.deepEqual(sent("user create"), [{ name: "s1", password: "S3cret!pw", ou: "OU=School" }]);
+        assert.deepEqual(sent("group create"), [{ name: "g1", ou: "OU=School" }, { name: "g2" }]);
+        await moveUser("s1", "CN=Users");
+        await moveGroup("g1", "CN=Users");
+        await moveComputer("PC01", "OU=School");
+        assert.deepEqual(sent("user set"), [{ name: "s1", ou: "CN=Users" }]);
+        assert.deepEqual(sent("group set"), [{ name: "g1", ou: "CN=Users" }]);
+        assert.deepEqual(sent("computer set"), [{ name: "PC01", ou: "OU=School" }]);
+    });
+
+    it("drops the cached lists after a move", async () => {
+        await fresh();
+        await listUsers();
+        await listOus();
+        await moveUser("nrossi", "OU=School");
+        calls.length = 0;
+        await listUsers();
+        await listOus();
+        assert.equal(calls.length, 2);
     });
 });

@@ -5,7 +5,7 @@ argument_specs:
     short_description: Manage a Samba AD DC object via samba-tool
     description:
       - Entry point for the samba_tool role. Dispatches an action against an
-        object (user, group, computer, ou), provisions a user home directory or
+        object (user, group, computer), provisions a user home directory or
         manages a shared folder.
       - Domain backup and restore live in the separate samba_dc_backup role.
     options:
@@ -13,7 +13,7 @@ argument_specs:
         description: The kind of object to act upon.
         type: str
         required: true
-        choices: [user, group, computer, ou, home, share]
+        choices: [user, group, computer, home, share]
       samba_tool_action:
         description: The samba-tool verb to run (e.g. create, delete, list, show, addmembers).
         type: str

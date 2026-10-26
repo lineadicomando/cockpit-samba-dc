@@ -89,5 +89,72 @@ def group_type_value(scope, category):
     return GROUP_SCOPES[scope] | (_SECURITY if category == "security" else 0)
 
 
+def first(record, attr, default=""):
+    """The first value of an attribute of a directory record."""
+    values = record.get(attr) or [default]
+    return values[0]
+
+
 def rid(sid):
     return sid.rsplit("-", 1)[-1] if sid else ""
+
+
+# userAccountControl of a domain controller's account
+UF_SERVER_TRUST_ACCOUNT = 0x2000
+
+# wellKnownObjects of the domain: the containers objects are created in
+WELL_KNOWN = {
+    "A9D1CA15768811D1ADED00C04FD8D5CD": "users",
+    "AA312825768811D1ADED00C04FD8D5CD": "computers",
+    "A361B2FFFFD211D1AA4B00C04FD7D83A": "domain_controllers",
+}
+
+
+def split_dn(dn):
+    """The components of a DN as they are written (escapes kept), split at
+    the commas that are not escaped."""
+    parts, current, escaped = [], "", False
+    for c in dn:
+        if escaped:
+            current += c
+            escaped = False
+        elif c == "\\":
+            current += c
+            escaped = True
+        elif c == ",":
+            parts.append(current)
+            current = ""
+        else:
+            current += c
+    if current or parts:
+        parts.append(current)
+    return parts
+
+
+def parent_dn(dn):
+    return ",".join(split_dn(dn)[1:])
+
+
+def relative_dn(dn, domain_dn):
+    """A DN relative to the domain ("" for the domain itself); a DN outside
+    it is returned as it is."""
+    if dn.lower() == domain_dn.lower():
+        return ""
+    suffix = "," + domain_dn.lower()
+    return dn[:-len(suffix)] if dn.lower().endswith(suffix) else dn
+
+
+def is_under(dn, ancestor):
+    """dn is ancestor or below it."""
+    return dn.lower() == ancestor.lower() or dn.lower().endswith("," + ancestor.lower())
+
+
+def well_known(values):
+    """{"users"|"computers"|"domain_controllers": DN} from the domain's
+    wellKnownObjects (B:32:<GUID>:<DN>)."""
+    found = {}
+    for value in values:
+        parts = value.split(":", 3)
+        if len(parts) == 4 and parts[2].upper() in WELL_KNOWN:
+            found[WELL_KNOWN[parts[2].upper()]] = parts[3]
+    return found

@@ -29,8 +29,18 @@ export type ComputerGetInput = {
     name: string;
 };
 
-/** computer list: List the computer accounts */
+/** computer list: List the computer accounts, with their container */
 export type ComputerListInput = Record<string, never>;
+
+/** computer set: Bring a computer account to the given settings; settings left out keep their value */
+export type ComputerSetInput = {
+    /** Description; empty removes it */
+    description?: string;
+    /** Computer name, with or without the trailing $ */
+    name: string;
+    /** Container to move it to: an OU or a default container (CN=Users, CN=Computers), relative to the domain */
+    ou?: string;
+};
 
 /** domain check: Run health checks on demand and report their output: samba-tool dbcheck (report only, nothing fixed), samba-tool ntacl sysvolcheck, testparm -s */
 export type DomainCheckInput = {
@@ -77,6 +87,8 @@ export type GroupCreateInput = {
     members?: string[];
     /** sAMAccountName of the group */
     name: string;
+    /** Container to create it in, relative to the domain; default CN=Users */
+    ou?: string;
     /** Default: global */
     scope?: "domain" | "global" | "universal";
 };
@@ -93,7 +105,7 @@ export type GroupGetInput = {
     name: string;
 };
 
-/** group list: List the groups, with their members */
+/** group list: List the groups, with their members and container */
 export type GroupListInput = Record<string, never>;
 
 /** group set: Bring a group to the given settings; settings left out keep their value. A new name also renames it in the shared folders */
@@ -108,6 +120,8 @@ export type GroupSetInput = {
     name: string;
     /** New sAMAccountName */
     new_name?: string;
+    /** Container to move it to: an OU or a default container (CN=Users, CN=Computers), relative to the domain */
+    ou?: string;
 };
 
 /** home delete: Clear a user's home drive; with delete_data, also remove its folder */
@@ -124,6 +138,45 @@ export type HomeProvisionInput = {
     drive?: string;
     /** sAMAccountName of the user */
     name: string;
+};
+
+/** ou create: Create an organizational unit */
+export type OuCreateInput = {
+    /** Description */
+    description?: string;
+    /** Name of the OU */
+    name: string;
+    /** OU to create it in, relative to the domain; empty: the domain itself */
+    parent?: string;
+};
+
+/** ou delete: Delete an organizational unit (not a default container). One with objects in it only with recursive, which deletes them too: their home directories and their entries in shared folders stay */
+export type OuDeleteInput = {
+    /** DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School) */
+    dn: string;
+    /** Also delete everything in it (never built-in objects or domain controllers) */
+    recursive?: boolean;
+};
+
+/** ou get: One organizational unit or default container */
+export type OuGetInput = {
+    /** DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School) */
+    dn: string;
+};
+
+/** ou list: List the organizational units and the default containers (CN=Users, CN=Computers), parents first */
+export type OuListInput = Record<string, never>;
+
+/** ou set: Rename, move or describe an organizational unit, with everything in it; settings left out keep their value. The default containers are never renamed or moved */
+export type OuSetInput = {
+    /** Description; empty removes it */
+    description?: string;
+    /** DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School) */
+    dn: string;
+    /** New name */
+    new_name?: string;
+    /** OU to move it to, relative to the domain; empty: the domain itself */
+    parent?: string;
 };
 
 /** pso create: Create a fine-grained password policy (PSO); settings left out take the domain's. Needs the domain functional level 2008 or higher */
@@ -287,7 +340,7 @@ export type UserGetInput = {
     name: string;
 };
 
-/** user list: List the domain users, with their groups, status, lockout and expiry */
+/** user list: List the domain users, with their groups, status, lockout, expiry and container */
 export type UserListInput = Record<string, never>;
 
 /** user password: Set a user's password */
@@ -324,6 +377,8 @@ export type UserSetInput = {
     name: string;
     /** New sAMAccountName */
     new_name?: string;
+    /** Container to move it to: an OU or a default container (CN=Users, CN=Computers), relative to the domain */
+    ou?: string;
     /** Primary group, one the user belongs to */
     primary_group?: string;
     /** Surname */
@@ -345,6 +400,7 @@ export interface AddcctlInputs {
     "computer delete": ComputerDeleteInput;
     "computer get": ComputerGetInput;
     "computer list": ComputerListInput;
+    "computer set": ComputerSetInput;
     "domain check": DomainCheckInput;
     "domain info": DomainInfoInput;
     "domain password-policy": DomainPasswordPolicyInput;
@@ -357,6 +413,11 @@ export interface AddcctlInputs {
     "group set": GroupSetInput;
     "home delete": HomeDeleteInput;
     "home provision": HomeProvisionInput;
+    "ou create": OuCreateInput;
+    "ou delete": OuDeleteInput;
+    "ou get": OuGetInput;
+    "ou list": OuListInput;
+    "ou set": OuSetInput;
     "pso create": PsoCreateInput;
     "pso delete": PsoDeleteInput;
     "pso get": PsoGetInput;

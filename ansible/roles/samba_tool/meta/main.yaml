@@ -2,7 +2,7 @@
 ---
 galaxy_info:
   author: Alessandro Gagliano
-  description: Manage Samba AD DC objects (users, groups, computers, OUs, home directories, shared folders)
+  description: Manage Samba AD DC objects (users, groups, computers, home directories, shared folders)
   license: GPL-3.0-or-later
   min_ansible_version: "2.15"
   platforms:

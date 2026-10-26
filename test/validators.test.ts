@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName } from "../src/lib/validators.ts";
 import type { PasswordPolicy } from "../src/lib/types.ts";
 
 describe("validateUsername", () => {
@@ -182,5 +182,15 @@ describe("PSOs", () => {
         assert.equal(validatePso("a\tb", 10), "invalidChars");
         assert.equal(validatePso("x", 0), "precedence");
         assert.equal(validatePso("x", NaN), "precedence");
+    });
+});
+
+describe("validateOuName", () => {
+    it("refuses what addcctl refuses", () => {
+        assert.equal(validateOuName("Classe 1A, sez. B"), null);
+        assert.equal(validateOuName(""), "empty");
+        assert.equal(validateOuName(" x"), "surroundingSpaces");
+        assert.equal(validateOuName("x".repeat(65)), "tooLong");
+        assert.equal(validateOuName("a\nb"), "invalidChars");
     });
 });

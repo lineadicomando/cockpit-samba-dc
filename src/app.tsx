@@ -15,6 +15,7 @@ import { GroupsPage } from "./components/GroupsPage.tsx";
 import { ComputersPage } from "./components/ComputersPage.tsx";
 import { SharesPage } from "./components/SharesPage.tsx";
 import { DomainPage } from "./components/DomainPage.tsx";
+import { OusPage } from "./components/OusPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
 import { useCockpitLocation } from "./lib/hooks.ts";
 import { VERSION } from "./lib/version.ts";
@@ -25,8 +26,10 @@ export function App() {
   const location = useCockpitLocation();
   const detailUsername = location.path.length > 0 ? location.path[0] : null;
 
-  // Lists stay mounted (hidden) while the detail page is shown; bump a token
-  // on the way back so they refetch what may have been edited there.
+  // Lists stay mounted (hidden) while the detail page or another tab is
+  // shown; bump a token on the way back so they refetch what may have been
+  // edited there, and when an OU changes (renaming or moving one moves what
+  // is in it).
   const [listRefreshToken, setListRefreshToken] = useState(0);
   const prevDetailRef = useRef(detailUsername);
   useEffect(() => {
@@ -58,7 +61,12 @@ export function App() {
         <PageSection type="tabs" padding={{ default: "noPadding" }}>
           <Tabs
             activeKey={activeTab}
-            onSelect={(_e, key) => setActiveTab(key)}
+            onSelect={(_e, key) => {
+              setActiveTab(key);
+              // A change made in one tab can show in another (a move, an OU
+              // renamed): read again, from the cache unless a change dropped it
+              setListRefreshToken((n) => n + 1);
+            }}
             mountOnEnter
           >
             <Tab eventKey="users" title={<TabTitleText>{t("Users")}</TabTitleText>}>
@@ -77,7 +85,16 @@ export function App() {
               eventKey="computers"
               title={<TabTitleText>{t("Computers")}</TabTitleText>}
             >
-              <ComputersPage />
+              <ComputersPage refreshToken={listRefreshToken} />
+            </Tab>
+            <Tab
+              eventKey="ous"
+              title={<TabTitleText>{t("Organizational units")}</TabTitleText>}
+            >
+              <OusPage
+                refreshToken={listRefreshToken}
+                onChange={() => setListRefreshToken((n) => n + 1)}
+              />
             </Tab>
             <Tab
               eventKey="domain"

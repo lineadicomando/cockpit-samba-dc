@@ -9,11 +9,12 @@ import {
     FormHelperText, HelperText, HelperTextItem,
 } from "@patternfly/react-core";
 import { createUser, getPasswordPolicy, addGroupMembers, setPrimaryGroup } from "../../lib/samba.ts";
-import { usePasswordPolicy, usePasswordGenerator } from "../../lib/hooks.ts";
+import { usePasswordPolicy, usePasswordGenerator, useOus } from "../../lib/hooks.ts";
 import { checkPasswordAgainstPolicy } from "../../lib/passwordUtils.ts";
 import { validateUsername, usernameViolationMessage } from "../../lib/validators.ts";
 import { PasswordField, PasswordPolicyInfo, PasswordPolicyUnavailable } from "../PasswordField.tsx";
 import { GroupMultiSelect } from "../GroupMultiSelect.tsx";
+import { ContainerSelect, accountContainers } from "../ContainerSelect.tsx";
 
 interface Props {
     onClose: () => void;
@@ -29,6 +30,8 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
     const [surname, setSurname] = useState("");
     const [groups, setGroups] = useState<string[]>([]);
     const [primaryGroup, setPrimaryGroupState] = useState("");
+    const [ou, setOu] = useState("");
+    const { ous } = useOus();
     const [error, setError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const { policy, policyError } = usePasswordPolicy();
@@ -70,7 +73,7 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
                 setSubmitting(false);
                 return;
             }
-            await createUser(trimmed, password, givenName.trim() || undefined, surname.trim() || undefined);
+            await createUser(trimmed, password, givenName.trim() || undefined, surname.trim() || undefined, ou);
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
             setSubmitting(false);
@@ -138,6 +141,11 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
                     </FormGroup>
                     <FormGroup label={t("Surname")} fieldId="cu-surname">
                         <TextInput id="cu-surname" value={surname} onChange={(_e, v) => setSurname(v)} placeholder={t("Optional")} />
+                    </FormGroup>
+                    <FormGroup label={t("Container")} fieldId="cu-ou">
+                        <ContainerSelect id="cu-ou" value={ou} onChange={setOu}
+                            choices={accountContainers(ous).filter(o => o.defaultFor !== "users")}
+                            emptyLabel={t("Default (Users)")} isDisabled={submitting} />
                     </FormGroup>
                     <FormGroup label={t("Groups")} fieldId="cu-groups">
                         <GroupMultiSelect selected={groups} onChange={handleGroupsChange} isDisabled={submitting} />

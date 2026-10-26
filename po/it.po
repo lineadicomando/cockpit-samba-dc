@@ -434,9 +434,6 @@ msgstr "Nessun utente corrisponde al filtro"
 msgid "No domain users are available."
 msgstr "Nessun utente di dominio disponibile."
 
-msgid "Try clearing the search, status or group filter."
-msgstr "Prova a rimuovere il filtro di ricerca, stato o gruppo."
-
 msgid "No groups found"
 msgstr "Nessun gruppo trovato"
 
@@ -445,9 +442,6 @@ msgstr "Nessun gruppo corrisponde al filtro"
 
 msgid "No domain groups are available."
 msgstr "Nessun gruppo di dominio disponibile."
-
-msgid "Try clearing the search filter."
-msgstr "Prova a rimuovere il filtro di ricerca."
 
 msgid "No computers found"
 msgstr "Nessun computer trovato"
@@ -659,9 +653,6 @@ msgstr "La password non soddisfa i requisiti di complessità."
 
 msgid "Show password"
 msgstr "Mostra password"
-
-msgid "Try clearing the search or type filter."
-msgstr "Prova a rimuovere il filtro di ricerca o di tipo."
 
 msgid "User \"{{name}}\" was created, but group assignment failed: {{error}}"
 msgstr "L'utente \"{{name}}\" è stato creato, ma l'assegnazione dei gruppi non è riuscita: {{error}}"
@@ -1356,3 +1347,129 @@ msgstr "Si applica la policy delle password del dominio."
 
 msgid "The fine-grained policy {{name}} applies."
 msgstr "Si applica la policy specifica {{name}}."
+
+# ---------------------------------------------------------------------------
+# Unità organizzative
+# ---------------------------------------------------------------------------
+
+msgid "Organizational units"
+msgstr "Unità organizzative"
+
+msgid "Organizational units table"
+msgstr "Tabella delle unità organizzative"
+
+msgid "ous_count"
+msgid_plural "ous_count_plural"
+msgstr[0] "{{count}} unità organizzativa"
+msgstr[1] "{{count}} unità organizzative"
+
+msgid "Create organizational unit"
+msgstr "Crea unità organizzativa"
+
+msgid "Create OU in it"
+msgstr "Crea una OU al suo interno"
+
+msgid "Edit description"
+msgstr "Modifica descrizione"
+
+msgid "Edit {{name}}"
+msgstr "Modifica {{name}}"
+
+msgid "Built-in"
+msgstr "Predefinito"
+
+msgid "Collapse"
+msgstr "Comprimi"
+
+msgid "Expand"
+msgstr "Espandi"
+
+msgid "Failed to load organizational units"
+msgstr "Impossibile caricare le unità organizzative"
+
+msgid "Loading organizational units"
+msgstr "Caricamento delle unità organizzative"
+
+msgid "No organizational units found"
+msgstr "Nessuna unità organizzativa trovata"
+
+msgid "Create one to organize users, groups and computers."
+msgstr "Creane una per organizzare utenti, gruppi e computer."
+
+msgid "In"
+msgstr "In"
+
+msgid "Renaming or moving an OU takes everything in it along."
+msgstr "Rinominando o spostando una OU si sposta anche tutto ciò che contiene."
+
+msgid "Delete OU: {{name}}"
+msgstr "Elimina OU: {{name}}"
+
+msgid "The OU is empty."
+msgstr "La OU è vuota."
+
+msgid "Everything in this OU is deleted with it. This cannot be undone."
+msgstr "Tutto ciò che la OU contiene viene eliminato con essa. L'operazione non è reversibile."
+
+msgid "Home directories and the entries of shared folders stay, as when an account is deleted."
+msgstr "Le cartelle home e le voci delle cartelle condivise restano, come quando si elimina un account."
+
+msgid "Delete the OU and everything in it"
+msgstr "Elimina la OU e tutto ciò che contiene"
+
+msgid "Container"
+msgstr "Contenitore"
+
+msgid "All containers"
+msgstr "Tutti i contenitori"
+
+msgid "Filter containers…"
+msgstr "Filtra contenitori…"
+
+msgid "Default (Users)"
+msgstr "Predefinito (Users)"
+
+msgid "Choose a container"
+msgstr "Scegli un contenitore"
+
+msgid "Already in this container."
+msgstr "Già in questo contenitore."
+
+msgid "Move"
+msgstr "Sposta"
+
+msgid "Move to"
+msgstr "Sposta in"
+
+msgid "Move users"
+msgstr "Sposta utenti"
+
+msgid "Move groups"
+msgstr "Sposta gruppi"
+
+msgid "Move computers"
+msgstr "Sposta computer"
+
+msgid "objects_will_be_moved"
+msgid_plural "objects_will_be_moved_plural"
+msgstr[0] "Verrà spostato:"
+msgstr[1] "Questi {{count}} verranno spostati:"
+
+msgid "objects_moved"
+msgid_plural "objects_moved_plural"
+msgstr[0] "{{count}} spostato."
+msgstr[1] "{{count}} spostati."
+
+msgid "objects_stay"
+msgid_plural "objects_stay_plural"
+msgstr[0] "{{count}} resta dov'è (predefinito, o un domain controller)"
+msgstr[1] "{{count}} restano dove sono (predefiniti, o domain controller)"
+
+msgid "Try clearing the search or container filter."
+msgstr "Prova a rimuovere il filtro di ricerca o di contenitore."
+
+msgid "Try clearing the search, status, group or container filter."
+msgstr "Prova a rimuovere il filtro di ricerca, stato, gruppo o contenitore."
+
+msgid "Try clearing the search, type or container filter."
+msgstr "Prova a rimuovere il filtro di ricerca, tipo o contenitore."

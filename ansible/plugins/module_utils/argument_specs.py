@@ -40,12 +40,22 @@ _SPECS = {
         'members': {'type': 'list', 'elements': 'str'},
         'members_mode': {'type': 'str', 'default': 'replace', 'choices': ['replace', 'append', 'remove']},
         'new_name': {'type': 'str'},
+        'ou': {'type': 'str'},
     },
     'samba_computer': {
         'name': {'type': 'str', 'required': True},
         'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},
         'ou': {'type': 'str'},
         'description': {'type': 'str'},
+    },
+    'samba_ou': {
+        'name': {'type': 'str', 'required': True},
+        'parent': {'type': 'str', 'default': ''},
+        'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},
+        'description': {'type': 'str'},
+        'new_name': {'type': 'str'},
+        'new_parent': {'type': 'str'},
+        'recursive': {'type': 'bool', 'default': False},
     },
     'samba_home': {
         'name': {'type': 'str', 'required': True},

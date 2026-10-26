@@ -14,12 +14,13 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 ## Features
 
 - **Users** — list, create, edit (first and last name, e-mail, account name), reset password, enable/disable, unlock accounts locked out after failed logons, account expiry date, delete, group membership and primary group, home directory (H:) provisioning; bulk enable, disable, unlock, set expiry, delete, add to or remove from a group, change primary group, provision home directories
-- **Groups** — list, create, rename, delete, member management (add/remove)
+- **Groups** — list, create, rename, move to an OU, delete, member management (add/remove)
 - **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
-- **Computers** — list, delete
+- **Computers** — list, move to an OU, delete
+- **Organizational units** — a tree of the OUs and the default containers, with the users, groups and computers in each; create, rename, move (with everything in them), describe and delete them (one that is not empty after an explicit confirmation, with what is in it); the container shown and filtered in the users, groups and computers lists, chosen when a user or group is created; users moved one at a time or in bulk, groups and computers one at a time. The default containers (`Users`, `Computers`, `Domain Controllers`) and the built-in accounts stay where they are
 - **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), the password and lockout policy of the domain (complexity, length, history, minimum and maximum age, lockout threshold, duration and reset) and fine-grained policies (PSOs) for chosen users and groups, the one that applies shown on the user page, offline backups of the domain
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
-- Live search and filters in every section (users also by locked out and expired)
+- Live search and filters in every section (users also by locked out and expired; users, groups and computers by container)
 - English and Italian interface, following Cockpit's language
 - Full support for Cockpit light/dark theme
 - The installed version is shown next to the page title
@@ -164,9 +165,9 @@ both files) when the client only needs to look.
 
 `ansible/` holds the collection `lineadicomando.samba_dc`: `samba_dc_build`
 provisions a Samba AD DC on Debian 13 and installs this module from its
-Debian package; `samba_tool`, `samba_share` and the other roles and modules
-manage users, groups, home directories and shared folders as the module
-does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
+Debian package; `samba_tool`, `samba_share`, `samba_ou` and the other roles
+and modules manage users, groups, organizational units, home directories and
+shared folders as the module does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
 an MCP server runs the build and the backup for an MCP client. It has the version of
 the repository (collection `X.Y.Z` is release `vX.Y.Z`, whose
 `samba_dc_build` installs this module `X.Y.Z`), and is installed from git:

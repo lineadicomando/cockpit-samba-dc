@@ -2,7 +2,7 @@
 # Role: samba_tool
 
 A wrapper around `samba-tool` to manage the objects of a Samba 4 AD DC (users,
-groups, computers, OUs), to provision user home directories and to manage
+groups, computers), to provision user home directories and to manage
 shared folders, from playbooks (`lineadicomando.samba_dc.samba`). An MCP
 client manages the same objects through `addcctl mcp` on the DC.
 
@@ -16,10 +16,10 @@ It runs **on the domain controller** and requires elevated privileges
 
 | Variable | Description |
 |----------|-------------|
-| `samba_tool_object` | `user` \| `group` \| `computer` \| `ou` \| `home` \| `share` |
+| `samba_tool_object` | `user` \| `group` \| `computer` \| `home` \| `share` |
 | `samba_tool_action` | samba-tool verb (`create`, `delete`, `list`, `show`, `addmembers`, …) |
 | `samba_tool_args` | dictionary of action-specific arguments. `name` is required for every action except `list` |
-| `samba_tool_bin` | path to samba-tool, for the read-only actions and the OUs (default `samba-tool`) |
+| `samba_tool_bin` | path to samba-tool, for the read-only actions (default `samba-tool`) |
 | `samba_tool_shares_dir` | directory holding the shared folders (default `/srv/samba/shares`) |
 | `samba_tool_no_log` | hide the output of tasks containing passwords (default `true`) |
 
@@ -30,7 +30,6 @@ It runs **on the domain controller** and requires elevated privileges
 | `user` | `list`, `show`, `create`, `present`, `delete`, `absent`, `enable`, `disable`, `setpassword`, `setprimarygroup` |
 | `group` | `list`, `show`, `listmembers`, `add`, `create`, `delete`, `absent`, `addmembers`, `removemembers` |
 | `computer` | `list`, `show`, `create`, `delete`, `absent` |
-| `ou` | `list`, `listobjects`, `create`, `delete`, `absent` |
 | `home` | `provision`, `absent` |
 | `share` | `list`, `show`, `create`, `present`, `grant`, `revoke`, `delete`, `absent` |
 
@@ -54,7 +53,6 @@ same code. All support check mode and diff, and apply only what differs.
   are compared regardless of order and case, the ACL of the share folder by
   uid/gid, and the drive mapping by its targets, so a share saved from Cockpit
   in a different order is not rewritten.
-- **ou**: the current state is read before acting (samba-tool).
 
 addcctl protects the built-in accounts and groups (not deleted or renamed,
 Administrator's and krbtgt's status unchanged, no expiry on system accounts)
@@ -176,14 +174,10 @@ ansible-playbook lineadicomando.samba_dc.samba \
        "samba_tool_args":{"name":"alice","password":"..."}}'
 ```
 
-## Known limitations
+## Organizational units
 
-For users, attributes (given name, surname, mail, …) are applied **only at
-creation time**. Modifying attributes on existing users, moving users between
-OUs and changing account expiry are not yet supported: `samba-tool` offers no
-scriptable, idempotent sub-command for these cases (they would require
-`ldbmodify`). They are planned as an evolution of the module.
-
-Passwords are passed to `samba-tool` on the command line, because it cannot read
-them from stdin: they are visible in the process list of the DC for the duration
-of the call.
+The OU actions are gone (collection 0.12.0): use the
+[`samba_ou`](../../plugins/modules/samba_ou.py) module, which runs addcctl,
+and the `ou` option of `samba_user`, `samba_group` and `samba_computer` to
+put objects in an OU. The `ou` argument of the `user`, `group` and `computer`
+actions here passes to them.

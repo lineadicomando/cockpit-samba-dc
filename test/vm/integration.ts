@@ -18,7 +18,8 @@ import { join } from "node:path";
 import cockpit from "cockpit";
 import {
     addGroupMembers, createGroup, createUser, deleteGroup, deleteUser, getPasswordPolicy, modifyUser, provisionHomeDir,
-    renameGroup, setPasswordPolicy, createPso, listPsos, updatePso, deletePso,
+    renameGroup, setPasswordPolicy, createPso, listPsos, updatePso, deletePso, createOu, listOus, updateOu, deleteOu,
+    moveUser,
 } from "../../src/lib/samba.ts";
 import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
@@ -73,8 +74,16 @@ interface Driver {
     createPso(name: string, minLength: number, appliesTo: string[]): Promise<void>;
     appendToPso(name: string, account: string): Promise<void>;
     deletePso(name: string): Promise<void>;
+    // An OU in parent ("" the domain); rename it; delete it with what is in it
+    createOu(name: string, parent: string): Promise<void>;
+    renameOu(name: string, parent: string, newName: string): Promise<void>;
+    deleteOu(name: string, parent: string): Promise<void>;
+    // Move a user into a container (relative DN)
+    moveUser(name: string, ou: string): Promise<void>;
     close?(): void;
 }
+
+const ouDn = (name: string, parent: string) => (parent ? `OU=${name},${parent}` : `OU=${name}`);
 
 const realm = () => env.DOMAIN_REALM!.toUpperCase();
 
@@ -138,6 +147,13 @@ const page: Driver = {
         await updatePso(pso, { ...pso, appliesTo: [...pso.appliesTo, account] });
     },
     deletePso: name => deletePso(name),
+    createOu: (name, parent) => createOu(name, parent, ""),
+    async renameOu(name, parent, newName) {
+        const ou = (await listOus()).find(o => o.dn === ouDn(name, parent))!;
+        await updateOu(ou, { name: newName, parent: ou.parent, description: ou.description });
+    },
+    deleteOu: async (name, parent) => { await deleteOu(ouDn(name, parent), true); },
+    moveUser: (name, ou) => moveUser(name, ou),
 };
 
 // --- the Ansible modules, one playbook per step
@@ -180,6 +196,10 @@ function ansibleDriver(): Driver {
             play("samba_pso", { name, precedence: 10, min_length: minLength, applies_to: appliesTo }),
         appendToPso: (name, account) => play("samba_pso", { name, applies_to: [account], applies_to_mode: "append" }),
         deletePso: name => play("samba_pso", { name, state: "absent" }),
+        createOu: (name, parent) => play("samba_ou", { name, parent }),
+        renameOu: (name, parent, newName) => play("samba_ou", { name, parent, new_name: newName }),
+        deleteOu: (name, parent) => play("samba_ou", { name, parent, state: "absent", recursive: true }),
+        moveUser: (name, ou) => play("samba_user", { name, ou }),
         setPolicy: (changes, check) => play("samba_password_policy",
             Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v === null ? 0 : v])), check),
         close: () => rmSync(dir, { recursive: true, force: true }),
@@ -260,6 +280,10 @@ async function mcpDriver(): Promise<Driver> {
             await tool("pso_set", { name, applies_to: [account], applies_to_mode: "append" });
         },
         deletePso: async name => { await tool("pso_delete", { name }); },
+        createOu: async (name, parent) => { await tool("ou_create", { name, parent }); },
+        renameOu: async (name, parent, newName) => { await tool("ou_set", { dn: ouDn(name, parent), new_name: newName }); },
+        deleteOu: async (name, parent) => { await tool("ou_delete", { dn: ouDn(name, parent), recursive: true }); },
+        moveUser: async (name, ou) => { await tool("user_set", { name, ou }); },
         async setPolicy(changes, check) {
             const out = await tool("domain_set_password_policy", { ...changes, ...(check ? { check: true } : {}) });
             assert.equal(out.changed, true);
@@ -314,7 +338,7 @@ async function step(name: string, fn: () => Promise<void>): Promise<boolean> {
 async function scenario(driver: Driver, letter: string): Promise<void> {
     const p = `t-${driver.name[0]}-`;
     const group = `${p}staff`, group2 = `${p}team`, user = `${p}user`, user2 = `${p}user2`, share = `${p}docs`;
-    const pso = `${p}pso`;
+    const pso = `${p}pso`, ou = `${p}ou`, ou2 = `${p}ou2`, inner = `${p}inner`, computer = `${p}pc`.slice(0, 15);
     const access: Access[] = [
         { name: group, kind: "group", level: "write" },
         { name: "student1", kind: "user", level: "read" },
@@ -387,6 +411,34 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
                 await core("pso delete", { name: pso });
             }
         });
+        await step(`OU ${ou}/${inner}: ${user2} moved in, the OU renamed, deleted with what is in it`, async () => {
+            const container = async (name: string) =>
+                ((await core("user get", { name })).user as { container: string }).container;
+            try {
+                await driver.createOu(ou, "");
+                await driver.createOu(inner, `OU=${ou}`);
+                await driver.moveUser(user2, `OU=${inner},OU=${ou}`);
+                assert.equal(await container(user2), `OU=${inner},OU=${ou}`);
+                // Its shares and logons do not depend on where it is
+                await smb(share, user2, "ls");
+                await driver.renameOu(ou, "", ou2);
+                assert.equal(await container(user2), `OU=${inner},OU=${ou2}`);
+                await assert.rejects(core("ou delete", { dn: `OU=${ou2}` }), /not empty/);
+                await driver.moveUser(user2, "CN=Users");
+                assert.equal(await container(user2), "CN=Users");
+                // A computer in it goes with its DNS records
+                await core("computer create", { name: computer, ou: `OU=${inner},OU=${ou2}` });
+                await driver.deleteOu(ou2, "");
+                const left = ((await core("ou list")).ous as { dn: string }[]).filter(o => o.dn.includes(p));
+                assert.deepEqual(left, []);
+                await assert.rejects(core("computer get", { name: computer }), /not found/);
+                assert.equal(await container(user2), "CN=Users", "the user moved out stays");
+            } finally {
+                const u = await present("user list", "users", user2);
+                if (u && !(await container(u)).startsWith("CN=")) await core("user set", { name: u, ou: "CN=Users" });
+                await sweepOus(p);
+            }
+        });
     } finally {
         // Through the driver, then whatever is left through addcctl
         const u = await present("user list", "users", user2, user) ?? user;
@@ -444,9 +496,19 @@ async function present(operation: string, key: string, ...names: string[]): Prom
     return names.find(n => all.includes(n));
 }
 
+// Deletes the top OUs named with prefix, with what is in them
+async function sweepOus(prefix: string): Promise<void> {
+    for (const o of (await core("ou list")).ous as { dn: string; name: string; parent: string }[]) {
+        if (o.name.startsWith(prefix) && !o.parent.includes(prefix)) {
+            await core("ou delete", { dn: o.dn, recursive: true }).catch(() => undefined);
+        }
+    }
+}
+
 // Removes what a failed run left behind, named with prefix
 async function sweep(prefix: string, quietly = false): Promise<boolean> {
     const quiet = (p: Promise<unknown>) => p.catch(() => undefined);
+    await sweepOus(prefix);
     for (const s of (await core("share list")).shares as { name: string }[]) {
         if (s.name.startsWith(prefix)) await quiet(core("share delete", { name: s.name, delete_data: true }));
     }

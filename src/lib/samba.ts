@@ -1,7 +1,7 @@
 import { cache, checkName } from "./exec.ts";
 import { addcctl } from "./addcctl.ts";
 import type { DomainSetPasswordPolicyInput, PsoCreateInput } from "./addcctl-schema.ts";
-import type { User, Group, Computer, PasswordPolicy, Pso, EffectivePolicy } from "./types.ts";
+import type { User, Group, Computer, PasswordPolicy, Pso, EffectivePolicy, Ou } from "./types.ts";
 
 // Users, groups, computers, home directories and the password policy are
 // operations of addcctl, the core on the DC: it reads sam.ldb, makes the
@@ -29,6 +29,7 @@ interface CoreUser {
     critical: boolean;
     home_drive: string;
     home_directory: string;
+    container: string;
 }
 
 interface CoreGroup {
@@ -41,6 +42,7 @@ interface CoreGroup {
     category: "security" | "distribution";
     critical: boolean;
     protected: boolean;
+    container: string;
 }
 
 interface CoreComputer {
@@ -49,6 +51,18 @@ interface CoreComputer {
     rid: string;
     os: string;
     last_logon: string | null;
+    container: string;
+    domain_controller: boolean;
+}
+
+interface CoreOu {
+    dn: string;
+    name: string;
+    description: string;
+    parent: string;
+    kind: "ou" | "container";
+    builtin: boolean;
+    default_for: Ou["defaultFor"];
 }
 
 interface CorePolicy {
@@ -119,6 +133,7 @@ function toUser(u: CoreUser): User {
         lockedOut: u.locked_out,
         accountExpires,
         expired: accountExpires !== null && accountExpires <= Date.now(),
+        container: u.container ?? "",
     };
 }
 
@@ -132,11 +147,49 @@ function toGroup(g: CoreGroup): Group {
         isCriticalSystemObject: g.critical,
         isProtected: g.protected,
         groupType: g.category === "distribution" ? "Distribution" : "Security",
+        container: g.container ?? "",
     };
 }
 
 function toComputer(c: CoreComputer): Computer {
-    return { name: c.name, dn: c.dn, id: c.rid || "-", os: c.os || "-", lastLogon: localDate(c.last_logon) };
+    return {
+        name: c.name, dn: c.dn, id: c.rid || "-", os: c.os || "-", lastLogon: localDate(c.last_logon),
+        container: c.container ?? "", isDomainController: Boolean(c.domain_controller),
+    };
+}
+
+// The components of a DN, split at the commas that are not escaped
+function dnComponents(dn: string): string[] {
+    const parts: string[] = [];
+    let current = "";
+    for (let i = 0; i < dn.length; i++) {
+        if (dn[i] === "\\" && i + 1 < dn.length) {
+            current += dn[i] + dn[i + 1];
+            i++;
+        } else if (dn[i] === ",") {
+            parts.push(current);
+            current = "";
+        } else {
+            current += dn[i];
+        }
+    }
+    if (current || parts.length) parts.push(current);
+    return parts;
+}
+
+// "OU=Students,OU=School" -> "School/Students"; "" (the domain) -> ""
+export function containerPath(dn: string): string {
+    return dnComponents(dn)
+        .map(c => c.slice(c.indexOf("=") + 1).replace(/\\(.)/g, "$1"))
+        .reverse()
+        .join("/");
+}
+
+function toOu(o: CoreOu): Ou {
+    return {
+        dn: o.dn, name: o.name, description: o.description, parent: o.parent, path: containerPath(o.dn),
+        isOu: o.kind === "ou", builtIn: o.builtin, defaultFor: o.default_for,
+    };
 }
 
 // --- lists ---
@@ -180,14 +233,22 @@ export async function refreshUser(username: string): Promise<User> {
     return getUserDetails(username);
 }
 
-export async function createUser(username: string, password: string, givenName?: string, surname?: string): Promise<void> {
+// ou: the container's DN relative to the domain; empty for the default (CN=Users)
+export async function createUser(username: string, password: string, givenName?: string, surname?: string,
+    ou?: string): Promise<void> {
     checkName(username);
     // The password reaches addcctl on stdin, in its JSON input
     await mutate(() => addcctl("user create", {
         name: username, password,
         ...(givenName ? { given_name: givenName } : {}),
         ...(surname ? { surname } : {}),
+        ...(ou ? { ou } : {}),
     }));
+}
+
+export async function moveUser(username: string, ou: string): Promise<void> {
+    checkName(username);
+    await mutate(() => addcctl("user set", { name: username, ou }));
 }
 
 export async function deleteUser(username: string): Promise<void> {
@@ -344,9 +405,14 @@ export async function listGroupMembers(groupName: string): Promise<string[]> {
     return [...group.members, ...group.primary_members.filter(m => !group.members.includes(m))];
 }
 
-export async function createGroup(name: string): Promise<void> {
+export async function createGroup(name: string, ou?: string): Promise<void> {
     checkName(name);
-    await mutate(() => addcctl("group create", { name }));
+    await mutate(() => addcctl("group create", { name, ...(ou ? { ou } : {}) }));
+}
+
+export async function moveGroup(name: string, ou: string): Promise<void> {
+    checkName(name);
+    await mutate(() => addcctl("group set", { name, ou }));
 }
 
 export async function deleteGroup(name: string): Promise<void> {
@@ -375,6 +441,45 @@ export async function removeGroupMembers(groupName: string, members: string[]): 
 export async function deleteComputer(name: string): Promise<void> {
     checkName(name);
     await mutate(() => addcctl("computer delete", { name }));
+}
+
+export async function moveComputer(name: string, ou: string): Promise<void> {
+    checkName(name);
+    await mutate(() => addcctl("computer set", { name, ou }));
+}
+
+// --- organizational units ---
+
+// The OUs and the default containers, each after its parent
+export async function listOus(): Promise<Ou[]> {
+    const { ous } = await cached<{ ous: CoreOu[] }>(KEY("ou list"), 60_000, () => addcctl("ou list", {}));
+    return ous.map(toOu);
+}
+
+// parent: "" for the domain itself
+export async function createOu(name: string, parent: string, description: string): Promise<void> {
+    await mutate(() => addcctl("ou create", { name, parent, ...(description ? { description } : {}) }));
+}
+
+// Rename, move or describe an OU, with everything in it; sends only what changed
+export async function updateOu(ou: Ou, wanted: { name: string; parent: string; description: string }): Promise<void> {
+    const input = {
+        dn: ou.dn,
+        ...(wanted.name !== ou.name ? { new_name: wanted.name } : {}),
+        ...(wanted.parent.toLowerCase() !== ou.parent.toLowerCase() ? { parent: wanted.parent } : {}),
+        ...(wanted.description !== ou.description ? { description: wanted.description } : {}),
+    };
+    if (Object.keys(input).length === 1) return;
+    await mutate(() => addcctl("ou set", input));
+}
+
+// recursive: also delete what is in it. Returns the accounts deleted with it.
+export async function deleteOu(dn: string, recursive: boolean): Promise<string[]> {
+    let result: { deleted_accounts?: string[] } = {};
+    await mutate(async () => {
+        result = await addcctl("ou delete", { dn, recursive }) as { deleted_accounts?: string[] };
+    });
+    return result.deleted_accounts ?? [];
 }
 
 // --- home directories ---

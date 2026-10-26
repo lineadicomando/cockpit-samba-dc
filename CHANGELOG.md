@@ -8,6 +8,35 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- **Organizational units** tab: the OUs and the default containers as a
+  tree, with the users, groups and computers in each; create, rename, move
+  and describe an OU, delete it (one that is not empty only after an
+  explicit confirmation, with everything in it: computers with their DNS
+  records). The default containers
+  and the built-in accounts and groups are never moved, renamed or deleted.
+- Users, groups and computers: their container as a column and a filter,
+  an OU chosen when a user or group is created, a "Move" action (users also
+  in bulk); the user page shows the container.
+- `addcctl`: operations `ou list`, `ou get`, `ou create`, `ou set`, `ou
+  delete` and `computer set` (description, OU), also as tools of `addcctl
+  mcp`; `ou` on `group create`, `user set` and `group set` moves the
+  account; `user`, `group` and `computer list` return the container.
+- Collection: module `samba_ou`; `ou` moves an existing user, group or
+  computer in `samba_user`, `samba_group` and `samba_computer`, and
+  `samba_computer` changes the description of an existing account.
+
+### Fixed
+
+- English interface: the counts of locked users and the results of bulk
+  unlock and expiry showed their translation keys.
+
+### Breaking
+
+- Collection: the `samba_tool` role no longer has the `ou` object (`list`,
+  `listobjects`, `create`, `delete`, `absent`): use the module `samba_ou`.
+
 ## [0.11.0] - 2026-10-24
 
 ### Added

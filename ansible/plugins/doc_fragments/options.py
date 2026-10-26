@@ -73,8 +73,9 @@ options:
     type: str
   ou:
     description:
-      - Container the user is created in, relative to the domain (e.g. C(OU=Students)). Only used
-        when the user is created.
+      - "Container of the user, relative to the domain (e.g. C(OU=Students,OU=School)): an OU or a
+        default container such as C(CN=Users). The user is created in it, or moved to it. Default
+        for a new user: C(CN=Users)."
     type: str
   enabled:
     description:
@@ -158,6 +159,12 @@ options:
     description:
       - Rename the group; its shared folders follow the new name.
     type: str
+  ou:
+    description:
+      - "Container of the group, relative to the domain (e.g. C(OU=School)): an OU or a default
+        container such as C(CN=Users). The group is created in it, or moved to it. Default for a new
+        group: C(CN=Users)."
+    type: str
 '''
 
     SAMBA_COMPUTER = r'''
@@ -169,18 +176,63 @@ options:
     required: true
   state:
     description:
-      - C(present) creates the account when it is missing; C(absent) deletes it.
+      - C(present) creates the account when it is missing and brings it to the given settings;
+        C(absent) deletes it.
     type: str
     default: present
     choices: [present, absent]
   ou:
     description:
-      - Container, relative to the domain; default CN=Computers.
+      - "Container of the account, relative to the domain (e.g. C(OU=Lab)): an OU or a default
+        container such as C(CN=Computers). The account is created in it, or moved to it. Default for
+        a new account: C(CN=Computers). A domain controller is never moved."
     type: str
   description:
     description:
-      - Description, set when the account is created.
+      - Description; empty removes it.
     type: str
+'''
+
+    SAMBA_OU = r'''
+options:
+  name:
+    description:
+      - Name of the OU.
+    type: str
+    required: true
+  parent:
+    description:
+      - "The OU it is in, relative to the domain (e.g. C(OU=School)); empty: the domain itself."
+    type: str
+    default: ""
+  state:
+    description:
+      - C(present) creates the OU when it is missing and brings it to the given settings; C(absent)
+        deletes it.
+    type: str
+    default: present
+    choices: [present, absent]
+  description:
+    description:
+      - "Description; an empty string removes it. Unset: kept on an existing OU."
+    type: str
+  new_name:
+    description:
+      - "Rename the OU. When O(name) is missing but O(new_name) exists, the OU was already renamed:
+        nothing to do."
+    type: str
+  new_parent:
+    description:
+      - "Move the OU, with everything in it, into this OU (relative to the domain); empty: the
+        domain itself. When O(name) is missing in O(parent) but present here, it was already moved."
+    type: str
+  recursive:
+    description:
+      - "With O(state=absent), also delete the users, groups, computers and OUs in it; without it,
+        an OU that is not empty is not deleted. Home directories and entries in shared folders stay.
+        Built-in objects and domain controllers are never deleted: an OU holding one is refused."
+    type: bool
+    default: false
 '''
 
     SAMBA_HOME = r'''

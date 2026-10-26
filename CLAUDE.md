@@ -55,7 +55,7 @@ health checks, backups), all through it, translating and caching;
 `concurrency.ts`; `addcctl-schema.ts` is generated),
 `core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
 operations and their JSON Schemas, `dc.py` everything that reads or writes
-the DC, `accounts.py` users groups computers, `homes.py`, `domain.py`
+the DC, `accounts.py` users groups computers, `ous.py` organizational units, `homes.py`, `domain.py`
 (policy, overview, health checks), `backups.py`,
 `shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`, `ad.py`; `tests/`,
 `bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit

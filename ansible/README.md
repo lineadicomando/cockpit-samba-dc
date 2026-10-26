@@ -29,7 +29,7 @@ Windows clients join the domain through the `domain` role of
 | Role | Target | Purpose |
 |------|--------|---------|
 | [`samba_dc_build`](roles/samba_dc_build/README.md) | Debian Trixie (13) | Provision a full Samba 4 AD DC with Cockpit web UI |
-| [`samba_tool`](roles/samba_tool/README.md) | Debian Trixie (13) | Manage domain objects: users, groups, computers, OUs, home directories, shared folders |
+| [`samba_tool`](roles/samba_tool/README.md) | Debian Trixie (13) | Manage domain objects: users, groups, computers, home directories, shared folders |
 | [`samba_dc_backup`](roles/samba_dc_backup/README.md) | Debian Trixie (13) | Back up the domain and user files; restore a domain |
 | `deb_join` *(coming soon)* | Debian / Ubuntu | Join or remove Linux clients from the domain |
 
@@ -37,9 +37,10 @@ Windows clients join the domain through the `domain` role of
 
 | Module | Purpose |
 |--------|---------|
-| `samba_user` | Users: create, change (names, mail, enabled, expiry, groups, primary group, rename), password, delete |
-| `samba_group` | Groups: create, change (description, members, rename), delete |
-| `samba_computer` | Computer accounts: create before a join, delete with their DNS records |
+| `samba_user` | Users: create, change (names, mail, enabled, expiry, groups, primary group, rename, OU), password, delete |
+| `samba_group` | Groups: create, change (description, members, rename, OU), delete |
+| `samba_computer` | Computer accounts: create before a join, change (description, OU), delete with their DNS records |
+| `samba_ou` | Organizational units: create, rename, move, describe, delete (with their contents on request) |
 | `samba_home` | Home directories: provision (folder, H: drive, home share), clear |
 | `samba_password_policy` | The domain password and lockout policy (complexity, length, history, ages, lockout) |
 | `samba_pso` | Fine-grained password policies (PSOs): create, change (settings, precedence, users and groups), delete |

@@ -222,3 +222,24 @@ export function psoViolationMessage(t: (key: string) => string, violation: PsoVi
         case "precedence":        return t("The precedence must be a whole number of 1 or more.");
     }
 }
+
+export type OuNameViolation = "empty" | "tooLong" | "surroundingSpaces" | "invalidChars";
+
+// An OU's name is the value of its DN's first component, escaped by addcctl:
+// what it refuses are control characters and surrounding spaces
+export function validateOuName(name: string): OuNameViolation | null {
+    if (!name) return "empty";
+    if (name.length > 64) return "tooLong";
+    if (name !== name.trim()) return "surroundingSpaces";
+    if (CONTROL_CHARS.test(name)) return "invalidChars";
+    return null;
+}
+
+export function ouNameViolationMessage(t: (key: string) => string, violation: OuNameViolation): string {
+    switch (violation) {
+        case "empty":             return t("Name is required.");
+        case "tooLong":           return t("Name cannot exceed 64 characters.");
+        case "surroundingSpaces": return t("Name cannot start or end with a space.");
+        case "invalidChars":      return t("Name contains invalid characters.");
+    }
+}

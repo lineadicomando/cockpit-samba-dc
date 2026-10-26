@@ -10,6 +10,7 @@ from .accounts import Computers, Groups, Users
 from .backups import BACKUP_DIR, Backups
 from .domain import CHECKS, Domain
 from .homes import Homes
+from .ous import Ous
 from .psos import Psos
 from .shares import Shares
 
@@ -59,6 +60,10 @@ _USER_FIELDS = {
     "department": dict(_TEXT, description="Department; empty removes it"),
     "company": dict(_TEXT, description="Company; empty removes it"),
 }
+_OU = {"type": "string", "minLength": 1, "maxLength": 1024,
+       "description": "DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School)"}
+_MOVE_TO = dict(_OU, description=("Container to move it to: an OU or a default container (CN=Users, "
+                                  "CN=Computers), relative to the domain"))
 _NAME_ONLY = lambda d, desc: {"type": "object", "properties": {"name": dict(d, description=desc)},
                               "required": ["name"], "additionalProperties": False}
 _NONE = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -116,7 +121,7 @@ def _computers(ctx):
 OPERATIONS = {
     # -- users
     ("user", "list"): {
-        "description": "List the domain users, with their groups, status, lockout and expiry",
+        "description": "List the domain users, with their groups, status, lockout, expiry and container",
         "mutates": False, "input": _NONE,
         "run": lambda ctx, req: {"users": _users(ctx).list()},
     },
@@ -136,7 +141,7 @@ OPERATIONS = {
                 "password": _PASSWORD,
                 "must_change_password": {"type": "boolean", "default": False,
                                          "description": "Change it at the next logon"},
-                "ou": dict(_TEXT, description="Container to create it in, relative to the domain (e.g. OU=Students); default CN=Users"),
+                "ou": dict(_OU, description="Container to create it in, relative to the domain (e.g. OU=Students); default CN=Users"),
                 "groups": {"type": "array", "items": _GROUP, "description": "Groups to add it to"},
             }),
             "required": ["name", "password"], "additionalProperties": False,
@@ -159,6 +164,7 @@ OPERATIONS = {
                 "groups_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
                                 "description": "replace makes groups the whole list, append adds them, remove drops them"},
                 "primary_group": dict(_GROUP, description="Primary group, one the user belongs to"),
+                "ou": _MOVE_TO,
             }),
             "required": ["name"], "additionalProperties": False,
         },
@@ -185,7 +191,7 @@ OPERATIONS = {
     },
     # -- groups
     ("group", "list"): {
-        "description": "List the groups, with their members",
+        "description": "List the groups, with their members and container",
         "mutates": False, "input": _NONE,
         "run": lambda ctx, req: {"groups": _groups(ctx).list()},
     },
@@ -203,6 +209,7 @@ OPERATIONS = {
             "scope": {"type": "string", "enum": ["domain", "global", "universal"], "description": "Default: global"},
             "category": {"type": "string", "enum": ["security", "distribution"], "description": "Default: security"},
             "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
+            "ou": dict(_OU, description="Container to create it in, relative to the domain; default CN=Users"),
         }, "required": ["name"], "additionalProperties": False},
         "run": lambda ctx, req: _groups(ctx).create(req),
     },
@@ -217,6 +224,7 @@ OPERATIONS = {
             "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
             "members_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
                              "description": "replace makes members the whole list, append adds them, remove drops them"},
+            "ou": _MOVE_TO,
         }, "required": ["name"], "additionalProperties": False},
         "run": lambda ctx, req: _groups(ctx).set(req),
     },
@@ -227,7 +235,7 @@ OPERATIONS = {
     },
     # -- computers
     ("computer", "list"): {
-        "description": "List the computer accounts",
+        "description": "List the computer accounts, with their container",
         "mutates": False, "input": _NONE,
         "run": lambda ctx, req: {"computers": _computers(ctx).list()},
     },
@@ -241,15 +249,74 @@ OPERATIONS = {
         "mutates": True,
         "input": {"type": "object", "properties": {
             "name": dict(_ACCOUNT, description="Computer name, without the trailing $"),
-            "ou": dict(_TEXT, description="Container, relative to the domain; default CN=Computers"),
+            "ou": dict(_OU, description="Container, relative to the domain; default CN=Computers"),
             "description": dict(_TEXT, description="Description"),
         }, "required": ["name"], "additionalProperties": False},
         "run": lambda ctx, req: _computers(ctx).create(req),
+    },
+    ("computer", "set"): {
+        "description": "Bring a computer account to the given settings; settings left out keep their value",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": dict(_ACCOUNT, description="Computer name, with or without the trailing $"),
+            "description": dict(_TEXT, description="Description; empty removes it"),
+            "ou": _MOVE_TO,
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: _computers(ctx).set(req),
     },
     ("computer", "delete"): {
         "description": "Delete a computer account and its DNS records (not a domain controller)",
         "mutates": True, "input": _NAME_ONLY(_ACCOUNT, "Computer name, with or without the trailing $"),
         "run": lambda ctx, req: _computers(ctx).delete(req),
+    },
+    # -- organizational units
+    ("ou", "list"): {
+        "description": ("List the organizational units and the default containers (CN=Users, CN=Computers), "
+                        "parents first"),
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"ous": Ous(ctx.dc, ctx.runner).list()},
+    },
+    ("ou", "get"): {
+        "description": "One organizational unit or default container",
+        "mutates": False, "input": {"type": "object", "properties": {"dn": _OU}, "required": ["dn"],
+                                    "additionalProperties": False},
+        "run": lambda ctx, req: {"ou": Ous(ctx.dc, ctx.runner).get(req["dn"])},
+    },
+    ("ou", "create"): {
+        "description": "Create an organizational unit",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "name": {"type": "string", "minLength": 1, "maxLength": 64, "description": "Name of the OU"},
+            "parent": {"type": "string", "maxLength": 1024, "default": "",
+                       "description": "OU to create it in, relative to the domain; empty: the domain itself"},
+            "description": dict(_TEXT, description="Description"),
+        }, "required": ["name"], "additionalProperties": False},
+        "run": lambda ctx, req: Ous(ctx.dc, ctx.runner).create(req),
+    },
+    ("ou", "set"): {
+        "description": ("Rename, move or describe an organizational unit, with everything in it; "
+                        "settings left out keep their value. The default containers are never renamed or moved"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "dn": _OU,
+            "new_name": {"type": "string", "minLength": 1, "maxLength": 64, "description": "New name"},
+            "parent": {"type": "string", "maxLength": 1024,
+                       "description": "OU to move it to, relative to the domain; empty: the domain itself"},
+            "description": dict(_TEXT, description="Description; empty removes it"),
+        }, "required": ["dn"], "additionalProperties": False},
+        "run": lambda ctx, req: Ous(ctx.dc, ctx.runner).set(req),
+    },
+    ("ou", "delete"): {
+        "description": ("Delete an organizational unit (not a default container). One with objects in it only "
+                        "with recursive, which deletes them too: their home directories and their entries "
+                        "in shared folders stay"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "dn": _OU,
+            "recursive": {"type": "boolean", "default": False,
+                          "description": "Also delete everything in it (never built-in objects or domain controllers)"},
+        }, "required": ["dn"], "additionalProperties": False},
+        "run": lambda ctx, req: Ous(ctx.dc, ctx.runner).delete(req),
     },
     # -- home directories
     ("home", "provision"): {

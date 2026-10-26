@@ -11,12 +11,12 @@ module: samba_computer
 short_description: Manage computer accounts of a Samba AD DC
 version_added: "0.9.0"
 description:
-  - Create a computer account before the computer joins the domain, or
-    delete one with its DNS records, on a Samba 4 Active Directory Domain
-    Controller.
+  - Create a computer account before the computer joins the domain, change
+    its description or the OU it is in, or delete one with its DNS records,
+    on a Samba 4 Active Directory Domain Controller.
   - Runs C(addcctl computer ...), the core of cockpit-samba-dc, on the domain
     controller itself; it needs elevated privileges (typically C(become=true)).
-  - A domain controller's account is never deleted.
+  - A domain controller's account is never deleted or moved.
 extends_documentation_fragment:
   - lineadicomando.samba_dc.options.samba_computer
 author:
@@ -33,6 +33,12 @@ EXAMPLES = r"""
     name: LAB-PC01
     ou: OU=Lab
 
+- name: Move an existing account to another OU
+  lineadicomando.samba_dc.samba_computer:
+    name: LAB-PC02
+    ou: OU=Classroom,OU=Lab
+    description: Teacher's desk
+
 - name: Delete a computer account
   lineadicomando.samba_dc.samba_computer:
     name: LAB-PC01
@@ -41,7 +47,7 @@ EXAMPLES = r"""
 
 RETURN = r"""
 computer:
-  description: The account, as C(addcctl computer get) reports it.
+  description: The account after the change (before it, in check mode), as C(addcctl computer get) reports it.
   type: dict
   returned: when state is present
 commands:
@@ -68,9 +74,14 @@ def run_module():
             module.exit_json(changed=False, commands=[])
         result = call(module, "computer", "delete", {"name": p["name"]}, check=module.check_mode)
         module.exit_json(changed=result["changed"], commands=result["commands"], diff=dict(before=before, after={}))
+    request = given(p, dict(ou="ou", description="description"))
     if before is not None:
-        module.exit_json(changed=False, computer=before, commands=[])
-    request = dict(given(p, dict(ou="ou", description="description")), name=p["name"])
+        if not request:
+            module.exit_json(changed=False, computer=before, commands=[])
+        result = call(module, "computer", "set", dict(request, name=p["name"]), check=module.check_mode)
+        module.exit_json(changed=result["changed"], computer=result["computer"], commands=result["commands"],
+                         diff=dict(before=before, after=result["computer"]))
+    request["name"] = p["name"]
     result = call(module, "computer", "create", request, check=module.check_mode)
     module.exit_json(changed=True, computer=result.get("computer"), commands=result["commands"],
                      diff=dict(before={}, after=result.get("computer") or {}))

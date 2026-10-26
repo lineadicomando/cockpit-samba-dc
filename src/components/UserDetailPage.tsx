@@ -26,6 +26,7 @@ import { PasswordField, PasswordPolicyInfo, PasswordPolicyUnavailable } from "./
 import { GroupMultiSelect } from "./GroupMultiSelect.tsx";
 import { UserStatusLabels } from "./UserStatusLabels.tsx";
 import { AccountExpiryField, expiryValueOf, expiryFromValue, expiryValueError, formatExpiry, type ExpiryValue } from "./AccountExpiryField.tsx";
+import { ContainerLabel } from "./ContainerSelect.tsx";
 
 interface Props {
     username: string;
@@ -248,6 +249,9 @@ function AccountSection({ user, onUpdate }: { user: User; onUpdate: (u: User) =>
                                 </HelperText>
                             </FormHelperText>
                         )}
+                    </FormGroup>
+                    <FormGroup label={t("Container")} fieldId="ud-container">
+                        <ContainerLabel dn={user.container} />
                     </FormGroup>
                     {user.lockedOut && (
                         <FormGroup fieldId="ud-unlock">

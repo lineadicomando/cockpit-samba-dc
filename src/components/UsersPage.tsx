@@ -40,6 +40,7 @@ import {
   useSingleLoad,
   usePagination,
   useGroupNames,
+  useOus,
   PER_PAGE_OPTIONS,
 } from "../lib/hooks.ts";
 import type { User } from "../lib/types.ts";
@@ -55,6 +56,8 @@ import {
 } from "./modals/BulkGroupModal.tsx";
 import { BulkExpiryModal } from "./modals/BulkExpiryModal.tsx";
 import { UserStatusLabels } from "./UserStatusLabels.tsx";
+import { MoveModal } from "./modals/MoveModal.tsx";
+import { ContainerFilter, ContainerLabel, sameContainer } from "./ContainerSelect.tsx";
 
 type StatusFilter = "all" | "Active" | "Disabled" | "Locked" | "Expired";
 
@@ -76,7 +79,8 @@ type ModalState =
   | { kind: "delete"; user: User }
   | { kind: "bulk-confirm"; action: BulkConfirmAction; users: User[] }
   | { kind: "bulk-group"; action: BulkGroupAction; users: User[] }
-  | { kind: "bulk-expiry"; users: User[] };
+  | { kind: "bulk-expiry"; users: User[] }
+  | { kind: "move"; users: User[] };
 
 interface Props {
   // Incremented by App when returning from the user detail page, whose edits
@@ -96,9 +100,14 @@ export function UsersPage({ refreshToken = 0 }: Props) {
     refresh: refreshUsers,
   } = useSingleLoad(listUsers);
 
+  const { ous, reload: reloadOus } = useOus();
+
   useEffect(() => {
-    if (refreshToken > 0) refreshUsers();
-  }, [refreshToken, refreshUsers]);
+    if (refreshToken > 0) {
+      refreshUsers();
+      reloadOus();
+    }
+  }, [refreshToken, refreshUsers, reloadOus]);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -106,6 +115,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
   const [groupSelectOpen, setGroupSelectOpen] = useState(false);
   const [groupSearch, setGroupSearch] = useState("");
+  const [containerFilter, setContainerFilter] = useState<string | null>(null);
   const { groupNames: allGroups } = useGroupNames();
 
   const [selectedUsernames, setSelectedUsernames] = useState<Set<string>>(
@@ -179,6 +189,9 @@ export function UsersPage({ refreshToken = 0 }: Props) {
     if (groupFilter !== null) {
       result = result.filter((u) => u.groups.includes(groupFilter));
     }
+    if (containerFilter !== null) {
+      result = result.filter((u) => sameContainer(u.container, containerFilter));
+    }
     if (sortIndex !== null) {
       result = [...result].sort((a, b) => {
         let aVal: string | number;
@@ -209,7 +222,10 @@ export function UsersPage({ refreshToken = 0 }: Props) {
       });
     }
     return result;
-  }, [users, search, statusFilter, groupFilter, sortIndex, sortDir]);
+  }, [users, search, statusFilter, groupFilter, containerFilter, sortIndex, sortDir]);
+
+  const filtering =
+    Boolean(search) || statusFilter !== "all" || groupFilter !== null || containerFilter !== null;
 
   const activeCount = useMemo(
     () => users.filter((u) => u.status === "Active").length,
@@ -224,7 +240,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
   const { page, perPage, paginated, onSetPage, onPerPageSelect } =
     usePagination(
       filtered,
-      [search, statusFilter, groupFilter ?? "", sortIndex ?? "", sortDir].join("\x1f"),
+      [search, statusFilter, groupFilter ?? "", containerFilter ?? "", sortIndex ?? "", sortDir].join("\x1f"),
     );
 
   // Keep only visible users selected, so bulk actions never touch rows the
@@ -369,6 +385,9 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                   ))}
               </SelectList>
             </Select>
+          </ToolbarItem>
+          <ToolbarItem>
+            <ContainerFilter ous={ous} value={containerFilter} onChange={setContainerFilter} />
           </ToolbarItem>
           <ToolbarItem>
             <Label color="blue">{t("users_count", { count: users.length })}</Label>
@@ -524,6 +543,14 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                 {t("Provision home dir")}
               </Button>
             </ToolbarItem>
+            <ToolbarItem>
+              <Button
+                variant="secondary"
+                onClick={() => setModal({ kind: "move", users: selectedUsers })}
+              >
+                {t("Move")}
+              </Button>
+            </ToolbarItem>
             <ToolbarItem align={{ default: "alignEnd" }}>
               <Button
                 variant="danger"
@@ -575,15 +602,13 @@ export function UsersPage({ refreshToken = 0 }: Props) {
       {!loading && !error && filtered.length === 0 && (
         <EmptyState
           titleText={
-            search || statusFilter !== "all" || groupFilter !== null
-              ? t("No users match the filter")
-              : t("No users found")
+            filtering ? t("No users match the filter") : t("No users found")
           }
           headingLevel="h4"
         >
           <EmptyStateBody>
-            {search || statusFilter !== "all" || groupFilter !== null
-              ? t("Try clearing the search, status or group filter.")
+            {filtering
+              ? t("Try clearing the search, status, group or container filter.")
               : t("No domain users are available.")}
           </EmptyStateBody>
         </EmptyState>
@@ -638,6 +663,7 @@ export function UsersPage({ refreshToken = 0 }: Props) {
               </Th>
               <Th>{t("Groups")}</Th>
               <Th>{t("Last activity")}</Th>
+              <Th>{t("Container")}</Th>
               <Th aria-label={t("Row actions")} />
             </Tr>
           </Thead>
@@ -690,6 +716,9 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                   )}
                 </Td>
                 <Td dataLabel={t("Last activity")}>{u.lastActivity || t("Never")}</Td>
+                <Td dataLabel={t("Container")}>
+                  <ContainerLabel dn={u.container} />
+                </Td>
                 <Td isActionCell>
                   <ActionsColumn
                     items={[
@@ -705,6 +734,11 @@ export function UsersPage({ refreshToken = 0 }: Props) {
                       ...(u.lockedOut
                         ? [{ title: t("Unlock"), onClick: () => handleUnlockUser(u) }]
                         : []),
+                      {
+                        title: t("Move"),
+                        onClick: () => setModal({ kind: "move", users: [u] }),
+                        isDisabled: u.isProtected,
+                      },
                       { isSeparator: true, title: "" },
                       {
                         title: t("Delete"),
@@ -767,6 +801,19 @@ export function UsersPage({ refreshToken = 0 }: Props) {
       {modal.kind === "bulk-expiry" && (
         <BulkExpiryModal
           users={modal.users}
+          onClose={() => setModal({ kind: "none" })}
+          onSuccess={handleBulkSuccess}
+        />
+      )}
+
+      {modal.kind === "move" && (
+        <MoveModal
+          kind="user"
+          items={modal.users.map((u) => ({
+            name: u.username,
+            container: u.container,
+            fixed: u.isProtected,
+          }))}
           onClose={() => setModal({ kind: "none" })}
           onSuccess={handleBulkSuccess}
         />

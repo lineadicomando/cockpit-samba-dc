@@ -6,6 +6,5 @@ samba_tool_valid_objects:
   - user
   - group
   - computer
-  - ou
   - home
   - share

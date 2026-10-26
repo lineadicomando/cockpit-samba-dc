@@ -19,6 +19,7 @@ class Dc:
         self.runner = runner
         self._lp = None
         self._samdb = None
+        self._domain_dn = None
         self._registry = None
         self._posix_ids = {}
 
@@ -114,7 +115,9 @@ class Dc:
 
     @property
     def domain_dn(self):
-        return str(self.samdb.domain_dn())
+        if self._domain_dn is None:
+            self._domain_dn = str(self.samdb.domain_dn())
+        return self._domain_dn
 
     @property
     def config_dn(self):
@@ -274,10 +277,61 @@ class Dc:
         message.update({k: [str(x) for x in v] if isinstance(v, list) else str(v) for k, v in attributes.items()})
         self._samdb_call(self.samdb.add, message)
 
-    def delete_entry(self, dn):
-        self.runner.record("sam.ldb: delete %s" % dn)
+    def delete_entry(self, dn, tree=False):
+        """Delete an entry; with tree, everything below it too."""
+        self.runner.record("sam.ldb: delete %s%s" % (dn, " and everything in it" if tree else ""))
         if not self.runner.check:
-            self._samdb_call(self.samdb.delete, dn)
+            self._samdb_call(self.samdb.delete, dn, ["tree_delete:1"] if tree else [])
+
+    # -- DNs, built and checked by ldb (rule 3)
+
+    def absolute_dn(self, relative):
+        """The DN of a container given relative to the domain ("OU=Students",
+        "" for the domain itself) or in full; only OU= and CN= components."""
+        import ldb
+        domain = ldb.Dn(self.samdb, self.domain_dn)
+        if not relative:
+            return str(domain)
+        try:
+            dn = ldb.Dn(self.samdb, relative)
+            valid = dn.is_valid()
+        except ValueError:
+            valid = False
+        if not valid or len(dn) == 0:
+            raise AddcError('Invalid DN: "%s"' % relative)
+        if not dn.is_child_of(domain):
+            dn.add_base(domain)
+        for i in range(len(dn) - len(domain)):
+            if dn.get_component_name(i).upper() not in ("OU", "CN") or not dn.get_component_value(i):
+                raise AddcError('Invalid DN: "%s": use OU= and CN= components' % relative)
+        return str(dn)
+
+    def child_dn(self, parent, attr, value):
+        """parent with one more component, value escaped by ldb."""
+        import ldb
+        child = ldb.Dn(self.samdb, "%s=x" % attr)
+        child.set_component(0, attr, value)
+        dn = ldb.Dn(self.samdb, parent)
+        dn.add_child(child)
+        return str(dn)
+
+    def rdn(self, dn):
+        """(attribute, value) of the first component of dn."""
+        import ldb
+        parsed = ldb.Dn(self.samdb, dn)
+        return parsed.get_rdn_name(), parsed.get_rdn_value()
+
+    def rename_entry(self, old, new):
+        """Rename or move an entry, with everything in it."""
+        self.runner.record("sam.ldb: move %s to %s" % (old, new))
+        if not self.runner.check:
+            import ldb
+            self._samdb_call(self.samdb.rename, ldb.Dn(self.samdb, old), ldb.Dn(self.samdb, new))
+
+    def new_ou(self, dn, description=None):
+        self.runner.record("sam.ldb: create OU %s" % dn)
+        if not self.runner.check:
+            self._samdb_call(self.samdb.create_ou, dn, description=description)
 
     @property
     def pso_container(self):
@@ -304,7 +358,8 @@ class Dc:
         return "(&(objectClass=%s)(sAMAccountName=%s))" % (object_class, ldb.binary_encode(name))
 
     def new_user(self, name, password, **attributes):
-        self.runner.record("sam.ldb: create user %s" % name)
+        ou = attributes.get("userou")
+        self.runner.record("sam.ldb: create user %s%s" % (name, " in %s" % ou if ou else ""))
         if not self.runner.check:
             self._samdb_call(self.samdb.newuser, name, password, **attributes)
 
@@ -335,10 +390,10 @@ class Dc:
         if not self.runner.check and members:
             self._samdb_call(self.samdb.add_remove_group_members, group, members, add_members_operation=add)
 
-    def new_group(self, name, grouptype, description=None):
-        self.runner.record("sam.ldb: create group %s" % name)
+    def new_group(self, name, grouptype, description=None, ou=None):
+        self.runner.record("sam.ldb: create group %s%s" % (name, " in %s" % ou if ou else ""))
         if not self.runner.check:
-            self._samdb_call(self.samdb.newgroup, name, grouptype=grouptype, description=description)
+            self._samdb_call(self.samdb.newgroup, name, groupou=ou, grouptype=grouptype, description=description)
 
     def delete_group(self, name):
         self.runner.record("sam.ldb: delete group %s" % name)
@@ -346,7 +401,7 @@ class Dc:
             self._samdb_call(self.samdb.deletegroup, name)
 
     def new_computer(self, name, ou=None, description=None):
-        self.runner.record("sam.ldb: create computer %s" % name)
+        self.runner.record("sam.ldb: create computer %s%s" % (name, " in %s" % ou if ou else ""))
         if not self.runner.check:
             self._samdb_call(self.samdb.newcomputer, name, computerou=ou, description=description)
 

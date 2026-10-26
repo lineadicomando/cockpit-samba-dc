@@ -4,7 +4,7 @@
 # Role interface: object + action + arguments.
 # The MCP/dispatcher passes these values as extra-vars.
 
-samba_tool_object: ~          # user | group | computer | ou | home | share
+samba_tool_object: ~          # user | group | computer | home | share
 samba_tool_action: ~          # samba-tool verb: create, delete, list, show, ...
 samba_tool_args: {}           # dictionary of action-specific arguments
 

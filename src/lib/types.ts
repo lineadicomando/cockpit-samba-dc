@@ -19,6 +19,8 @@ export interface User {
     // Unix milliseconds, null if the account never expires
     accountExpires: number | null;
     expired: boolean;
+    // DN of the OU or container it is in, relative to the domain (Ou.dn)
+    container: string;
 }
 
 export interface Group {
@@ -30,6 +32,7 @@ export interface Group {
     isCriticalSystemObject: boolean;
     isProtected: boolean;
     groupType: "Security" | "Distribution";
+    container: string;
 }
 
 export interface Computer {
@@ -38,6 +41,24 @@ export interface Computer {
     id: string;
     os: string;
     lastLogon: string;
+    container: string;
+    isDomainController: boolean;
+}
+
+// An organizational unit, or one of the domain's default containers
+// (CN=Users, CN=Computers, OU=Domain Controllers): those are built in, never
+// renamed, moved or deleted.
+export interface Ou {
+    // Relative to the domain: "OU=Students,OU=School"; "" is the domain itself
+    dn: string;
+    name: string;
+    description: string;
+    parent: string;
+    // "School/Students", from the domain down
+    path: string;
+    isOu: boolean;
+    builtIn: boolean;
+    defaultFor: "users" | "computers" | "domain_controllers" | null;
 }
 
 // null for an age or an interval: never (no maximum age, locked until an
