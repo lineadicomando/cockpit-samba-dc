@@ -11,7 +11,7 @@ export type BackupListInput = Record<string, never>;
 export type ComputerCreateInput = {
     /** Description */
     description?: string;
-    /** Computer name, without the trailing $ */
+    /** Computer name, without the trailing $: up to 15 letters, digits and hyphens, not only digits */
     name: string;
     /** Container, relative to the domain; default CN=Computers */
     ou?: string;
@@ -83,6 +83,8 @@ export type GroupCreateInput = {
     category?: "security" | "distribution";
     /** Description */
     description?: string;
+    /** E-mail address */
+    email?: string;
     /** Users, computers (name$) or groups */
     members?: string[];
     /** sAMAccountName of the group */
@@ -112,6 +114,8 @@ export type GroupListInput = Record<string, never>;
 export type GroupSetInput = {
     /** Description; empty removes it */
     description?: string;
+    /** E-mail address; empty removes it */
+    email?: string;
     /** Users, computers (name$) or groups */
     members?: string[];
     /** replace makes members the whole list, append adds them, remove drops them */

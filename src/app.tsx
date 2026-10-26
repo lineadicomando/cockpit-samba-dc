@@ -17,6 +17,7 @@ import { SharesPage } from "./components/SharesPage.tsx";
 import { DomainPage } from "./components/DomainPage.tsx";
 import { OusPage } from "./components/OusPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
+import { ComputerDetailPage } from "./components/ComputerDetailPage.tsx";
 import { useCockpitLocation } from "./lib/hooks.ts";
 import { VERSION } from "./lib/version.ts";
 
@@ -24,25 +25,30 @@ export function App() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<string | number>("users");
   const location = useCockpitLocation();
-  const detailUsername = location.path.length > 0 ? location.path[0] : null;
+  // "/<user>": a user's page; "/computers/<name>": a computer's
+  const detailComputer =
+    location.path.length === 2 && location.path[0] === "computers" ? location.path[1] : null;
+  const detailUsername =
+    location.path.length === 1 ? location.path[0] : null;
+  const detail = detailUsername ?? (detailComputer !== null ? `computers/${detailComputer}` : null);
 
   // Lists stay mounted (hidden) while the detail page or another tab is
   // shown; bump a token on the way back so they refetch what may have been
   // edited there, and when an OU changes (renaming or moving one moves what
   // is in it).
   const [listRefreshToken, setListRefreshToken] = useState(0);
-  const prevDetailRef = useRef(detailUsername);
+  const prevDetailRef = useRef(detail);
   useEffect(() => {
-    if (prevDetailRef.current !== null && detailUsername === null) {
+    if (prevDetailRef.current !== null && detail === null) {
       setListRefreshToken((n) => n + 1);
     }
-    prevDetailRef.current = detailUsername;
-  }, [detailUsername]);
+    prevDetailRef.current = detail;
+  }, [detail]);
 
   return (
     <Page sidebar={null}>
       {/* Main layout — always in DOM to preserve UsersPage filter/sort state */}
-      <div hidden={detailUsername !== null}>
+      <div hidden={detail !== null}>
         <PageSection>
           <Flex alignItems={{ default: "alignItemsBaseline" }}>
             <FlexItem>
@@ -107,6 +113,7 @@ export function App() {
       </div>
 
       {detailUsername !== null && <UserDetailPage username={detailUsername} />}
+      {detailComputer !== null && <ComputerDetailPage name={detailComputer} />}
     </Page>
   );
 }

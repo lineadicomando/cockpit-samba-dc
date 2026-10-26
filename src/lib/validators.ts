@@ -65,6 +65,44 @@ export function groupNameViolationMessage(t: (key: string) => string, violation:
     }
 }
 
+export type ComputerNameViolation = "empty" | "tooLong" | "invalidChars" | "leadingDash" | "onlyDigits";
+
+// A computer's name is its NetBIOS name and the first label of its DNS name:
+// up to 15 letters, digits and hyphens (addcctl's computer create checks the same)
+export function validateComputerName(name: string): ComputerNameViolation | null {
+    if (!name) return "empty";
+    if (name.length > 15) return "tooLong";
+    if (!/^[A-Za-z0-9-]+$/.test(name)) return "invalidChars";
+    if (name.startsWith("-")) return "leadingDash";
+    if (/^[0-9]+$/.test(name)) return "onlyDigits";
+    return null;
+}
+
+export function computerNameViolationMessage(t: (key: string) => string, violation: ComputerNameViolation): string {
+    switch (violation) {
+        case "empty":        return t("Computer name is required.");
+        case "tooLong":      return t("Computer name cannot exceed 15 characters.");
+        case "invalidChars": return t("Computer name can contain only letters, digits and hyphens.");
+        case "leadingDash":  return t("Computer name cannot start with a dash.");
+        case "onlyDigits":   return t("Computer name cannot be made of digits only.");
+    }
+}
+
+export type EmailViolation = "invalid";
+
+// Empty is allowed (no address); otherwise one "@" with text on both sides
+// and no spaces. The directory stores what it is given: this only catches typos.
+export function validateEmail(email: string): EmailViolation | null {
+    if (!email) return null;
+    return /^[^\s@]+@[^\s@]+$/.test(email) ? null : "invalid";
+}
+
+export function emailViolationMessage(t: (key: string) => string, violation: EmailViolation): string {
+    switch (violation) {
+        case "invalid": return t("Enter an e-mail address such as name@example.org.");
+    }
+}
+
 // Characters not allowed in share names: the smb.conf section syntax and
 // Windows path rules forbid most, and "%" would trigger smb.conf variable
 // substitution in the path, which is derived from the name.

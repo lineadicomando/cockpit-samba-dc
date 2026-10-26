@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName, validateComputerName, validateEmail } from "../src/lib/validators.ts";
 import type { PasswordPolicy } from "../src/lib/types.ts";
 
 describe("validateUsername", () => {
@@ -192,5 +192,31 @@ describe("validateOuName", () => {
         assert.equal(validateOuName(" x"), "surroundingSpaces");
         assert.equal(validateOuName("x".repeat(65)), "tooLong");
         assert.equal(validateOuName("a\nb"), "invalidChars");
+    });
+});
+
+describe("validateComputerName", () => {
+    it("accepts NetBIOS names of letters, digits and hyphens", () => {
+        for (const ok of ["PC01", "lab-pc-02", "A", "a23456789012345"]) assert.equal(validateComputerName(ok), null, ok);
+    });
+    it("refuses what addcctl refuses", () => {
+        assert.equal(validateComputerName(""), "empty");
+        assert.equal(validateComputerName("a234567890123456"), "tooLong");
+        assert.equal(validateComputerName("pc_01"), "invalidChars");
+        assert.equal(validateComputerName("pc 01"), "invalidChars");
+        assert.equal(validateComputerName("PC01$"), "invalidChars");
+        assert.equal(validateComputerName("-pc"), "leadingDash");
+        assert.equal(validateComputerName("1234"), "onlyDigits");
+    });
+});
+
+describe("validateEmail", () => {
+    it("allows an empty address and catches typos", () => {
+        assert.equal(validateEmail(""), null);
+        assert.equal(validateEmail("m.rossi@school.example"), null);
+        assert.equal(validateEmail("m.rossi"), "invalid");
+        assert.equal(validateEmail("m rossi@x"), "invalid");
+        assert.equal(validateEmail("a@b@c"), "invalid");
+        assert.equal(validateEmail("@x"), "invalid");
     });
 });

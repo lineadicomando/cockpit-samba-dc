@@ -131,6 +131,10 @@ options:
     description:
       - Description; empty removes it.
     type: str
+  email:
+    description:
+      - E-mail address; empty removes it.
+    type: str
   scope:
     description:
       - Group scope, set when the group is created (default C(global)); an existing group keeps its

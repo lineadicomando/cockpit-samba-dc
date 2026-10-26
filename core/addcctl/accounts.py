@@ -6,6 +6,8 @@ samba-tool where only it does the job right (renames, the primary group,
 deleting a computer with its DNS records). Built-in accounts are protected
 here, so every interface gets the same rules.
 """
+import re
+
 from . import ad
 from .ad import first
 from .errors import AddcError
@@ -23,6 +25,7 @@ _GROUP_ATTRS = ["sAMAccountName", "description", "member", "objectSid", "isCriti
 _COMPUTER_ATTRS = ["sAMAccountName", "operatingSystem", "operatingSystemVersion", "objectSid",
                    "dNSHostName", "lastLogon", "lastLogonTimestamp", "description", "userAccountControl"]
 _USERS = "(&(objectClass=user)(!(objectClass=computer)))"
+_COMPUTER_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]{0,14}$")
 
 # Settings of "user set" and the attributes they write directly
 _DIRECT_ATTRS = {"description": "description", "title": "title", "department": "department",
@@ -363,7 +366,8 @@ class Groups:
             raise AddcError('Group "%s" already exists' % name)
         grouptype = ad.group_type_value(request.get("scope", "global"), request.get("category", "security"))
         self.dc.new_group(name, grouptype, description=request.get("description") or None,
-                          ou=_new_container(self.dc, self.runner, request.get("ou")))
+                          ou=_new_container(self.dc, self.runner, request.get("ou")),
+                          mail=request.get("email") or None)
         if request.get("members"):
             self.dc.change_members(name, request["members"], add=True)
         if self.runner.check:
@@ -385,12 +389,14 @@ class Groups:
             # The CN follows the new sAMAccountName
             self.dc.samba_tool(["group", "rename", before["name"], "--samaccountname=%s" % new_name])
             changed = True
-        if "description" in request and (request["description"] or "") != before["description"]:
+        direct = {attr: (request[key] or None) for key, attr in (("description", "description"), ("email", "mail"))
+                  if key in request and (request[key] or "") != before[key]}
+        if direct:
             dn = first(self._record(before["name"]), "dn")
             if new_name != before["name"] and not self.runner.check:
                 self.directory = Directory(self.dc)
                 dn = first(self._record(new_name), "dn")
-            self.dc.modify(dn, {"description": request["description"] or None})
+            self.dc.modify(dn, direct)
             changed = True
         if "members" in request:
             changed = self._set_members(new_name, before, request["members"],
@@ -492,6 +498,10 @@ class Computers:
     def create(self, request):
         name = request["name"].rstrip("$")
         check_principal_names([name])
+        # Its NetBIOS name, and the first label of its DNS name
+        if not _COMPUTER_NAME.match(name) or name.isdigit():
+            raise AddcError('Invalid computer name "%s": up to 15 letters, digits and hyphens, '
+                            'not only digits, not starting with a hyphen' % name)
         if self._record(name) is not None:
             raise AddcError('Computer "%s" already exists' % name)
         self.dc.new_computer(name, ou=_new_container(self.dc, self.runner, request.get("ou")),

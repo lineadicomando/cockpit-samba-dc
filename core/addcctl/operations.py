@@ -206,6 +206,7 @@ OPERATIONS = {
         "input": {"type": "object", "properties": {
             "name": _GROUP,
             "description": dict(_TEXT, description="Description"),
+            "email": dict(_TEXT, description="E-mail address"),
             "scope": {"type": "string", "enum": ["domain", "global", "universal"], "description": "Default: global"},
             "category": {"type": "string", "enum": ["security", "distribution"], "description": "Default: security"},
             "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
@@ -221,6 +222,7 @@ OPERATIONS = {
             "name": _GROUP,
             "new_name": dict(_GROUP, description="New sAMAccountName"),
             "description": dict(_TEXT, description="Description; empty removes it"),
+            "email": dict(_TEXT, description="E-mail address; empty removes it"),
             "members": {"type": "array", "items": _GROUP, "description": "Users, computers (name$) or groups"},
             "members_mode": {"type": "string", "enum": ["replace", "append", "remove"], "default": "replace",
                              "description": "replace makes members the whole list, append adds them, remove drops them"},
@@ -248,7 +250,9 @@ OPERATIONS = {
         "description": "Create a computer account before the computer joins",
         "mutates": True,
         "input": {"type": "object", "properties": {
-            "name": dict(_ACCOUNT, description="Computer name, without the trailing $"),
+            "name": dict(_ACCOUNT, maxLength=15,
+                         description=("Computer name, without the trailing $: up to 15 letters, digits and "
+                                      "hyphens, not only digits")),
             "ou": dict(_OU, description="Container, relative to the domain; default CN=Computers"),
             "description": dict(_TEXT, description="Description"),
         }, "required": ["name"], "additionalProperties": False},

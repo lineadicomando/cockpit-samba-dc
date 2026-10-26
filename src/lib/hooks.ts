@@ -112,6 +112,49 @@ export function usePagination<T>(items: T[], resetKey = "", defaultPerPage = 10)
 }
 
 // ---------------------------------------------------------------------------
+// useSelection — the rows selected in a list, by key. Only visible rows stay
+// selected, so bulk actions never touch rows the operator can no longer see
+// (filtered out, or gone after a reload).
+// ---------------------------------------------------------------------------
+export function useSelection<T>(visible: T[], keyOf: (item: T) => string) {
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const key = useRef(keyOf);
+  key.current = keyOf;
+
+  useEffect(() => {
+    const keys = new Set(visible.map((i) => key.current(i)));
+    setSelected((prev) => {
+      const next = new Set([...prev].filter((k) => keys.has(k)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visible]);
+
+  const allSelected = visible.length > 0 && visible.every((i) => selected.has(keyOf(i)));
+
+  const selectAll = useCallback((isSelected: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const i of visible) {
+        if (isSelected) next.add(key.current(i));
+        else next.delete(key.current(i));
+      }
+      return next;
+    });
+  }, [visible]);
+
+  const selectRow = useCallback((key: string, isSelected: boolean) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (isSelected) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
+
+  return { selected, setSelected, allSelected, selectAll, selectRow };
+}
+
+// ---------------------------------------------------------------------------
 // useGroupNames — sorted names of all domain groups (for pickers and filters)
 // ---------------------------------------------------------------------------
 export function useGroupNames(enabled = true): {

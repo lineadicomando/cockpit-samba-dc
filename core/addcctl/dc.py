@@ -390,10 +390,11 @@ class Dc:
         if not self.runner.check and members:
             self._samdb_call(self.samdb.add_remove_group_members, group, members, add_members_operation=add)
 
-    def new_group(self, name, grouptype, description=None, ou=None):
+    def new_group(self, name, grouptype, description=None, ou=None, mail=None):
         self.runner.record("sam.ldb: create group %s%s" % (name, " in %s" % ou if ou else ""))
         if not self.runner.check:
-            self._samdb_call(self.samdb.newgroup, name, groupou=ou, grouptype=grouptype, description=description)
+            self._samdb_call(self.samdb.newgroup, name, groupou=ou, grouptype=grouptype, description=description,
+                             mailaddress=mail)
 
     def delete_group(self, name):
         self.runner.record("sam.ldb: delete group %s" % name)

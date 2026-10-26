@@ -90,6 +90,7 @@ MODULES = {
             "create": own(type="bool", default=True, description=[
                 "Create the group when it is missing; when false, a missing group is an error."]),
             "description": field("group set"),
+            "email": field("group set"),
             "scope": field("group create", description=[
                 "Group scope, set when the group is created (default C(global)); an existing group keeps "
                 "its own, with a warning when it differs."]),

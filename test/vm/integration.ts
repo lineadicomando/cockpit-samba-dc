@@ -19,7 +19,7 @@ import cockpit from "cockpit";
 import {
     addGroupMembers, createGroup, createUser, deleteGroup, deleteUser, getPasswordPolicy, modifyUser, provisionHomeDir,
     renameGroup, setPasswordPolicy, createPso, listPsos, updatePso, deletePso, createOu, listOus, updateOu, deleteOu,
-    moveUser,
+    moveUser, updateGroup, createComputer, setComputerDescription,
 } from "../../src/lib/samba.ts";
 import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
@@ -80,7 +80,23 @@ interface Driver {
     deleteOu(name: string, parent: string): Promise<void>;
     // Move a user into a container (relative DN)
     moveUser(name: string, ou: string): Promise<void>;
+    // The create and edit forms: a user with its details, a group with its
+    // scope, type and e-mail, a computer account made before it joins
+    createUserWith(name: string, details: UserDetails): Promise<void>;
+    createGroupWith(name: string, details: GroupDetails): Promise<void>;
+    setGroupEmail(name: string, email: string): Promise<void>;
+    createComputer(name: string, ou: string, description: string): Promise<void>;
+    setComputerDescription(name: string, description: string): Promise<void>;
     close?(): void;
+}
+
+// As addcctl takes them
+interface UserDetails {
+    email: string; description: string; title: string; department: string; company: string;
+    must_change_password: boolean;
+}
+interface GroupDetails {
+    description: string; email: string; scope: "domain" | "global" | "universal"; category: "security" | "distribution";
 }
 
 const ouDn = (name: string, parent: string) => (parent ? `OU=${name},${parent}` : `OU=${name}`);
@@ -154,6 +170,14 @@ const page: Driver = {
     },
     deleteOu: async (name, parent) => { await deleteOu(ouDn(name, parent), true); },
     moveUser: (name, ou) => moveUser(name, ou),
+    createUserWith: (name, d) => createUser(name, password, {
+        email: d.email, description: d.description, title: d.title, department: d.department, company: d.company,
+        mustChangePassword: d.must_change_password,
+    }),
+    createGroupWith: (name, d) => createGroup(name, d),
+    setGroupEmail: (name, email) => updateGroup(name, { email }),
+    createComputer: (name, ou, description) => createComputer(name, { ou, description }),
+    setComputerDescription: (name, description) => setComputerDescription(name, description),
 };
 
 // --- the Ansible modules, one playbook per step
@@ -200,6 +224,11 @@ function ansibleDriver(): Driver {
         renameOu: (name, parent, newName) => play("samba_ou", { name, parent, new_name: newName }),
         deleteOu: (name, parent) => play("samba_ou", { name, parent, state: "absent", recursive: true }),
         moveUser: (name, ou) => play("samba_user", { name, ou }),
+        createUserWith: (name, d) => play("samba_user", { name, password: testPassword, ...d }),
+        createGroupWith: (name, d) => play("samba_group", { name, ...d }),
+        setGroupEmail: (name, email) => play("samba_group", { name, email }),
+        createComputer: (name, ou, description) => play("samba_computer", { name, ou, description }),
+        setComputerDescription: (name, description) => play("samba_computer", { name, description }),
         setPolicy: (changes, check) => play("samba_password_policy",
             Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v === null ? 0 : v])), check),
         close: () => rmSync(dir, { recursive: true, force: true }),
@@ -284,6 +313,11 @@ async function mcpDriver(): Promise<Driver> {
         renameOu: async (name, parent, newName) => { await tool("ou_set", { dn: ouDn(name, parent), new_name: newName }); },
         deleteOu: async (name, parent) => { await tool("ou_delete", { dn: ouDn(name, parent), recursive: true }); },
         moveUser: async (name, ou) => { await tool("user_set", { name, ou }); },
+        createUserWith: async (name, d) => { await tool("user_create", { name, password, ...d }); },
+        createGroupWith: async (name, d) => { await tool("group_create", { name, ...d }); },
+        setGroupEmail: async (name, email) => { await tool("group_set", { name, email }); },
+        createComputer: async (name, ou, description) => { await tool("computer_create", { name, ou, description }); },
+        setComputerDescription: async (name, description) => { await tool("computer_set", { name, description }); },
         async setPolicy(changes, check) {
             const out = await tool("domain_set_password_policy", { ...changes, ...(check ? { check: true } : {}) });
             assert.equal(out.changed, true);
@@ -456,6 +490,37 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
         });
         if (!removed) await sweep(p);
     }
+    await step("forms: a user with its details, a group with scope, type and e-mail, a computer account", async () => {
+        const info = `${p}info`, list = `${p}list`, pc = `${p}pc2`;
+        try {
+            const details: UserDetails = {
+                email: `${info}@example.org`, description: "Integration", title: "Teacher", department: "Science",
+                company: "School", must_change_password: true,
+            };
+            await driver.createUserWith(info, details);
+            const u = (await core("user get", { name: info })).user as Record<string, unknown>;
+            for (const key of ["email", "description", "title", "department", "company"] as const)
+                assert.equal(u[key], details[key], key);
+            assert.match(await run(["samba-tool", "user", "show", info, "--attributes=pwdLastSet"]), /pwdLastSet: 0$/m);
+
+            await driver.createGroupWith(list, {
+                description: "A list", email: `${list}@example.org`, scope: "universal", category: "distribution",
+            });
+            await driver.setGroupEmail(list, `${list}-2@example.org`);
+            const g = (await core("group get", { name: list })).group as Record<string, unknown>;
+            assert.deepEqual([g.description, g.email, g.scope, g.category],
+                ["A list", `${list}-2@example.org`, "universal", "distribution"]);
+
+            await driver.createComputer(pc, "CN=Computers", "Lab");
+            await driver.setComputerDescription(pc, "Lab, row 2");
+            const c = (await core("computer get", { name: pc })).computer as Record<string, unknown>;
+            assert.deepEqual([c.description, c.container], ["Lab, row 2", "CN=Computers"]);
+        } finally {
+            if (await present("user list", "users", info)) await core("user delete", { name: info });
+            if (await present("group list", "groups", list)) await core("group delete", { name: list });
+            if (await present("computer list", "computers", pc)) await core("computer delete", { name: pc });
+        }
+    });
     await step("the domain tab: overview, health check, backup", () => driver.domain());
     await step("the password policy: a change, as samba-tool reads it, then restored", () => passwordPolicy(driver));
 }

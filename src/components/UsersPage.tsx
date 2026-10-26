@@ -41,6 +41,7 @@ import {
   usePagination,
   useGroupNames,
   useOus,
+  useSelection,
   PER_PAGE_OPTIONS,
 } from "../lib/hooks.ts";
 import type { User } from "../lib/types.ts";
@@ -117,10 +118,6 @@ export function UsersPage({ refreshToken = 0 }: Props) {
   const [groupSearch, setGroupSearch] = useState("");
   const [containerFilter, setContainerFilter] = useState<string | null>(null);
   const { groupNames: allGroups } = useGroupNames();
-
-  const [selectedUsernames, setSelectedUsernames] = useState<Set<string>>(
-    new Set(),
-  );
 
   const [modal, setModal] = useState<ModalState>({ kind: "none" });
   const [actionError, setActionError] = useState<string | null>(null);
@@ -243,42 +240,18 @@ export function UsersPage({ refreshToken = 0 }: Props) {
       [search, statusFilter, groupFilter ?? "", containerFilter ?? "", sortIndex ?? "", sortDir].join("\x1f"),
     );
 
-  // Keep only visible users selected, so bulk actions never touch rows the
-  // operator can no longer see (filtered out, or deleted by a reload).
-  useEffect(() => {
-    const visible = new Set(filtered.map((u) => u.username));
-    setSelectedUsernames((prev) => {
-      const next = new Set([...prev].filter((n) => visible.has(n)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [filtered]);
+  const {
+    selected: selectedUsernames,
+    setSelected: setSelectedUsernames,
+    allSelected: allFilteredSelected,
+    selectAll: handleSelectAll,
+    selectRow: handleSelectRow,
+  } = useSelection(filtered, (u) => u.username);
 
   const selectedUsers = useMemo(
     () => users.filter((u) => selectedUsernames.has(u.username)),
     [users, selectedUsernames],
   );
-
-  const allFilteredSelected =
-    filtered.length > 0 &&
-    filtered.every((u) => selectedUsernames.has(u.username));
-
-  const handleSelectAll = (isSelected: boolean) => {
-    setSelectedUsernames((prev) => {
-      const next = new Set(prev);
-      if (isSelected) filtered.forEach((u) => next.add(u.username));
-      else filtered.forEach((u) => next.delete(u.username));
-      return next;
-    });
-  };
-
-  const handleSelectRow = (username: string, isSelected: boolean) => {
-    setSelectedUsernames((prev) => {
-      const next = new Set(prev);
-      if (isSelected) next.add(username);
-      else next.delete(username);
-      return next;
-    });
-  };
 
   // Literal t() calls, so i18next-parser can extract them
   function statusFilterLabel(filter: StatusFilter): string {

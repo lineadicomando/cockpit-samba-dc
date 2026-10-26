@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
     Modal, ModalVariant,
     ModalHeader, ModalBody, ModalFooter,
-    Form, FormGroup, TextInput,
+    Form, FormGroup, TextInput, Checkbox, ExpandableSection,
     Button, Alert,
     FormSelect, FormSelectOption,
     FormHelperText, HelperText, HelperTextItem,
@@ -11,10 +11,11 @@ import {
 import { createUser, getPasswordPolicy, addGroupMembers, setPrimaryGroup } from "../../lib/samba.ts";
 import { usePasswordPolicy, usePasswordGenerator, useOus } from "../../lib/hooks.ts";
 import { checkPasswordAgainstPolicy } from "../../lib/passwordUtils.ts";
-import { validateUsername, usernameViolationMessage } from "../../lib/validators.ts";
+import { validateUsername, usernameViolationMessage, validateEmail, emailViolationMessage } from "../../lib/validators.ts";
 import { PasswordField, PasswordPolicyInfo, PasswordPolicyUnavailable } from "../PasswordField.tsx";
 import { GroupMultiSelect } from "../GroupMultiSelect.tsx";
 import { ContainerSelect, accountContainers } from "../ContainerSelect.tsx";
+import { OrganizationFields } from "../OrganizationFields.tsx";
 
 interface Props {
     onClose: () => void;
@@ -28,6 +29,13 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
     const [passwordConfirm, setPasswordConfirm] = useState("");
     const [givenName, setGivenName] = useState("");
     const [surname, setSurname] = useState("");
+    const [email, setEmail] = useState("");
+    const [mustChange, setMustChange] = useState(false);
+    const [description, setDescription] = useState("");
+    const [title, setTitle] = useState("");
+    const [department, setDepartment] = useState("");
+    const [company, setCompany] = useState("");
+    const [moreOpen, setMoreOpen] = useState(false);
     const [groups, setGroups] = useState<string[]>([]);
     const [primaryGroup, setPrimaryGroupState] = useState("");
     const [ou, setOu] = useState("");
@@ -56,6 +64,8 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
         if (usernameViolation) { setError(usernameViolationMessage(t, usernameViolation)); return; }
         if (!password) { setError(t("Password is required.")); return; }
         if (password !== passwordConfirm) { setError(t("Passwords do not match.")); return; }
+        const emailViolation = validateEmail(email.trim());
+        if (emailViolation) { setError(emailViolationMessage(t, emailViolation)); return; }
         setSubmitting(true);
         setError(null);
         const trimmed = username.trim();
@@ -73,7 +83,11 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
                 setSubmitting(false);
                 return;
             }
-            await createUser(trimmed, password, givenName.trim() || undefined, surname.trim() || undefined, ou);
+            await createUser(trimmed, password, {
+                givenName: givenName.trim(), surname: surname.trim(), email: email.trim(),
+                description: description.trim(), title: title.trim(), department: department.trim(),
+                company: company.trim(), mustChangePassword: mustChange, ou,
+            });
         } catch (e) {
             setError(e instanceof Error ? e.message : String(e));
             setSubmitting(false);
@@ -136,12 +150,28 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
                             forceReveal={revealCount}
                         />
                     </FormGroup>
+                    <FormGroup fieldId="cu-must-change">
+                        <Checkbox id="cu-must-change"
+                            label={t("Require password change at next login")}
+                            isChecked={mustChange}
+                            isDisabled={submitting}
+                            onChange={(_e, checked) => setMustChange(checked)} />
+                    </FormGroup>
                     <FormGroup label={t("Given name")} fieldId="cu-given-name">
                         <TextInput id="cu-given-name" value={givenName} onChange={(_e, v) => setGivenName(v)} placeholder={t("Optional")} />
                     </FormGroup>
                     <FormGroup label={t("Surname")} fieldId="cu-surname">
                         <TextInput id="cu-surname" value={surname} onChange={(_e, v) => setSurname(v)} placeholder={t("Optional")} />
                     </FormGroup>
+                    <FormGroup label={t("Email")} fieldId="cu-email">
+                        <TextInput id="cu-email" type="email" value={email} onChange={(_e, v) => setEmail(v)} placeholder={t("Optional")} />
+                    </FormGroup>
+                    <ExpandableSection toggleText={t("Description and organization")} isExpanded={moreOpen}
+                        onToggle={(_e, open) => setMoreOpen(open)}>
+                        <OrganizationFields idPrefix="cu" isDisabled={submitting}
+                            values={{ description, title, department, company }}
+                            onChange={{ description: setDescription, title: setTitle, department: setDepartment, company: setCompany }} />
+                    </ExpandableSection>
                     <FormGroup label={t("Container")} fieldId="cu-ou">
                         <ContainerSelect id="cu-ou" value={ou} onChange={setOu}
                             choices={accountContainers(ous).filter(o => o.defaultFor !== "users")}

@@ -169,9 +169,10 @@ class FakeDirDc:
     def change_members(self, grp, members, add):
         self._do("members", grp, "add" if add else "remove", tuple(members))
 
-    def new_group(self, name, grouptype, description=None, ou=None):
+    def new_group(self, name, grouptype, description=None, ou=None, mail=None):
         self._do("new_group", name, grouptype, ou)
         self.groups.append(group(name, "1600"))
+        self.last_group_mail = mail
 
     def delete_group(self, name):
         self._do("delete_group", name)
@@ -311,6 +312,19 @@ class TestOthers(Base):
         with self.assertRaisesRegex(AddcError, "built-in group"):
             Groups(self.dc, self.runner).set({"name": "Domain Users", "new_name": "Everyone"})
 
+    def test_group_email(self):
+        groups = Groups(self.dc, self.runner)
+        groups.create({"name": "t-mail", "email": "t-mail@school.internal", "description": "Mail"})
+        self.assertEqual(self.dc.last_group_mail, "t-mail@school.internal")
+        groups = Groups(self.dc, self.runner)
+        self.assertTrue(groups.set({"name": "Teachers", "email": "teachers@school.internal"})["changed"])
+        self.assertEqual(self.dc.modified[-1][1], {"mail": "teachers@school.internal"})
+        self.dc.groups[2]["mail"] = ["teachers@school.internal"]
+        groups = Groups(self.dc, self.runner)
+        self.assertFalse(groups.set({"name": "Teachers", "email": "teachers@school.internal"})["changed"])
+        self.assertTrue(groups.set({"name": "Teachers", "email": ""})["changed"])
+        self.assertEqual(self.dc.modified[-1][1], {"mail": None})
+
     def test_computers(self):
         computers = Computers(self.dc, self.runner)
         self.assertEqual([c["name"] for c in computers.list()], ["DC", "PC01"])
@@ -318,6 +332,17 @@ class TestOthers(Base):
         self.assertIn(("samba-tool", "computer", "delete", "PC01"), self.dc.calls)
         with self.assertRaisesRegex(AddcError, "domain controller"):
             computers.delete({"name": "DC"})
+
+    def test_computer_create_names(self):
+        computers = Computers(self.dc, self.runner)
+        for bad in ("pc_01", "1234", "-pc", "a" * 16, "pc 01"):
+            with self.assertRaisesRegex(AddcError, "Invalid (computer|account) name"):
+                computers.create({"name": bad})
+        result = computers.create({"name": "LAB-PC02", "ou": "OU=School", "description": "Lab"})
+        self.assertEqual(result["computer"]["name"], "LAB-PC02")
+        self.assertEqual(result["computer"]["container"], "OU=School")
+        with self.assertRaisesRegex(AddcError, "already exists"):
+            computers.create({"name": "lab-pc02"})
 
 
 class TestAdValues(unittest.TestCase):

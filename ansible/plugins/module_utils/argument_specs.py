@@ -35,6 +35,7 @@ _SPECS = {
         'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},
         'create': {'type': 'bool', 'default': True},
         'description': {'type': 'str'},
+        'email': {'type': 'str'},
         'scope': {'type': 'str', 'choices': ['domain', 'global', 'universal']},
         'category': {'type': 'str', 'choices': ['security', 'distribution']},
         'members': {'type': 'list', 'elements': 'str'},

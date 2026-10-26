@@ -21,12 +21,13 @@ import { listShares, effectiveShareAccess, expandNestedGroups } from "../lib/sha
 import type { User } from "../lib/types.ts";
 import { usePasswordPolicy, usePasswordGenerator, useSingleLoad } from "../lib/hooks.ts";
 import { checkPasswordAgainstPolicy } from "../lib/passwordUtils.ts";
-import { validateUsername, usernameViolationMessage } from "../lib/validators.ts";
+import { validateUsername, usernameViolationMessage, validateEmail, emailViolationMessage } from "../lib/validators.ts";
 import { PasswordField, PasswordPolicyInfo, PasswordPolicyUnavailable } from "./PasswordField.tsx";
 import { GroupMultiSelect } from "./GroupMultiSelect.tsx";
 import { UserStatusLabels } from "./UserStatusLabels.tsx";
 import { AccountExpiryField, expiryValueOf, expiryFromValue, expiryValueError, formatExpiry, type ExpiryValue } from "./AccountExpiryField.tsx";
 import { ContainerLabel } from "./ContainerSelect.tsx";
+import { OrganizationFields, type Organization } from "./OrganizationFields.tsx";
 
 interface Props {
     username: string;
@@ -115,6 +116,9 @@ function IdentitySection({ user, onUpdate }: { user: User; onUpdate: (u: User) =
     const [givenName, setGivenName] = useState(user.givenName);
     const [surname, setSurname] = useState(user.surname);
     const [email, setEmail] = useState(user.email);
+    const [org, setOrg] = useState<Organization>({
+        description: user.description, title: user.title, department: user.department, company: user.company,
+    });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
@@ -123,17 +127,38 @@ function IdentitySection({ user, onUpdate }: { user: User; onUpdate: (u: User) =
         newUsername === user.username &&
         givenName === user.givenName &&
         surname === user.surname &&
-        email === user.email;
+        email === user.email &&
+        org.description === user.description &&
+        org.title === user.title &&
+        org.department === user.department &&
+        org.company === user.company;
+
+    const orgSetter = (key: keyof Organization) => (value: string) => {
+        setOrg(prev => ({ ...prev, [key]: value }));
+        setSuccess(false);
+    };
 
     async function handleSave() {
         const violation = validateUsername(newUsername.trim());
         if (violation) { setError(usernameViolationMessage(t, violation)); return; }
+        const emailViolation = validateEmail(email.trim());
+        if (emailViolation) { setError(emailViolationMessage(t, emailViolation)); return; }
         if (unchanged) return;
         setSaving(true);
         setError(null);
         setSuccess(false);
         try {
-            await modifyUser(user.username, { givenName, surname, email, newUsername: newUsername.trim() });
+            // Only what changed: samba-tool user rename runs for names and e-mail
+            const changed = <K extends keyof Organization>(key: K) =>
+                org[key] !== user[key] ? org[key].trim() : undefined;
+            await modifyUser(user.username, {
+                givenName: givenName !== user.givenName ? givenName : undefined,
+                surname: surname !== user.surname ? surname : undefined,
+                email: email !== user.email ? email.trim() : undefined,
+                description: changed("description"), title: changed("title"),
+                department: changed("department"), company: changed("company"),
+                newUsername: newUsername.trim(),
+            });
             if (newUsername.trim() !== user.username) {
                 cockpit.location.go(newUsername.trim());
             } else {
@@ -179,6 +204,11 @@ function IdentitySection({ user, onUpdate }: { user: User; onUpdate: (u: User) =
                         <TextInput id="ud-email" type="email" value={email}
                             onChange={(_e, v) => { setEmail(v); setSuccess(false); }} />
                     </FormGroup>
+                    <OrganizationFields idPrefix="ud" values={org} isDisabled={saving}
+                        onChange={{
+                            description: orgSetter("description"), title: orgSetter("title"),
+                            department: orgSetter("department"), company: orgSetter("company"),
+                        }} />
                     <ActionGroup>
                         <Button variant="primary" isLoading={saving}
                             isDisabled={unchanged || saving} onClick={handleSave}>

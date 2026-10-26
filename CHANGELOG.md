@@ -8,6 +8,29 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- Users: e-mail, description, job title, department and company, and
+  whether the password must be changed at the next logon, when a user is
+  created; description, job title, department and company edited on the
+  user page.
+- Groups: description, e-mail, scope and type (security or distribution)
+  when a group is created; "Edit group" changes its name, description and
+  e-mail (it replaces "Rename group"); a description column; several
+  groups selected and moved at once.
+- Computers: a page for each computer (DNS name, operating system, last
+  logon, container, SID) where its description is edited; "Create computer
+  account" makes one before the computer joins, in a chosen OU; a
+  description column; several computers selected and moved at once.
+- `addcctl`: `email` on `group create` and `group set`; collection: `email`
+  on `samba_group`.
+
+### Changed
+
+- `addcctl computer create` (and `samba_computer` creating an account)
+  takes only names a computer can have: up to 15 letters, digits and
+  hyphens, not only digits.
+
 ## [0.12.0] - 2026-10-26
 
 ### Added

@@ -33,6 +33,7 @@ EXAMPLES = r"""
   lineadicomando.samba_dc.samba_group:
     name: Staff
     description: School staff
+    email: staff@school.internal
     members: [mrossi, bianchi]
 
 - name: Add a member, keeping the others
@@ -83,7 +84,7 @@ def run_module():
     if before is None:
         if not p["create"]:
             module.fail_json(msg='Group "%s" not found' % p["name"])
-        request = dict(given(p, dict(description="description", scope="scope", category="category", ou="ou")),
+        request = dict(given(p, dict(description="description", email="email", scope="scope", category="category", ou="ou")),
                        name=p["name"])
         if p["members"] and p["members_mode"] != "remove":
             request["members"] = p["members"]
@@ -98,7 +99,7 @@ def run_module():
     for option in ("scope", "category"):
         if p[option] is not None and p[option] != before[option]:
             module.warn("The %s of an existing group is not changed: %s is %s" % (option, before["name"], before[option]))
-    request = given(p, dict(description="description", members="members", new_name="new_name", ou="ou"))
+    request = given(p, dict(description="description", email="email", members="members", new_name="new_name", ou="ou"))
     if p["members"] is not None:
         request["members_mode"] = p["members_mode"]
     if not request:

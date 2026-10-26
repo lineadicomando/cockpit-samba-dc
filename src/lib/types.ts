@@ -4,6 +4,10 @@ export interface User {
     givenName: string;
     surname: string;
     email: string;
+    description: string;
+    title: string;
+    department: string;
+    company: string;
     id: string;
     status: "Active" | "Disabled" | "Unknown";
     lastActivity: string;
@@ -23,15 +27,19 @@ export interface User {
     container: string;
 }
 
+export type GroupScope = "domain" | "global" | "universal" | "builtin";
+
 export interface Group {
     name: string;
     description: string;
+    email: string;
     id: string;
     memberCount: number;
     members: string[];
     isCriticalSystemObject: boolean;
     isProtected: boolean;
     groupType: "Security" | "Distribution";
+    scope: GroupScope;
     container: string;
 }
 
@@ -39,7 +47,11 @@ export interface Computer {
     name: string;
     dn: string;
     id: string;
+    sid: string;
     os: string;
+    osVersion: string;
+    dnsName: string;
+    description: string;
     lastLogon: string;
     container: string;
     isDomainController: boolean;

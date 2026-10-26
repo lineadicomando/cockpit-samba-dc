@@ -30,12 +30,12 @@ import {
 import type { IAction } from "@patternfly/react-table";
 
 import { listGroups, refreshGroup } from "../lib/samba.ts";
-import { useSingleLoad, usePagination, useOus, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
+import { useSingleLoad, usePagination, useOus, useSelection, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
 import type { Group } from "../lib/types.ts";
 import { CreateGroupModal } from "./modals/CreateGroupModal.tsx";
 import { ManageMembersModal } from "./modals/ManageMembersModal.tsx";
 import { DeleteGroupModal } from "./modals/DeleteGroupModal.tsx";
-import { RenameGroupModal } from "./modals/RenameGroupModal.tsx";
+import { EditGroupModal } from "./modals/EditGroupModal.tsx";
 import { MoveModal } from "./modals/MoveModal.tsx";
 import { ContainerFilter, ContainerLabel, sameContainer } from "./ContainerSelect.tsx";
 
@@ -46,8 +46,8 @@ type ModalState =
     | { kind: "none" }
     | { kind: "create" }
     | { kind: "manageMembers"; group: Group }
-    | { kind: "rename"; group: Group }
-    | { kind: "move"; group: Group }
+    | { kind: "edit"; group: Group }
+    | { kind: "move"; groups: Group[] }
     | { kind: "delete"; group: Group };
 
 interface Props {
@@ -99,6 +99,8 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
     const { page, perPage, paginated, onSetPage, onPerPageSelect } =
         usePagination(filtered, `${search}\x1f${typeFilter}\x1f${containerFilter ?? ""}`);
     const filtering = Boolean(search) || typeFilter !== "all" || containerFilter !== null;
+    const { selected, setSelected, allSelected, selectAll, selectRow } = useSelection(filtered, g => g.name);
+    const selectedGroups = useMemo(() => groups.filter(g => selected.has(g.name)), [groups, selected]);
 
     function rowActions(g: Group): IAction[] {
         return [
@@ -107,13 +109,12 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                 onClick: () => setModal({ kind: "manageMembers", group: g }),
             },
             {
-                title: t("Rename group"),
-                onClick: () => setModal({ kind: "rename", group: g }),
-                isDisabled: g.isProtected,
+                title: t("Edit group"),
+                onClick: () => setModal({ kind: "edit", group: g }),
             },
             {
                 title: t("Move"),
-                onClick: () => setModal({ kind: "move", group: g }),
+                onClick: () => setModal({ kind: "move", groups: [g] }),
                 isDisabled: g.isProtected,
             },
             { isSeparator: true, title: "" },
@@ -192,6 +193,25 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                 </ToolbarContent>
             </Toolbar>
 
+            {/* ---- Bulk actions ---- */}
+            {selected.size > 0 && (
+                <Toolbar>
+                    <ToolbarContent>
+                        <ToolbarItem>
+                            <Label color="blue">{t("groups_selected", { count: selected.size })}</Label>
+                        </ToolbarItem>
+                        <ToolbarItem>
+                            <Button variant="link" onClick={() => setSelected(new Set())}>{t("Clear selection")}</Button>
+                        </ToolbarItem>
+                        <ToolbarItem>
+                            <Button variant="secondary" onClick={() => setModal({ kind: "move", groups: selectedGroups })}>
+                                {t("Move")}
+                            </Button>
+                        </ToolbarItem>
+                    </ToolbarContent>
+                </Toolbar>
+            )}
+
             {/* ---- Inline errors ---- */}
             {error && (
                 <Alert variant="danger" isInline title={t("Failed to load groups")} style={{ marginBottom: "1rem" }}>
@@ -225,7 +245,9 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                 <Table aria-label={t("Groups table")} variant="compact">
                     <Thead>
                         <Tr>
+                            <Th select={{ onSelect: (_e, isSelected) => selectAll(isSelected), isSelected: allSelected }} />
                             <Th>{t("Name")}</Th>
+                            <Th>{t("Description")}</Th>
                             <Th>{t("ID")}</Th>
                             <Th>{t("Members")}</Th>
                             <Th>{t("Type")}</Th>
@@ -234,9 +256,12 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                         </Tr>
                     </Thead>
                     <Tbody>
-                        {paginated.map(g => (
+                        {paginated.map((g, idx) => (
                             <Tr key={g.name}>
+                                <Td select={{ rowIndex: idx, onSelect: (_e, isSelected) => selectRow(g.name, isSelected),
+                                    isSelected: selected.has(g.name) }} />
                                 <Td dataLabel={t("Name")}>{g.name}</Td>
+                                <Td dataLabel={t("Description")}>{g.description}</Td>
                                 <Td dataLabel={t("ID")}>{g.id}</Td>
                                 <Td dataLabel={t("Members")}>{g.memberCount}</Td>
                                 <Td dataLabel={t("Type")}>
@@ -289,8 +314,8 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
                     }}
                 />
             )}
-            {modal.kind === "rename" && (
-                <RenameGroupModal
+            {modal.kind === "edit" && (
+                <EditGroupModal
                     group={modal.group}
                     onClose={() => setModal({ kind: "none" })}
                     onSuccess={() => { setModal({ kind: "none" }); loadGroups(); }}
@@ -299,9 +324,9 @@ export function GroupsPage({ refreshToken = 0 }: Props) {
             {modal.kind === "move" && (
                 <MoveModal
                     kind="group"
-                    items={[{ name: modal.group.name, container: modal.group.container, fixed: modal.group.isProtected }]}
+                    items={modal.groups.map(g => ({ name: g.name, container: g.container, fixed: g.isProtected }))}
                     onClose={() => setModal({ kind: "none" })}
-                    onSuccess={() => { setModal({ kind: "none" }); loadGroups(); }}
+                    onSuccess={() => { setModal({ kind: "none" }); setSelected(new Set()); loadGroups(); }}
                 />
             )}
             {modal.kind === "delete" && (

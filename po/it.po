@@ -100,9 +100,6 @@ msgstr "Filtra per nome utente o nome"
 msgid "Filter by name or description"
 msgstr "Filtra per nome o descrizione"
 
-msgid "Filter by name, OS or ID"
-msgstr "Filtra per nome, SO o ID"
-
 msgid "Filter users"
 msgstr "Filtra utenti"
 
@@ -178,17 +175,11 @@ msgstr "Crea gruppo"
 msgid "Manage members"
 msgstr "Gestisci membri"
 
-msgid "Rename group"
-msgstr "Rinomina gruppo"
-
 msgid "Delete group"
 msgstr "Elimina gruppo"
 
 msgid "Delete group: {{name}}"
 msgstr "Elimina gruppo: {{name}}"
-
-msgid "Rename group: {{name}}"
-msgstr "Rinomina gruppo: {{name}}"
 
 msgid "Add users to group"
 msgstr "Aggiungi utenti al gruppo"
@@ -398,9 +389,6 @@ msgstr "Le password non corrispondono."
 
 msgid "Password must be at least {{min}} characters."
 msgstr "La password deve contenere almeno {{min}} caratteri."
-
-msgid "The new name is the same as the current name."
-msgstr "Il nuovo nome è uguale al nome attuale."
 
 msgid "System accounts cannot be renamed."
 msgstr "Gli account di sistema non possono essere rinominati."
@@ -1473,3 +1461,111 @@ msgstr "Prova a rimuovere il filtro di ricerca, stato, gruppo o contenitore."
 
 msgid "Try clearing the search, type or container filter."
 msgstr "Prova a rimuovere il filtro di ricerca, tipo o contenitore."
+
+# ---------------------------------------------------------------------------
+# Moduli di creazione e modifica: utenti, gruppi, computer
+# ---------------------------------------------------------------------------
+
+msgid "Description and organization"
+msgstr "Descrizione e organizzazione"
+
+msgid "Job title"
+msgstr "Qualifica"
+
+msgid "Department"
+msgstr "Reparto"
+
+msgid "Company"
+msgstr "Società"
+
+msgid "Enter an e-mail address such as name@example.org."
+msgstr "Inserisci un indirizzo e-mail come nome@esempio.org."
+
+msgid "Group scope"
+msgstr "Ambito del gruppo"
+
+msgid "Global"
+msgstr "Globale"
+
+msgid "Domain local"
+msgstr "Locale al dominio"
+
+msgid "Universal"
+msgstr "Universale"
+
+msgid "Group type"
+msgstr "Tipo di gruppo"
+
+msgid "Security"
+msgstr "Sicurezza"
+
+msgid "Distribution"
+msgstr "Distribuzione"
+
+msgid "Only security groups can be given access to shared folders."
+msgstr "Solo i gruppi di sicurezza possono ricevere accesso alle cartelle condivise."
+
+msgid "Edit group"
+msgstr "Modifica gruppo"
+
+msgid "Edit group: {{name}}"
+msgstr "Modifica gruppo: {{name}}"
+
+msgid "Built-in groups cannot be renamed."
+msgstr "I gruppi predefiniti non possono essere rinominati."
+
+msgid "Shared folders follow the new name."
+msgstr "Le cartelle condivise seguono il nuovo nome."
+
+msgid "Create computer account"
+msgstr "Crea account computer"
+
+msgid "Computer name"
+msgstr "Nome del computer"
+
+msgid "The name the computer will have when it joins the domain."
+msgstr "Il nome che il computer avrà quando entrerà nel dominio."
+
+msgid "Default (Computers)"
+msgstr "Predefinito (Computers)"
+
+msgid "Computer name is required."
+msgstr "Il nome del computer è obbligatorio."
+
+msgid "Computer name cannot exceed 15 characters."
+msgstr "Il nome del computer non può superare i 15 caratteri."
+
+msgid "Computer name can contain only letters, digits and hyphens."
+msgstr "Il nome del computer può contenere solo lettere, cifre e trattini."
+
+msgid "Computer name cannot start with a dash."
+msgstr "Il nome del computer non può iniziare con un trattino."
+
+msgid "Computer name cannot be made of digits only."
+msgstr "Il nome del computer non può essere composto solo da cifre."
+
+msgid "computers_selected"
+msgid_plural "computers_selected_plural"
+msgstr[0] "{{count}} computer selezionato"
+msgstr[1] "{{count}} computer selezionati"
+
+msgid "Filter by name, description, OS or ID"
+msgstr "Filtra per nome, descrizione, SO o ID"
+
+msgid "Details"
+msgstr "Dettagli"
+
+msgid "Loading computer"
+msgstr "Caricamento del computer"
+
+msgid "Failed to load computer"
+msgstr "Impossibile caricare il computer"
+
+msgid "OS version"
+msgstr "Versione del SO"
+
+msgid "SID"
+msgstr "SID"
+
+msgid "Role"
+msgstr "Ruolo"

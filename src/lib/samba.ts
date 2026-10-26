@@ -1,7 +1,9 @@
 import { cache, checkName } from "./exec.ts";
 import { addcctl } from "./addcctl.ts";
-import type { DomainSetPasswordPolicyInput, PsoCreateInput } from "./addcctl-schema.ts";
-import type { User, Group, Computer, PasswordPolicy, Pso, EffectivePolicy, Ou } from "./types.ts";
+import type {
+    DomainSetPasswordPolicyInput, PsoCreateInput, UserCreateInput, GroupCreateInput, ComputerCreateInput,
+} from "./addcctl-schema.ts";
+import type { User, Group, GroupScope, Computer, PasswordPolicy, Pso, EffectivePolicy, Ou } from "./types.ts";
 
 // Users, groups, computers, home directories and the password policy are
 // operations of addcctl, the core on the DC: it reads sam.ldb, makes the
@@ -18,6 +20,10 @@ interface CoreUser {
     given_name: string;
     surname: string;
     email: string;
+    description: string;
+    title: string;
+    department: string;
+    company: string;
     uid_number: string;
     rid: string;
     enabled: boolean;
@@ -35,10 +41,12 @@ interface CoreUser {
 interface CoreGroup {
     name: string;
     description: string;
+    email: string;
     rid: string;
     members: string[];
     primary_members: string[];
     member_count: number;
+    scope: GroupScope;
     category: "security" | "distribution";
     critical: boolean;
     protected: boolean;
@@ -48,8 +56,12 @@ interface CoreGroup {
 interface CoreComputer {
     name: string;
     dn: string;
+    sid: string;
     rid: string;
     os: string;
+    os_version: string;
+    dns_name: string;
+    description: string;
     last_logon: string | null;
     container: string;
     domain_controller: boolean;
@@ -120,6 +132,10 @@ function toUser(u: CoreUser): User {
         givenName: u.given_name,
         surname: u.surname,
         email: u.email,
+        description: u.description ?? "",
+        title: u.title ?? "",
+        department: u.department ?? "",
+        company: u.company ?? "",
         id: u.uid_number || u.rid || "-",
         status: u.enabled ? "Active" : "Disabled",
         lastActivity: localDate(u.last_logon),
@@ -141,19 +157,22 @@ function toGroup(g: CoreGroup): Group {
     return {
         name: g.name,
         description: g.description,
+        email: g.email ?? "",
         id: g.rid || "-",
         memberCount: g.member_count,
         members: g.members,
         isCriticalSystemObject: g.critical,
         isProtected: g.protected,
         groupType: g.category === "distribution" ? "Distribution" : "Security",
+        scope: g.scope,
         container: g.container ?? "",
     };
 }
 
 function toComputer(c: CoreComputer): Computer {
     return {
-        name: c.name, dn: c.dn, id: c.rid || "-", os: c.os || "-", lastLogon: localDate(c.last_logon),
+        name: c.name, dn: c.dn, id: c.rid || "-", sid: c.sid ?? "", os: c.os || "-", osVersion: c.os_version ?? "",
+        dnsName: c.dns_name ?? "", description: c.description ?? "", lastLogon: localDate(c.last_logon),
         container: c.container ?? "", isDomainController: Boolean(c.domain_controller),
     };
 }
@@ -233,17 +252,36 @@ export async function refreshUser(username: string): Promise<User> {
     return getUserDetails(username);
 }
 
-// ou: the container's DN relative to the domain; empty for the default (CN=Users)
-export async function createUser(username: string, password: string, givenName?: string, surname?: string,
-    ou?: string): Promise<void> {
+// The settings with a value: an empty field is left out
+function given<T extends object>(settings: T): Partial<T> {
+    return Object.fromEntries(Object.entries(settings).filter(([, v]) => v !== undefined && v !== "" && v !== false)) as Partial<T>;
+}
+
+export interface NewUser {
+    givenName?: string;
+    surname?: string;
+    email?: string;
+    description?: string;
+    title?: string;
+    department?: string;
+    company?: string;
+    mustChangePassword?: boolean;
+    // The container's DN relative to the domain; empty for the default (CN=Users)
+    ou?: string;
+}
+
+export async function createUser(username: string, password: string, user: NewUser = {}): Promise<void> {
     checkName(username);
     // The password reaches addcctl on stdin, in its JSON input
-    await mutate(() => addcctl("user create", {
+    const input: UserCreateInput = {
         name: username, password,
-        ...(givenName ? { given_name: givenName } : {}),
-        ...(surname ? { surname } : {}),
-        ...(ou ? { ou } : {}),
-    }));
+        ...given({
+            given_name: user.givenName, surname: user.surname, email: user.email, description: user.description,
+            title: user.title, department: user.department, company: user.company,
+            must_change_password: user.mustChangePassword, ou: user.ou,
+        }),
+    };
+    await mutate(() => addcctl("user create", input));
 }
 
 export async function moveUser(username: string, ou: string): Promise<void> {
@@ -278,14 +316,30 @@ export async function setAccountExpiry(username: string, expiresAt: Date | null)
     await mutate(() => addcctl("user set", { name: username, expires: expiresAt ? expiresAt.toISOString() : null }));
 }
 
-// A new name also renames the user in the shared folders (addcctl does it)
-export async function modifyUser(username: string, data: { givenName?: string; surname?: string; email?: string; newUsername?: string }): Promise<void> {
+export interface UserIdentity {
+    givenName?: string;
+    surname?: string;
+    email?: string;
+    description?: string;
+    title?: string;
+    department?: string;
+    company?: string;
+    newUsername?: string;
+}
+
+// A new name also renames the user in the shared folders (addcctl does it).
+// An empty value removes the attribute.
+export async function modifyUser(username: string, data: UserIdentity): Promise<void> {
     checkName(username);
     const input = {
         name: username,
         ...(data.givenName !== undefined ? { given_name: data.givenName } : {}),
         ...(data.surname !== undefined ? { surname: data.surname } : {}),
         ...(data.email !== undefined ? { email: data.email } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.title !== undefined ? { title: data.title } : {}),
+        ...(data.department !== undefined ? { department: data.department } : {}),
+        ...(data.company !== undefined ? { company: data.company } : {}),
         ...(data.newUsername && data.newUsername !== username ? { new_name: data.newUsername } : {}),
     };
     if (Object.keys(input).length === 1) return;
@@ -405,9 +459,35 @@ export async function listGroupMembers(groupName: string): Promise<string[]> {
     return [...group.members, ...group.primary_members.filter(m => !group.members.includes(m))];
 }
 
-export async function createGroup(name: string, ou?: string): Promise<void> {
+export interface NewGroup {
+    description?: string;
+    email?: string;
+    // Left out: addcctl's defaults, global and security
+    scope?: "domain" | "global" | "universal";
+    category?: "security" | "distribution";
+    // The container's DN relative to the domain; empty for the default (CN=Users)
+    ou?: string;
+}
+
+export async function createGroup(name: string, group: NewGroup = {}): Promise<void> {
     checkName(name);
-    await mutate(() => addcctl("group create", { name, ...(ou ? { ou } : {}) }));
+    const input: GroupCreateInput = { name, ...given(group) };
+    await mutate(() => addcctl("group create", input));
+}
+
+// Sends what is given; an empty value removes the attribute. A new name also
+// renames the group in the shared folders (addcctl does it).
+export async function updateGroup(name: string, data: { newName?: string; description?: string; email?: string }): Promise<void> {
+    checkName(name);
+    if (data.newName) checkName(data.newName);
+    const input = {
+        name,
+        ...(data.newName && data.newName !== name ? { new_name: data.newName } : {}),
+        ...(data.description !== undefined ? { description: data.description } : {}),
+        ...(data.email !== undefined ? { email: data.email } : {}),
+    };
+    if (Object.keys(input).length === 1) return;
+    await mutate(() => addcctl("group set", input));
 }
 
 export async function moveGroup(name: string, ou: string): Promise<void> {
@@ -437,6 +517,31 @@ export async function removeGroupMembers(groupName: string, members: string[]): 
 }
 
 // --- computers ---
+
+export async function getComputerDetails(name: string): Promise<Computer> {
+    checkName(name);
+    const { computer } = await cached<{ computer: CoreComputer }>(KEY("computer get", name), 60_000,
+        () => addcctl("computer get", { name }));
+    return toComputer(computer);
+}
+
+export async function refreshComputer(name: string): Promise<Computer> {
+    invalidateAll();
+    return getComputerDetails(name);
+}
+
+// An account made before the computer joins; ou empty: the default (CN=Computers)
+export async function createComputer(name: string, computer: { description?: string; ou?: string } = {}): Promise<void> {
+    checkName(name);
+    const input: ComputerCreateInput = { name, ...given(computer) };
+    await mutate(() => addcctl("computer create", input));
+}
+
+// An empty description removes it
+export async function setComputerDescription(name: string, description: string): Promise<void> {
+    checkName(name);
+    await mutate(() => addcctl("computer set", { name, description }));
+}
 
 export async function deleteComputer(name: string): Promise<void> {
     checkName(name);

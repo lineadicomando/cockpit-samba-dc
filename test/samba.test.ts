@@ -10,6 +10,7 @@ import {
     getPasswordPolicy, listGroupMembers, addGroupMembers, removeGroupMembers, renameGroup, createGroup,
     deleteComputer, provisionHomeDir, setPasswordPolicy, getUserPasswordPolicy, listPsos, createPso, updatePso,
     deletePso, listOus, createOu, updateOu, deleteOu, moveUser, moveGroup, moveComputer, containerPath,
+    updateGroup, getComputerDetails, createComputer, setComputerDescription,
 } from "../src/lib/samba.ts";
 
 // Verbatim shape of addcctl's answers
@@ -101,7 +102,7 @@ describe("users", () => {
 
     it("sends the password on stdin, never in argv", async () => {
         await fresh();
-        await createUser("mrossi", "S3cret!pw", "Mario", "Rossi");
+        await createUser("mrossi", "S3cret!pw", { givenName: "Mario", surname: "Rossi" });
         const create = calls.find(c => op(c) === "user create")!;
         assert.deepEqual(create.args, ["addcctl", "user", "create"]);
         assert.deepEqual(JSON.parse(create.input!), { name: "mrossi", password: "S3cret!pw", given_name: "Mario", surname: "Rossi" });
@@ -131,6 +132,24 @@ describe("users", () => {
         await modifyUser("mrossi", { newUsername: "mario.rossi", email: "m@x" });
         await modifyUser("mrossi", { newUsername: "mrossi" });
         assert.deepEqual(sent("user set"), [{ name: "mrossi", email: "m@x", new_name: "mario.rossi" }]);
+    });
+
+    it("creates a user with the fields given, leaving out the empty ones", async () => {
+        await fresh();
+        await createUser("s2", "S3cret!pw", {
+            givenName: "", surname: "Rossi", email: "s2@x", description: "Student", title: "", department: "3A",
+            company: "School", mustChangePassword: true, ou: "",
+        });
+        await createUser("s3", "S3cret!pw", { mustChangePassword: false });
+        assert.deepEqual(sent("user create"), [
+            { name: "s2", password: "S3cret!pw", surname: "Rossi", email: "s2@x", description: "Student",
+                department: "3A", company: "School", must_change_password: true },
+            { name: "s3", password: "S3cret!pw" },
+        ]);
+        await modifyUser("s2", { description: "", title: "Rep", department: "3B", company: "" });
+        assert.deepEqual(sent("user set"), [{ name: "s2", description: "", title: "Rep", department: "3B", company: "" }]);
+        const u = await getUserDetails("nrossi");
+        assert.deepEqual([u.description, u.title, u.department, u.company], ["", "", "", ""]);
     });
 
     it("passes the core's error on as it is", async () => {
@@ -169,8 +188,9 @@ describe("groups, computers, homes, policy", () => {
 
     it("computers, home directories and the password policy", async () => {
         await fresh();
-        assert.deepEqual(await listComputers(), [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", id: "1300", os: "-", lastLogon: "",
-            container: "CN=Computers", isDomainController: false }]);
+        assert.deepEqual(await listComputers(), [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", id: "1300", sid: "",
+            os: "-", osVersion: "", dnsName: "", description: "", lastLogon: "", container: "CN=Computers",
+            isDomainController: false }]);
         await deleteComputer("PC01");
         await provisionHomeDir("nrossi");
         assert.deepEqual(sent("computer delete"), [{ name: "PC01" }]);
@@ -268,8 +288,8 @@ describe("organizational units", () => {
 
     it("creates accounts in an OU and moves them", async () => {
         await fresh();
-        await createUser("s1", "S3cret!pw", undefined, undefined, "OU=School");
-        await createGroup("g1", "OU=School");
+        await createUser("s1", "S3cret!pw", { ou: "OU=School" });
+        await createGroup("g1", { ou: "OU=School" });
         await createGroup("g2");
         assert.deepEqual(sent("user create"), [{ name: "s1", password: "S3cret!pw", ou: "OU=School" }]);
         assert.deepEqual(sent("group create"), [{ name: "g1", ou: "OU=School" }, { name: "g2" }]);
@@ -279,6 +299,45 @@ describe("organizational units", () => {
         assert.deepEqual(sent("user set"), [{ name: "s1", ou: "CN=Users" }]);
         assert.deepEqual(sent("group set"), [{ name: "g1", ou: "CN=Users" }]);
         assert.deepEqual(sent("computer set"), [{ name: "PC01", ou: "OU=School" }]);
+    });
+
+    it("creates and edits groups and computers", async () => {
+        await fresh();
+        await createGroup("g3", { description: "Third", email: "", scope: "universal", category: "distribution" });
+        assert.deepEqual(sent("group create"), [
+            { name: "g3", description: "Third", scope: "universal", category: "distribution" }]);
+        await updateGroup("g3", { description: "", email: "g3@x" });
+        await updateGroup("g3", {});
+        await updateGroup("g3", { newName: "g3" });
+        await updateGroup("g3", { newName: "g4", email: "g4@x" });
+        assert.deepEqual(sent("group set"), [
+            { name: "g3", description: "", email: "g3@x" }, { name: "g3", new_name: "g4", email: "g4@x" }]);
+        await assert.rejects(updateGroup("g3", { newName: "-g" }), /Invalid account name/);
+        const g = (await listGroups())[0];
+        assert.deepEqual([g.scope, g.email, g.groupType], ["global", "", "Distribution"]);
+
+        await createComputer("PC02", { ou: "OU=School", description: "" });
+        await createComputer("PC03");
+        assert.deepEqual(sent("computer create"), [{ name: "PC02", ou: "OU=School" }, { name: "PC03" }]);
+        await setComputerDescription("PC02", "Lab");
+        assert.deepEqual(sent("computer set"), [{ name: "PC02", description: "Lab" }]);
+        await assert.rejects(createComputer("-pc"), /Invalid account name/);
+    });
+
+    it("reads one computer, cached until a change", async () => {
+        await fresh();
+        ANSWERS["computer get"] = { computer: { name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", sid: "S-1-5-21-1-2-3-1300",
+            rid: "1300", os: "Windows 11 Enterprise", os_version: "10.0 (26100)", dns_name: "pc01.x",
+            description: "Lab", last_logon: null, container: "CN=Computers", domain_controller: false } };
+        const c = await getComputerDetails("PC01");
+        await getComputerDetails("pc01");
+        assert.equal(sent("computer get").length, 1);
+        assert.deepEqual([c.os, c.osVersion, c.dnsName, c.description, c.sid],
+            ["Windows 11 Enterprise", "10.0 (26100)", "pc01.x", "Lab", "S-1-5-21-1-2-3-1300"]);
+        await setComputerDescription("PC01", "");
+        await getComputerDetails("PC01");
+        assert.equal(sent("computer get").length, 2);
+        delete ANSWERS["computer get"];
     });
 
     it("drops the cached lists after a move", async () => {
