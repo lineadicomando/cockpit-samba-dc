@@ -75,7 +75,7 @@ samba_dc_build_firewall_cockpit_sources: []
 samba_dc_build_cockpit_install: package
 # The release to install: the version of this collection, which make release
 # keeps equal to it (scripts/release.mjs).
-samba_dc_build_cockpit_version: "0.12.0"
+samba_dc_build_cockpit_version: "0.13.0"
 # Where the packages and their .sha256 files are
 samba_dc_build_cockpit_release_url: >-
   https://github.com/lineadicomando/cockpit-samba-dc/releases/download/v{{ samba_dc_build_cockpit_version }}
