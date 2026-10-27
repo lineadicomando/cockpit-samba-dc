@@ -16,6 +16,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import cockpit from "cockpit";
+import type { DnsRecordType } from "../../src/lib/types.ts";
 import {
     addGroupMembers, createGroup, createUser, deleteGroup, deleteUser, getPasswordPolicy, modifyUser, provisionHomeDir,
     renameGroup, setPasswordPolicy, createPso, listPsos, updatePso, deletePso, createOu, listOus, updateOu, deleteOu,
@@ -24,6 +25,7 @@ import {
 import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
 import { createBackup, getDomainInfo, listBackups, runHealthChecks } from "../../src/lib/domain.ts";
+import { deleteDnsRecords, listDnsRecords, setDnsRecords } from "../../src/lib/dns.ts";
 
 const env = process.env;
 const password = env.DOMAIN_TEST_PASSWORD!;
@@ -87,6 +89,9 @@ interface Driver {
     setGroupEmail(name: string, email: string): Promise<void>;
     createComputer(name: string, ou: string, description: string): Promise<void>;
     setComputerDescription(name: string, description: string): Promise<void>;
+    // The records of one type at one name become these values; delete some, or all of that type
+    setDns(zone: string, name: string, type: string, values: string[], ttl?: number): Promise<void>;
+    deleteDns(zone: string, name: string, type: string, values?: string[]): Promise<void>;
     close?(): void;
 }
 
@@ -178,6 +183,12 @@ const page: Driver = {
     setGroupEmail: (name, email) => updateGroup(name, { email }),
     createComputer: (name, ou, description) => createComputer(name, { ou, description }),
     setComputerDescription: (name, description) => setComputerDescription(name, description),
+    async setDns(zone, name, type, values, ttl) {
+        await setDnsRecords(zone, name, type as DnsRecordType, values, ttl);
+        const shown = (await listDnsRecords(zone)).filter(r => r.name === name && r.type === type);
+        assert.deepEqual(shown.map(r => r.value).sort(), [...values].sort(), "the tab reads the change");
+    },
+    deleteDns: (zone, name, type, values) => deleteDnsRecords(zone, name, type as DnsRecordType, values),
 };
 
 // --- the Ansible modules, one playbook per step
@@ -229,6 +240,10 @@ function ansibleDriver(): Driver {
         setGroupEmail: (name, email) => play("samba_group", { name, email }),
         createComputer: (name, ou, description) => play("samba_computer", { name, ou, description }),
         setComputerDescription: (name, description) => play("samba_computer", { name, description }),
+        setDns: (zone, name, type, values, ttl) =>
+            play("samba_dns_record", { zone, name, type, values, ...(ttl !== undefined ? { ttl } : {}) }),
+        deleteDns: (zone, name, type, values) =>
+            play("samba_dns_record", { zone, name, type, state: "absent", ...(values ? { values } : {}) }),
         setPolicy: (changes, check) => play("samba_password_policy",
             Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v === null ? 0 : v])), check),
         close: () => rmSync(dir, { recursive: true, force: true }),
@@ -318,6 +333,12 @@ async function mcpDriver(): Promise<Driver> {
         setGroupEmail: async (name, email) => { await tool("group_set", { name, email }); },
         createComputer: async (name, ou, description) => { await tool("computer_create", { name, ou, description }); },
         setComputerDescription: async (name, description) => { await tool("computer_set", { name, description }); },
+        async setDns(zone, name, type, values, ttl) {
+            const preview = await tool("dns_set", { zone, name, type, values, check: true });
+            assert.equal(preview.changed, true);
+            await tool("dns_set", { zone, name, type, values, ...(ttl !== undefined ? { ttl } : {}) });
+        },
+        deleteDns: async (zone, name, type, values) => { await tool("dns_delete", { zone, name, type, ...(values ? { values } : {}) }); },
         async setPolicy(changes, check) {
             const out = await tool("domain_set_password_policy", { ...changes, ...(check ? { check: true } : {}) });
             assert.equal(out.changed, true);
@@ -521,6 +542,23 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
             if (await present("computer list", "computers", pc)) await core("computer delete", { name: pc });
         }
     });
+    await step("DNS: A and TXT records of a name, served at once, changed, then deleted", async () => {
+        const zone = dnsZone(), name = `${p}www`, fqdn = `${name}.${dnsZone()}`;
+        try {
+            await driver.setDns(zone, name, "A", ["192.0.2.10", "192.0.2.11"], 300);
+            await driver.setDns(zone, name, "TXT", ["integration"]);
+            assert.deepEqual(await lookup("A", fqdn), ["192.0.2.10", "192.0.2.11"]);
+            assert.deepEqual(await lookup("TXT", fqdn), ["\"integration\""]);
+            await driver.deleteDns(zone, name, "A", ["192.0.2.11"]);
+            assert.deepEqual(await lookup("A", fqdn), ["192.0.2.10"]);
+            await driver.deleteDns(zone, name, "A");
+            await driver.deleteDns(zone, name, "TXT");
+            assert.deepEqual(await lookup("A", fqdn), []);
+            assert.deepEqual((await core("dns list", { zone, name })).records, []);
+        } finally {
+            await sweepDns(p);
+        }
+    });
     await step("the domain tab: overview, health check, backup", () => driver.domain());
     await step("the password policy: a change, as samba-tool reads it, then restored", () => passwordPolicy(driver));
 }
@@ -555,6 +593,25 @@ async function passwordPolicy(driver: Driver): Promise<void> {
     assert.deepEqual(await policyOnDc(), before, "restored");
 }
 
+const dnsZone = () => env.DOMAIN_REALM!.toLowerCase();
+
+// What the DC's DNS server answers, sorted
+async function lookup(type: string, name: string): Promise<string[]> {
+    const out = await run(["dig", "+short", "-t", type, name, "@127.0.0.1"]);
+    return out.split("\n").filter(Boolean).sort();
+}
+
+// Deletes the records of the names that start with prefix
+async function sweepDns(prefix: string): Promise<void> {
+    const zone = dnsZone();
+    const records = (await core("dns list", { zone })).records as { name: string; type: string; protected: boolean }[];
+    for (const r of records) {
+        if (r.name.startsWith(prefix) && !r.protected) {
+            await core("dns delete", { zone, name: r.name, type: r.type }).catch(() => undefined);
+        }
+    }
+}
+
 // The first of names that the list operation returns, if any
 async function present(operation: string, key: string, ...names: string[]): Promise<string | undefined> {
     const all = ((await core(operation))[key] as { name: string }[]).map(x => x.name);
@@ -585,6 +642,7 @@ async function sweep(prefix: string, quietly = false): Promise<boolean> {
     for (const g of (await core("group list")).groups as { name: string }[]) {
         if (g.name.startsWith(prefix)) await quiet(core("group delete", { name: g.name }));
     }
+    await sweepDns(prefix);
     if (!quietly) console.log(`  (left-overs of ${prefix}* removed)`);
     return false;
 }
@@ -636,6 +694,29 @@ async function coreChecks(): Promise<void> {
         await step("domain check: dbcheck, sysvolcheck and testparm pass", async () => {
             const checks = (await core("domain check")).checks as { name: string; ok: boolean; output: string }[];
             for (const c of checks) assert.ok(c.ok, `${c.name}:\n${c.output}`);
+        });
+        await step("DNS: the domain's records refused, a deleted name used again, dbcheck clean", async () => {
+            const zone = dnsZone();
+            const records = (await core("dns list", { zone })).records as { name: string; type: string; protected: boolean }[];
+            for (const kind of ["SOA", "NS"]) {
+                assert.ok(records.some(r => r.name === "@" && r.type === kind && r.protected), `@ ${kind} protected`);
+            }
+            assert.ok(records.some(r => r.name.startsWith("_ldap._tcp") && r.protected));
+            const dc = ((await core("domain info")).domain as { server: string }).server.toLowerCase();
+            await assert.rejects(core("dns set", { zone, name: dc, type: "A", values: ["192.0.2.1"] }).then(r => {
+                if ("error" in r) throw new Error(String(r.error));
+            }), /belong to the domain/);
+            await assert.rejects(run(["addcctl", "dns", "set"], JSON.stringify(
+                { zone: `_msdcs.${zone}`, name: "t-x-dns", type: "A", values: ["192.0.2.1"] })), /cannot be changed/);
+            await core("dns set", { zone, name: "t-x-dns", type: "CNAME", values: [`${dc}.${zone}`] });
+            await core("dns delete", { zone, name: "t-x-dns", type: "CNAME" });
+            await core("dns set", { zone, name: "t-x-dns", type: "AAAA", values: ["2001:db8::1"] });
+            const again = await core("dns set", { zone, name: "t-x-dns", type: "AAAA", values: ["2001:DB8:0::1"] });
+            assert.equal(again.changed, false, "the same address, written otherwise");
+            assert.deepEqual(await lookup("AAAA", `t-x-dns.${zone}`), ["2001:db8::1"]);
+            await core("dns delete", { zone, name: "t-x-dns", type: "AAAA" });
+            const dbcheck = await run(["samba-tool", "dbcheck", "--cross-ncs"]);
+            assert.match(dbcheck, /\(0 errors\)/);
         });
         await step("a hand-made share at the shares directory itself is not managed", async () => {
             await run(["net", "conf", "addshare", "t-x-root", "/srv/samba/shares/", "writeable=n", "guest_ok=n"]);

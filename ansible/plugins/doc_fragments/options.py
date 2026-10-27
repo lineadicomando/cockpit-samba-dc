@@ -239,6 +239,44 @@ options:
     default: false
 '''
 
+    SAMBA_DNS_RECORD = r'''
+options:
+  zone:
+    description:
+      - DNS zone, e.g. example.internal.
+    type: str
+    required: true
+  name:
+    description:
+      - Name relative to the zone (www, @ for the zone itself, *.dev for a wildcard), or in full.
+    type: str
+    required: true
+  type:
+    description:
+      - Record type.
+    type: str
+    required: true
+    choices: [A, AAAA, CNAME, MX, PTR, SRV, TXT]
+  state:
+    description:
+      - C(present) makes the records of O(type) at O(name) exactly O(values); C(absent) deletes
+        those with O(values), or all the records of O(type) at O(name) when O(values) is unset.
+    type: str
+    default: present
+    choices: [present, absent]
+  values:
+    description:
+      - "The values, in samba-tool's notation: an address (A, AAAA), a host name (CNAME, PTR),
+        C(host preference) (MX), C(target port priority weight) (SRV), text (TXT). Required with
+        O(state=present)."
+    type: list
+    elements: str
+  ttl:
+    description:
+      - "Time to live in seconds, with O(state=present); unset: the current one, or 900."
+    type: int
+'''
+
     SAMBA_HOME = r'''
 options:
   name:

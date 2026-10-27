@@ -18,6 +18,7 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 - **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
 - **Computers** — list, a page for each (DNS name, operating system, container, SID) with its description edited, create an account before the computer joins (in a chosen OU), move to an OU (one or several), delete
 - **Organizational units** — a tree of the OUs and the default containers, with the users, groups and computers in each; create, rename, move (with everything in them), describe and delete them (one that is not empty after an explicit confirmation, with what is in it); the container shown and filtered in the users, groups and computers lists, chosen when a user, group or computer account is created; users, groups and computers moved one at a time or in bulk. The default containers (`Users`, `Computers`, `Domain Controllers`) and the built-in accounts stay where they are
+- **DNS** — the records of the domain's zones: add, change and delete A, AAAA, CNAME, MX, PTR, SRV and TXT records (several values per name, TTL), the records clients registered themselves marked as dynamic; the records the domain depends on (the `_msdcs` zone, SOA and NS, the Active Directory service records, the domain controllers' names) shown on request and never changed
 - **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), the password and lockout policy of the domain (complexity, length, history, minimum and maximum age, lockout threshold, duration and reset) and fine-grained policies (PSOs) for chosen users and groups, the one that applies shown on the user page, offline backups of the domain
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
 - Live search and filters in every section (users also by locked out and expired; users, groups and computers by container)
@@ -166,8 +167,8 @@ both files) when the client only needs to look.
 `ansible/` holds the collection `lineadicomando.samba_dc`: `samba_dc_build`
 provisions a Samba AD DC on Debian 13 and installs this module from its
 Debian package; `samba_tool`, `samba_share`, `samba_ou` and the other roles
-and modules manage users, groups, organizational units, home directories and
-shared folders as the module does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
+and modules manage users, groups, organizational units, home directories,
+shared folders and DNS records as the module does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
 an MCP server runs the build and the backup for an MCP client. It has the version of
 the repository (collection `X.Y.Z` is release `vX.Y.Z`, whose
 `samba_dc_build` installs this module `X.Y.Z`), and is installed from git:
@@ -308,6 +309,21 @@ restore --backup-file=<archive> --newservername=<name> --targetdir=<dir>`,
 then point `smb.conf` at the restored files (see the Samba wiki, "Back up and
 Restoring a Samba AD DC"). The collection's `samba_dc_backup` role does the
 same with `samba_dc_backup_action: restore`.
+
+### DNS records
+
+The **DNS** tab (and `addcctl dns`, the collection's `samba_dns_record`
+module) edits the records of Samba's internal DNS server where it keeps them:
+the `dnsNode` entries of the DNS partitions in the local `sam.ldb`, written
+as Samba's own DNS management interface writes them (the zone's SOA serial
+grows with each change), so no domain credentials are needed and the server
+answers with the new records at once. A record written here is static (no
+aging); one a client registered itself is marked as dynamic and becomes
+static when it is changed. The records Active Directory needs are never
+changed: the `_msdcs` zone, SOA and NS, the service records (`_ldap`,
+`_kerberos`, `_gc`, `_kpasswd`, `_sites`), `DomainDnsZones` and
+`ForestDnsZones`, the domain controllers' names and the addresses of the
+domain's name.
 
 ### Network drive mapping
 

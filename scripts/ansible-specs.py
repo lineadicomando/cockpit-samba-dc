@@ -145,6 +145,23 @@ MODULES = {
                 "Built-in objects and domain controllers are never deleted: an OU holding one is refused."]),
         },
     },
+    "samba_dns_record": {
+        "ops": ["dns set", "dns delete"],
+        "options": {
+            "zone": field("dns set"),
+            "name": field("dns set"),
+            "type": field("dns set"),
+            "state": dict(STATE, own=dict(STATE["own"], description=[
+                "C(present) makes the records of O(type) at O(name) exactly O(values); C(absent) deletes "
+                "those with O(values), or all the records of O(type) at O(name) when O(values) is unset."])),
+            "values": field("dns set", description=[
+                "The values, in samba-tool's notation: an address (A, AAAA), a host name (CNAME, PTR), "
+                "C(host preference) (MX), C(target port priority weight) (SRV), text (TXT). "
+                "Required with O(state=present)."]),
+            "ttl": field("dns set", description=[
+                "Time to live in seconds, with O(state=present); unset: the current one, or 900."]),
+        },
+    },
     "samba_home": {
         "ops": ["home provision", "home delete"],
         "options": {

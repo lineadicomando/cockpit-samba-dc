@@ -41,6 +41,7 @@ Windows clients join the domain through the `domain` role of
 | `samba_group` | Groups: create, change (description, members, rename, OU), delete |
 | `samba_computer` | Computer accounts: create before a join, change (description, OU), delete with their DNS records |
 | `samba_ou` | Organizational units: create, rename, move, describe, delete (with their contents on request) |
+| `samba_dns_record` | DNS records (A, AAAA, CNAME, MX, PTR, SRV, TXT) of the domain's zones: set the values of a name and type, delete them; the domain's own records are never changed |
 | `samba_home` | Home directories: provision (folder, H: drive, home share), clear |
 | `samba_password_policy` | The domain password and lockout policy (complexity, length, history, ages, lockout) |
 | `samba_pso` | Fine-grained password policies (PSOs): create, change (settings, precedence, users and groups), delete |

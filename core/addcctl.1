@@ -64,6 +64,17 @@ The groups with their members, and their changes.
 The computer accounts; create one before the computer joins; delete one with
 its DNS records (not a domain controller).
 .TP
+.B ou list\fR, \fBou get\fR, \fBou create\fR, \fBou set\fR, \fBou delete
+Organizational units and the default containers; create, rename, move or
+describe an OU, delete it (one that is not empty with "recursive"). The
+default containers are never renamed, moved or deleted.
+.TP
+.B dns zones\fR, \fBdns list\fR, \fBdns set\fR, \fBdns delete
+The DNS zones of the domain and their records, written locally in sam.ldb:
+"dns set" makes the records of one type at one name exactly the values
+given (A, AAAA, CNAME, MX, PTR, SRV, TXT), "dns delete" removes some or all
+of them. The records the domain depends on are never changed.
+.TP
 .B home provision\fR, \fBhome delete
 A user's home directory under /srv/samba/home, mapped at logon; clear it, and
 with "delete_data" remove its folder.

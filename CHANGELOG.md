@@ -8,6 +8,15 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- DNS: a "DNS" tab with the records of the domain's zones; A, AAAA, CNAME,
+  MX, PTR, SRV and TXT records added, changed and deleted, written locally
+  with no domain credentials; the records the domain depends on shown on
+  request and never changed. The same as `addcctl dns` (`zones`, `list`,
+  `set`, `delete`), as MCP tools, and as the collection's module
+  `samba_dns_record`.
+
 ## [0.13.0] - 2026-10-26
 
 ### Added

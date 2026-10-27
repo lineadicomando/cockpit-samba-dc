@@ -1569,3 +1569,108 @@ msgstr "SID"
 
 msgid "Role"
 msgstr "Ruolo"
+
+msgid "DNS"
+msgstr "DNS"
+
+msgid "DNS zone"
+msgstr "Zona DNS"
+
+msgid "Add record"
+msgstr "Aggiungi record"
+
+msgid "Add record to {{zone}}"
+msgstr "Aggiungi record a {{zone}}"
+
+msgid "Edit {{type}} records of {{name}}"
+msgstr "Modifica i record {{type}} di {{name}}"
+
+msgid "Delete DNS record"
+msgstr "Elimina record DNS"
+
+msgid "Delete the {{type}} record {{name}} → {{value}}?"
+msgstr "Eliminare il record {{type}} {{name}} → {{value}}?"
+
+msgid "DNS records table"
+msgstr "Tabella dei record DNS"
+
+msgid "Dynamic"
+msgstr "Dinamico"
+
+msgid "Registered by the computer itself"
+msgstr "Registrato dal computer stesso"
+
+msgid "Failed to load DNS records"
+msgstr "Impossibile caricare i record DNS"
+
+msgid "Loading DNS records"
+msgstr "Caricamento dei record DNS"
+
+msgid "Filter records"
+msgstr "Filtra i record"
+
+msgid "No records"
+msgstr "Nessun record"
+
+msgid "No records match the filter"
+msgstr "Nessun record corrisponde al filtro"
+
+msgid "Records the domain depends on are hidden; add your own with Add record."
+msgstr "I record da cui dipende il dominio sono nascosti; aggiungi i tuoi con Aggiungi record."
+
+msgid "Show the domain's records ({{n}})"
+msgstr "Mostra i record del dominio ({{n}})"
+
+msgid "This zone belongs to the domain: its records cannot be changed."
+msgstr "Questa zona appartiene al dominio: i suoi record non si possono modificare."
+
+msgid "Value"
+msgstr "Valore"
+
+msgid "Values"
+msgstr "Valori"
+
+msgid "TTL"
+msgstr "TTL"
+
+msgid "TTL (seconds)"
+msgstr "TTL (secondi)"
+
+msgid "Relative to {{zone}}; @ for the zone itself."
+msgstr "Relativo a {{zone}}; @ per la zona stessa."
+
+msgid "One per line: these values replace the current ones."
+msgstr "Uno per riga: questi valori sostituiscono quelli attuali."
+
+msgid "One per line; records of this name and type that exist already are kept."
+msgstr "Uno per riga; i record già presenti con questo nome e tipo restano."
+
+msgid "Give at least one value."
+msgstr "Indica almeno un valore."
+
+msgid "The TTL is a whole number of seconds."
+msgstr "Il TTL è un numero intero di secondi."
+
+msgid "Value is required."
+msgstr "Il valore è obbligatorio."
+
+msgid "Use letters, digits, hyphens and underscores, in labels separated by dots; @ for the zone itself."
+msgstr "Usa lettere, cifre, trattini e trattini bassi, in etichette separate da punti; @ per la zona stessa."
+
+msgid "Give an IPv4 address, such as 192.168.1.10."
+msgstr "Indica un indirizzo IPv4, come 192.168.1.10."
+
+msgid "Give an IPv6 address, such as 2001:db8::10."
+msgstr "Indica un indirizzo IPv6, come 2001:db8::10."
+
+msgid "Give a host name, such as server.example.com."
+msgstr "Indica un nome host, come server.example.com."
+
+msgid "Give the mail server and its preference, such as \"mail.example.com 10\"."
+msgstr "Indica il server di posta e la sua preferenza, come \"mail.example.com 10\"."
+
+msgid "Give target, port, priority and weight, such as \"sip.example.com 5060 0 100\"."
+msgstr "Indica destinazione, porta, priorità e peso, come \"sip.example.com 5060 0 100\"."
+
+msgid "Text of at most 4096 bytes, on one line."
+msgstr "Testo di al massimo 4096 byte, su una riga."

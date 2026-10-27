@@ -8,6 +8,7 @@ operation does when the setting is left out; the validator ignores it.
 """
 from .accounts import Computers, Groups, Users
 from .backups import BACKUP_DIR, Backups
+from .dns import EDITABLE as _DNS_EDITABLE, Dns
 from .domain import CHECKS, Domain
 from .homes import Homes
 from .ous import Ous
@@ -67,6 +68,14 @@ _MOVE_TO = dict(_OU, description=("Container to move it to: an OU or a default c
 _NAME_ONLY = lambda d, desc: {"type": "object", "properties": {"name": dict(d, description=desc)},
                               "required": ["name"], "additionalProperties": False}
 _NONE = {"type": "object", "properties": {}, "additionalProperties": False}
+_DNS_ZONE = {"type": "string", "minLength": 1, "maxLength": 253, "description": "DNS zone, e.g. example.internal"}
+_DNS_NAME = {"type": "string", "minLength": 1, "maxLength": 253,
+             "description": ("Name relative to the zone (www, @ for the zone itself, *.dev for a wildcard), "
+                             "or in full")}
+_DNS_TYPE = {"type": "string", "enum": list(_DNS_EDITABLE), "description": "Record type"}
+_DNS_VALUE = {"type": "string", "minLength": 1, "maxLength": 4096,
+              "description": ("A record value: an address (A, AAAA), a host name (CNAME, PTR), "
+                              "\"host preference\" (MX), \"target port priority weight\" (SRV), text (TXT)")}
 
 
 def _policy_settings(max_length, max_history):
@@ -321,6 +330,45 @@ OPERATIONS = {
                           "description": "Also delete everything in it (never built-in objects or domain controllers)"},
         }, "required": ["dn"], "additionalProperties": False},
         "run": lambda ctx, req: Ous(ctx.dc, ctx.runner).delete(req),
+    },
+    # -- DNS
+    ("dns", "zones"): {
+        "description": "List the DNS zones of the domain (_msdcs is read-only)",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"zones": Dns(ctx.dc, ctx.runner).zones()},
+    },
+    ("dns", "list"): {
+        "description": ("List the DNS records of a zone, or of one name in it; protected records are those "
+                        "the domain depends on, never changed"),
+        "mutates": False,
+        "input": {"type": "object", "properties": {
+            "zone": _DNS_ZONE,
+            "name": dict(_DNS_NAME, description="Only the records of this name, relative to the zone or in full"),
+        }, "required": ["zone"], "additionalProperties": False},
+        "run": lambda ctx, req: {"records": Dns(ctx.dc, ctx.runner).records(req["zone"], req.get("name"))},
+    },
+    ("dns", "set"): {
+        "description": ("Make the records of one type at one name exactly the values given (static records); "
+                        "the other types at that name are left alone"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "zone": _DNS_ZONE, "name": _DNS_NAME, "type": _DNS_TYPE,
+            "values": {"type": "array", "minItems": 1, "maxItems": 64, "items": _DNS_VALUE,
+                       "description": "The values, in samba-tool's notation (see value)"},
+            "ttl": {"type": "integer", "minimum": 0, "maximum": 2147483647,
+                    "description": "Time to live in seconds; default the current one, or 900"},
+        }, "required": ["zone", "name", "type", "values"], "additionalProperties": False},
+        "run": lambda ctx, req: Dns(ctx.dc, ctx.runner).set(req),
+    },
+    ("dns", "delete"): {
+        "description": "Delete the records of one type at one name: those with the values given, or all of them",
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "zone": _DNS_ZONE, "name": _DNS_NAME, "type": _DNS_TYPE,
+            "values": {"type": "array", "maxItems": 64, "items": _DNS_VALUE,
+                       "description": "Only the records with these values; default all of that type"},
+        }, "required": ["zone", "name", "type"], "additionalProperties": False},
+        "run": lambda ctx, req: Dns(ctx.dc, ctx.runner).delete(req),
     },
     # -- home directories
     ("home", "provision"): {

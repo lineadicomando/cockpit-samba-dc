@@ -344,6 +344,115 @@ class Dc:
         dn.set_component(0, "CN", name)
         return str(dn)
 
+    # -- DNS: dnsNode entries of the DNS partitions, as the DNS server's RPC
+    # interface writes them (rpc_server/dnsserver/dnsdb.c)
+
+    @property
+    def dns_domain(self):
+        return self.samdb.domain_dns_name()
+
+    def dns_dc_hosts(self):
+        """The DNS names of the domain controllers."""
+        base = "CN=Sites,%s" % self.config_dn
+        return [r["dNSHostName"][0] for r in self.search("(objectClass=server)", ["dNSHostName"], base=base)
+                if r.get("dNSHostName")]
+
+    def dns_zones(self):
+        """[{name, partition, dn}] of every zone, the legacy ones under CN=System too."""
+        import ldb
+        zones = []
+        for partition, base in (("domain", "DC=DomainDnsZones,%s" % self.domain_dn),
+                                ("forest", "DC=ForestDnsZones,%s" % self.domain_dn),
+                                ("legacy", "CN=MicrosoftDNS,CN=System,%s" % self.domain_dn)):
+            try:
+                found = self.samdb.search(base=base, scope=ldb.SCOPE_SUBTREE, expression="(objectClass=dnsZone)",
+                                          attrs=["name"])
+            except ldb.LdbError as e:
+                if e.args[0] == ldb.ERR_NO_SUCH_OBJECT:
+                    continue
+                raise
+            zones.extend({"name": str(m["name"][0]), "partition": partition, "dn": str(m.dn)} for m in found)
+        return zones
+
+    def dns_nodes(self, zone, name=None):
+        """[{name, dn, tombstoned, records}] of a zone, or of one name in it.
+        A record: {type, value, ttl, timestamp, raw}; raw is the dnsp record,
+        written back as it is when the node is rewritten."""
+        import ldb
+        from samba.dcerpc import dnsp
+        from samba.ndr import ndr_unpack
+        expression = "(objectClass=dnsNode)"
+        if name is not None:
+            expression = "(&(objectClass=dnsNode)(name=%s))" % ldb.binary_encode(name)
+        nodes = []
+        for msg in self.samdb.search(base=zone["dn"], scope=ldb.SCOPE_ONELEVEL, expression=expression,
+                                     attrs=["name", "dnsRecord", "dNSTombstoned"]):
+            records = []
+            for raw in msg.get("dnsRecord", []):
+                record = ndr_unpack(dnsp.DnssrvRpcRecord, raw)
+                if record.wType == dnsp.DNS_TYPE_TOMBSTONE:
+                    continue
+                records.append({"type": _DNS_TYPE_NAMES.get(record.wType, "TYPE%d" % record.wType),
+                                "value": _dns_value(record), "ttl": record.dwTtlSeconds,
+                                "timestamp": record.dwTimeStamp, "raw": record})
+            tombstoned = "dNSTombstoned" in msg and str(msg["dNSTombstoned"]).upper() == "TRUE"
+            nodes.append({"name": str(msg["name"][0]), "dn": str(msg.dn), "tombstoned": tombstoned,
+                          "records": records})
+        return nodes
+
+    def _dns_next_serial(self, zone):
+        """Increment the zone's SOA serial, as each change through RPC does,
+        and return it: changed records carry it."""
+        import ldb
+        from samba.dcerpc import dnsp
+        from samba.ndr import ndr_pack, ndr_unpack
+        dn = "DC=@,%s" % zone["dn"]
+        msg = self.samdb.search(base=dn, scope=ldb.SCOPE_BASE, attrs=["dnsRecord"])[0]
+        records = [ndr_unpack(dnsp.DnssrvRpcRecord, raw) for raw in msg.get("dnsRecord", [])]
+        serial = None
+        for record in records:
+            if record.wType == dnsp.DNS_TYPE_SOA:
+                record.data.serial = serial = (record.data.serial + 1) & 0xFFFFFFFF or 1
+                record.dwSerial = serial
+        if serial is None:
+            raise AddcError("The zone %s has no SOA record" % zone["name"])
+        update = ldb.Message()
+        update.dn = msg.dn
+        update["dnsRecord"] = ldb.MessageElement([ndr_pack(r) for r in records], ldb.FLAG_MOD_REPLACE, "dnsRecord")
+        self.samdb.modify(update)
+        return serial
+
+    def dns_write(self, zone, name, node, records):
+        """Make records ({type, value, ttl, timestamp}, raw for those kept as
+        they are) the whole content of a name: a new node, a node revived from
+        its tombstone, or a tombstone when none is left."""
+        import ldb
+        from samba.ndr import ndr_pack
+        shown = "; ".join("%s %s" % (r["type"], r["value"]) for r in records) or "(none)"
+        self.runner.record("sam.ldb: DNS %s in %s = %s" % (name, zone["name"], shown))
+        if self.runner.check:
+            return
+        serial = self._dns_next_serial(zone)
+        packed = []
+        for r in records:
+            if "raw" not in r:
+                r = dict(r, raw=_dns_record(r, serial))
+            packed.append(ndr_pack(r["raw"]))
+        if node is None:
+            if not packed:
+                return
+            dn = self.child_dn(zone["dn"], "DC", name)
+            self._samdb_call(self.samdb.add, {"dn": dn, "objectClass": ["top", "dnsNode"], "dnsRecord": packed})
+        elif not packed:
+            self._samdb_call(self.samdb.dns_replace_by_dn, ldb.Dn(self.samdb, node["dn"]), [])
+        else:
+            msg = ldb.Message()
+            msg.dn = ldb.Dn(self.samdb, node["dn"])
+            msg["dnsRecord"] = ldb.MessageElement(packed, ldb.FLAG_MOD_REPLACE, "dnsRecord")
+            if node["tombstoned"]:
+                msg["dNSTombstoned"] = ldb.MessageElement("FALSE", ldb.FLAG_MOD_REPLACE, "dNSTombstoned")
+            self._samdb_call(self.samdb.modify, msg)
+
     def _samdb_call(self, fn, *args, **kwargs):
         """A SamDB call whose failure becomes an AddcError with Samba's message
         (a password the policy refuses, an entry that exists)."""
@@ -461,3 +570,74 @@ class Dc:
                     pass
             self._posix_ids[key] = ids
         return self._posix_ids[key]
+
+
+# -- dnsp records <-> samba-tool's notation (addcctl.dns)
+
+_DNS_TYPES = {"A": 1, "NS": 2, "CNAME": 5, "SOA": 6, "PTR": 12, "MX": 15, "TXT": 16, "AAAA": 28, "SRV": 33}
+_DNS_TYPE_NAMES = {v: k for k, v in _DNS_TYPES.items()}
+_DNS_RANK_ZONE = 0xF0
+_TXT_CHUNK = 255
+
+
+def _dns_value(record):
+    t, data = _DNS_TYPE_NAMES.get(record.wType), record.data
+    if t == "AAAA":
+        import ipaddress
+        try:
+            return str(ipaddress.IPv6Address(str(data)))
+        except ValueError:
+            return str(data)
+    if t in ("A", "CNAME", "PTR", "NS"):
+        return str(data).rstrip(".")
+    if t == "MX":
+        return "%s %d" % (str(data.nameTarget).rstrip("."), data.wPriority)
+    if t == "SRV":
+        return "%s %d %d %d" % (str(data.nameTarget).rstrip("."), data.wPort, data.wPriority, data.wWeight)
+    if t == "TXT":
+        return "".join(str(s) for s in data.str)
+    if t == "SOA":
+        return "%s %s %d %d %d %d %d" % (data.mname, data.rname, data.serial, data.refresh, data.retry,
+                                         data.expire, data.minimum)
+    return ""
+
+
+def _txt_chunks(value):
+    """TXT strings of at most 255 bytes, cut between characters."""
+    chunks, current = [], ""
+    for c in value:
+        if len((current + c).encode("utf-8")) > _TXT_CHUNK:
+            chunks.append(current)
+            current = ""
+        current += c
+    return chunks + [current]
+
+
+def _dns_record(r, serial):
+    """A static dnsp record from {type, value, ttl} (value checked by dns.canonical_value)."""
+    from samba.dcerpc import dnsp
+    record = dnsp.DnssrvRpcRecord()
+    record.wType = _DNS_TYPES[r["type"]]
+    record.rank = _DNS_RANK_ZONE
+    record.dwSerial = serial
+    record.dwTtlSeconds = r["ttl"]
+    record.dwTimeStamp = 0
+    t, parts = r["type"], r["value"].split()
+    if t in ("A", "AAAA", "CNAME", "PTR"):
+        record.data = r["value"]
+    elif t == "MX":
+        mx = dnsp.mx()
+        mx.nameTarget, mx.wPriority = parts[0], int(parts[1])
+        record.data = mx
+    elif t == "SRV":
+        srv = dnsp.srv()
+        srv.nameTarget, srv.wPort, srv.wPriority, srv.wWeight = parts[0], int(parts[1]), int(parts[2]), int(parts[3])
+        record.data = srv
+    elif t == "TXT":
+        strings = dnsp.string_list()
+        chunks = _txt_chunks(r["value"])
+        strings.count, strings.str = len(chunks), chunks
+        record.data = strings
+    else:
+        raise AddcError("Record type %s cannot be written" % t)
+    return record

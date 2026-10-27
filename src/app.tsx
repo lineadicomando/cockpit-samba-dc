@@ -16,6 +16,7 @@ import { ComputersPage } from "./components/ComputersPage.tsx";
 import { SharesPage } from "./components/SharesPage.tsx";
 import { DomainPage } from "./components/DomainPage.tsx";
 import { OusPage } from "./components/OusPage.tsx";
+import { DnsPage } from "./components/DnsPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
 import { ComputerDetailPage } from "./components/ComputerDetailPage.tsx";
 import { useCockpitLocation } from "./lib/hooks.ts";
@@ -101,6 +102,9 @@ export function App() {
                 refreshToken={listRefreshToken}
                 onChange={() => setListRefreshToken((n) => n + 1)}
               />
+            </Tab>
+            <Tab eventKey="dns" title={<TabTitleText>{t("DNS")}</TabTitleText>}>
+              <DnsPage />
             </Tab>
             <Tab
               eventKey="domain"

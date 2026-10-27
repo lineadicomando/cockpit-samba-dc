@@ -58,6 +58,14 @@ _SPECS = {
         'new_parent': {'type': 'str'},
         'recursive': {'type': 'bool', 'default': False},
     },
+    'samba_dns_record': {
+        'zone': {'type': 'str', 'required': True},
+        'name': {'type': 'str', 'required': True},
+        'type': {'type': 'str', 'choices': ['A', 'AAAA', 'CNAME', 'MX', 'PTR', 'SRV', 'TXT'], 'required': True},
+        'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},
+        'values': {'type': 'list', 'elements': 'str'},
+        'ttl': {'type': 'int'},
+    },
     'samba_home': {
         'name': {'type': 'str', 'required': True},
         'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},

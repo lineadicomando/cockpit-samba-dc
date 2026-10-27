@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName, validateComputerName, validateEmail } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName, validateComputerName, validateEmail, validateDnsName, validateDnsValue } from "../src/lib/validators.ts";
 import type { PasswordPolicy } from "../src/lib/types.ts";
 
 describe("validateUsername", () => {
@@ -218,5 +218,34 @@ describe("validateEmail", () => {
         assert.equal(validateEmail("m rossi@x"), "invalid");
         assert.equal(validateEmail("a@b@c"), "invalid");
         assert.equal(validateEmail("@x"), "invalid");
+    });
+});
+
+describe("DNS names and values", () => {
+    it("checks names as addcctl does", () => {
+        for (const name of ["@", "www", "a.b", "*", "*.dev", "_sip._tcp", "host-1", "www.example.com."]) {
+            assert.equal(validateDnsName(name), null, name);
+        }
+        assert.equal(validateDnsName(""), "empty");
+        for (const name of ["a..b", "-x", "x-", "a b", "w*", "a.*", "x".repeat(64)]) {
+            assert.equal(validateDnsName(name), "invalid", name);
+        }
+    });
+
+    it("checks each type's notation", () => {
+        assert.equal(validateDnsValue("A", "192.168.1.10"), null);
+        assert.equal(validateDnsValue("A", "192.168.1.256"), "ipv4");
+        assert.equal(validateDnsValue("AAAA", "2001:db8::10"), null);
+        assert.equal(validateDnsValue("AAAA", "192.168.1.10"), "ipv6");
+        assert.equal(validateDnsValue("AAAA", "2001::db8::1"), "ipv6");
+        assert.equal(validateDnsValue("CNAME", "server.example.com."), null);
+        assert.equal(validateDnsValue("PTR", "bad name"), "host");
+        assert.equal(validateDnsValue("MX", "mail.example.com 10"), null);
+        assert.equal(validateDnsValue("MX", "mail.example.com"), "mx");
+        assert.equal(validateDnsValue("SRV", "sip.example.com 5060 0 100"), null);
+        assert.equal(validateDnsValue("SRV", "sip.example.com 70000 0 100"), "srv");
+        assert.equal(validateDnsValue("TXT", "v=spf1 mx -all"), null);
+        assert.equal(validateDnsValue("TXT", "a\tb"), "text");
+        assert.equal(validateDnsValue("A", " "), "empty");
     });
 });

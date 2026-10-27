@@ -42,6 +42,43 @@ export type ComputerSetInput = {
     ou?: string;
 };
 
+/** dns delete: Delete the records of one type at one name: those with the values given, or all of them */
+export type DnsDeleteInput = {
+    /** Name relative to the zone (www, @ for the zone itself, *.dev for a wildcard), or in full */
+    name: string;
+    /** Record type */
+    type: "A" | "AAAA" | "CNAME" | "MX" | "PTR" | "SRV" | "TXT";
+    /** Only the records with these values; default all of that type */
+    values?: string[];
+    /** DNS zone, e.g. example.internal */
+    zone: string;
+};
+
+/** dns list: List the DNS records of a zone, or of one name in it; protected records are those the domain depends on, never changed */
+export type DnsListInput = {
+    /** Only the records of this name, relative to the zone or in full */
+    name?: string;
+    /** DNS zone, e.g. example.internal */
+    zone: string;
+};
+
+/** dns set: Make the records of one type at one name exactly the values given (static records); the other types at that name are left alone */
+export type DnsSetInput = {
+    /** Name relative to the zone (www, @ for the zone itself, *.dev for a wildcard), or in full */
+    name: string;
+    /** Time to live in seconds; default the current one, or 900 */
+    ttl?: number;
+    /** Record type */
+    type: "A" | "AAAA" | "CNAME" | "MX" | "PTR" | "SRV" | "TXT";
+    /** The values, in samba-tool's notation (see value) */
+    values: string[];
+    /** DNS zone, e.g. example.internal */
+    zone: string;
+};
+
+/** dns zones: List the DNS zones of the domain (_msdcs is read-only) */
+export type DnsZonesInput = Record<string, never>;
+
 /** domain check: Run health checks on demand and report their output: samba-tool dbcheck (report only, nothing fixed), samba-tool ntacl sysvolcheck, testparm -s */
 export type DomainCheckInput = {
     /** The checks to run; default all */
@@ -405,6 +442,10 @@ export interface AddcctlInputs {
     "computer get": ComputerGetInput;
     "computer list": ComputerListInput;
     "computer set": ComputerSetInput;
+    "dns delete": DnsDeleteInput;
+    "dns list": DnsListInput;
+    "dns set": DnsSetInput;
+    "dns zones": DnsZonesInput;
     "domain check": DomainCheckInput;
     "domain info": DomainInfoInput;
     "domain password-policy": DomainPasswordPolicyInput;

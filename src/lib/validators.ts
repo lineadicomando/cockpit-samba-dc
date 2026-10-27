@@ -281,3 +281,72 @@ export function ouNameViolationMessage(t: (key: string) => string, violation: Ou
         case "invalidChars":      return t("Name contains invalid characters.");
     }
 }
+
+// DNS names and values, checked as addcctl does (core/addcctl/dns.py)
+const DNS_LABEL = /^[A-Za-z0-9_]([A-Za-z0-9_-]{0,61}[A-Za-z0-9_])?$/;
+
+function isHostName(value: string): boolean {
+    return value.length > 0 && value.length <= 253 && value.split(".").every(l => DNS_LABEL.test(l));
+}
+
+export type DnsNameViolation = "empty" | "invalid";
+
+// Relative to the zone: "@", labels, a first label "*"; a full name ending in a dot
+export function validateDnsName(name: string): DnsNameViolation | null {
+    if (!name) return "empty";
+    if (name === "@" || name === "*") return null;
+    const labels = name.replace(/\.$/, "").split(".");
+    if (labels[0] === "*") labels.shift();
+    return labels.join(".").length <= 253 && labels.every(l => DNS_LABEL.test(l)) ? null : "invalid";
+}
+
+export function dnsNameViolationMessage(t: (key: string) => string, violation: DnsNameViolation): string {
+    switch (violation) {
+        case "empty":   return t("Name is required.");
+        case "invalid": return t("Use letters, digits, hyphens and underscores, in labels separated by dots; @ for the zone itself.");
+    }
+}
+
+export type DnsValueViolation = "empty" | "ipv4" | "ipv6" | "host" | "mx" | "srv" | "text";
+
+const IPV4 = /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+
+function isIpv6(value: string): boolean {
+    if (!/^[0-9A-Fa-f:.]+$/.test(value) || value.split("::").length > 2) return false;
+    try {
+        return new URL(`http://[${value}]/`).hostname.length > 2;
+    } catch {
+        return false;
+    }
+}
+
+const isNumber = (s: string | undefined) => s !== undefined && /^\d{1,5}$/.test(s) && Number(s) <= 65535;
+
+export function validateDnsValue(type: string, raw: string): DnsValueViolation | null {
+    const value = raw.trim();
+    if (!value) return "empty";
+    const parts = value.split(/\s+/);
+    const host = (h: string | undefined) => h !== undefined && isHostName(h.replace(/\.$/, ""));
+    switch (type) {
+        case "A":     return IPV4.test(value) ? null : "ipv4";
+        case "AAAA":  return isIpv6(value) ? null : "ipv6";
+        case "CNAME":
+        case "PTR":   return host(value) ? null : "host";
+        case "MX":    return parts.length === 2 && host(parts[0]) && isNumber(parts[1]) ? null : "mx";
+        case "SRV":   return parts.length === 4 && host(parts[0]) && parts.slice(1).every(isNumber) ? null : "srv";
+        case "TXT":   return CONTROL_CHARS.test(raw) || new TextEncoder().encode(raw).length > 4096 ? "text" : null;
+        default:      return null;
+    }
+}
+
+export function dnsValueViolationMessage(t: (key: string) => string, violation: DnsValueViolation): string {
+    switch (violation) {
+        case "empty": return t("Value is required.");
+        case "ipv4":  return t("Give an IPv4 address, such as 192.168.1.10.");
+        case "ipv6":  return t("Give an IPv6 address, such as 2001:db8::10.");
+        case "host":  return t("Give a host name, such as server.example.com.");
+        case "mx":    return t("Give the mail server and its preference, such as \"mail.example.com 10\".");
+        case "srv":   return t("Give target, port, priority and weight, such as \"sip.example.com 5060 0 100\".");
+        case "text":  return t("Text of at most 4096 bytes, on one line.");
+    }
+}

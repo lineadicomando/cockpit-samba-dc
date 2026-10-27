@@ -170,3 +170,27 @@ export interface DomainBackup {
     // Unix milliseconds
     created: number;
 }
+
+export type DnsRecordType = "A" | "AAAA" | "CNAME" | "MX" | "PTR" | "SRV" | "TXT";
+
+export interface DnsZone {
+    name: string;
+    // Partition it is stored in: "domain" (DomainDnsZones), "forest", "legacy"
+    partition: string;
+    // The _msdcs zone: the domain's own, never changed
+    readOnly: boolean;
+}
+
+export interface DnsRecord {
+    // Relative to the zone; "@" is the zone itself
+    name: string;
+    // Also NS, SOA and other types, shown but not editable
+    type: string;
+    // samba-tool's notation: "mail.example.com 10" (MX), "target port priority weight" (SRV)
+    value: string;
+    ttl: number;
+    // Registered by a client (dynamic update), aged by scavenging
+    dynamic: boolean;
+    // One the domain depends on: never changed
+    protected: boolean;
+}
