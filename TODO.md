@@ -38,10 +38,10 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-28: v0.14.0 released; v0.15.0 planned (section 0:
-share entries of deleted accounts, `registry shares` checked, home
-directories of renamed or deleted users, GPOs in the OU tab,
-`samba_directory_info`, ESLint). A6 done, the old repository archived; the
+Updated on 2026-10-28: v0.15.0 released (section 0: share entries of
+deleted accounts, `registry shares` checked, home directories of renamed
+or deleted users, GPOs in the OU tab, `samba_directory_info`, ESLint); the
+next release not planned yet. A6 done, the old repository archived; the
 test VMs built from scratch by scripts. Section 9 waits for a breaking
 release.
 
@@ -83,7 +83,8 @@ release.
   tab: overview, health checks, backups), `v0.11.0` (the domain password
   policy edited, fine-grained policies), `v0.12.0` (organizational units),
   `v0.13.0` (richer create and edit forms, a page for each computer),
-  `v0.14.0` (DNS records, GPO links).
+  `v0.14.0` (DNS records, GPO links), `v0.15.0` (the follow-ups of
+  section 0).
   Release only when the user asks (run the integration suite first, then
   `make release` and `git push origin main vX.Y.Z`). Each release carries
   the page's tarball, the `.deb` of `cockpit-samba-dc` and of `addcctl`, and
@@ -150,8 +151,7 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - the release of v0.15.0 when the user asks (CI first); then a plan
-     for the next release with the user (section 9, an entry of "Left
+   - plan the next release with the user (section 9, an entry of "Left
      out"); end the headings of what goes in with its version, as
      "Versions" says.
 
