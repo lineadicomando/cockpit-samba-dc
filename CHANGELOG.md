@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.14.0] - 2026-10-28
+
 ### Added
 
 - DNS: a "DNS" tab with the records of the domain's zones; A, AAAA, CNAME,
