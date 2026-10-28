@@ -161,7 +161,7 @@ export type GroupCreateInput = {
     scope?: "domain" | "global" | "universal";
 };
 
-/** group delete: Delete a group (not the built-in ones); shared folders keep listing it */
+/** group delete: Delete a group (not the built-in ones); shared folders keep listing it: shares names the ones that do */
 export type GroupDeleteInput = {
     /** sAMAccountName of the group */
     name: string;
@@ -326,13 +326,13 @@ export type ShareDeleteInput = {
     name: string;
 };
 
-/** share get: One shared folder */
+/** share get: One shared folder; entries left by deleted accounts are marked unknown */
 export type ShareGetInput = {
     /** Share name; also the folder under /srv/samba/shares */
     name: string;
 };
 
-/** share list: List the shared folders under /srv/samba/shares, with access and drive mapping */
+/** share list: List the shared folders under /srv/samba/shares, with access and drive mapping; entries left by deleted accounts are marked unknown */
 export type ShareListInput = Record<string, never>;
 
 /** share rename-principal: Follow the rename of a user or group in every shared folder that lists it */
@@ -398,7 +398,7 @@ export type UserCreateInput = {
     title?: string;
 };
 
-/** user delete: Delete a domain user (not the built-in ones); shared folders keep listing it */
+/** user delete: Delete a domain user (not the built-in ones); shared folders keep listing it: shares names the ones that do */
 export type UserDeleteInput = {
     /** sAMAccountName of the user */
     name: string;

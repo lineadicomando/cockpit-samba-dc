@@ -165,10 +165,12 @@ export function SharesPage() {
                                             <Label
                                                 key={`${a.kind}:${a.name}`}
                                                 isCompact
-                                                color={a.level === "write" ? "blue" : "grey"}
+                                                color={a.unknown ? "orange" : a.level === "write" ? "blue" : "grey"}
                                                 icon={a.kind === "group" ? <UsersIcon /> : <UserIcon />}
                                             >
-                                                {a.level === "write" ? a.name : t("{{name}} (read only)", { name: a.name })}
+                                                {a.unknown
+                                                    ? t("{{name}} (deleted)", { name: a.name })
+                                                    : a.level === "write" ? a.name : t("{{name}} (read only)", { name: a.name })}
                                             </Label>
                                         ))}
                                     </LabelGroup>

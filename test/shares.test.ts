@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups } from "../src/lib/shares.ts";
+import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, sharesListing } from "../src/lib/shares.ts";
 
 // Verbatim shape of "addcctl share list"
 const LIST = JSON.stringify({ shares: [{
@@ -49,6 +49,31 @@ describe("listShares", () => {
             access: [{ name: "Teachers", kind: "group", level: "write" }] });
         await listShares();
         assert.equal(calls.filter(c => isCore(c, "list")).length, 2);
+    });
+});
+
+describe("entries of deleted accounts", () => {
+    it("come marked unknown and go back to addcctl as plain entries", async () => {
+        const list = JSON.stringify({ shares: [{
+            name: "old", path: "/srv/samba/shares/old", comment: "", browseable: true, drive: null,
+            access: [{ name: "Staff", kind: "group", level: "write" },
+                { name: "gbianchi", kind: "user", level: "read", unknown: true }],
+        }] });
+        core({ list });
+        await deleteShare("none", false);
+        const [share] = await listShares();
+        assert.equal(share.access[1].unknown, true);
+        await updateShare("old", { comment: "", browseable: true, automount: null, access: share.access });
+        assert.deepEqual(input("set").access[1], { name: "gbianchi", kind: "user", level: "read" });
+    });
+
+    it("sharesListing names the shares that list a user or a group", async () => {
+        core();
+        await deleteShare("none", false);
+        const shares = await listShares();
+        assert.deepEqual(sharesListing(shares, "user", "MROSSI"), ["docs"]);
+        assert.deepEqual(sharesListing(shares, "group", "students"), ["lab"]);
+        assert.deepEqual(sharesListing(shares, "user", "Students"), []);
     });
 });
 

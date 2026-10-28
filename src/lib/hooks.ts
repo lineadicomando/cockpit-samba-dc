@@ -1,11 +1,11 @@
 import {
-  useState,
-  useCallback,
-  useRef,
-  useEffect,
-  useMemo,
-  type Dispatch,
-  type SetStateAction,
+    useState,
+    useCallback,
+    useRef,
+    useEffect,
+    useMemo,
+    type Dispatch,
+    type SetStateAction,
 } from "react";
 import cockpit from "cockpit";
 import { getPasswordPolicy, getUserPasswordPolicy, listGroups, listOus, listUsers } from "./samba.ts";
@@ -14,15 +14,15 @@ import { forgetCachedData } from "./exec.ts";
 import type { Ou, PasswordPolicy } from "./types.ts";
 
 export function useCockpitLocation() {
-  const [location, setLocation] = useState(cockpit.location);
-  useEffect(() => {
-    function sync() {
-      setLocation(cockpit.location);
-    }
-    cockpit.addEventListener("locationchanged", sync);
-    return () => cockpit.removeEventListener("locationchanged", sync);
-  }, []);
-  return location;
+    const [location, setLocation] = useState(cockpit.location);
+    useEffect(() => {
+        function sync() {
+            setLocation(cockpit.location);
+        }
+        cockpit.addEventListener("locationchanged", sync);
+        return () => cockpit.removeEventListener("locationchanged", sync);
+    }, []);
+    return location;
 }
 
 // ---------------------------------------------------------------------------
@@ -79,36 +79,36 @@ export function useSingleLoad<T>(
 // usePagination
 // ---------------------------------------------------------------------------
 export const PER_PAGE_OPTIONS = [10, 15, 20, 25, 30, 40, 50].map((v) => ({
-  title: String(v),
-  value: v,
+    title: String(v),
+    value: v,
 }));
 
 // resetKey: changes whenever the filters/sort change, to go back to page 1.
 // Data updates alone (e.g. toggling a user on page 3) keep the current page,
 // clamped to the last page if the list shrank.
 export function usePagination<T>(items: T[], resetKey = "", defaultPerPage = 10) {
-  const [requestedPage, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(defaultPerPage);
+    const [requestedPage, setPage] = useState(1);
+    const [perPage, setPerPage] = useState(defaultPerPage);
 
-  useEffect(() => {
-    setPage(1);
-  }, [resetKey]);
+    useEffect(() => {
+        setPage(1);
+    }, [resetKey]);
 
-  const lastPage = Math.max(1, Math.ceil(items.length / perPage));
-  const page = Math.min(requestedPage, lastPage);
+    const lastPage = Math.max(1, Math.ceil(items.length / perPage));
+    const page = Math.min(requestedPage, lastPage);
 
-  const paginated = useMemo(
-    () => items.slice((page - 1) * perPage, page * perPage),
-    [items, page, perPage],
-  );
+    const paginated = useMemo(
+        () => items.slice((page - 1) * perPage, page * perPage),
+        [items, page, perPage],
+    );
 
-  const onSetPage = useCallback((_evt: unknown, p: number) => setPage(p), []);
-  const onPerPageSelect = useCallback((_evt: unknown, pp: number) => {
-    setPerPage(pp);
-    setPage(1);
-  }, []);
+    const onSetPage = useCallback((_evt: unknown, p: number) => setPage(p), []);
+    const onPerPageSelect = useCallback((_evt: unknown, pp: number) => {
+        setPerPage(pp);
+        setPage(1);
+    }, []);
 
-  return { page, perPage, paginated, onSetPage, onPerPageSelect };
+    return { page, perPage, paginated, onSetPage, onPerPageSelect };
 }
 
 // ---------------------------------------------------------------------------
@@ -117,41 +117,41 @@ export function usePagination<T>(items: T[], resetKey = "", defaultPerPage = 10)
 // (filtered out, or gone after a reload).
 // ---------------------------------------------------------------------------
 export function useSelection<T>(visible: T[], keyOf: (item: T) => string) {
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const key = useRef(keyOf);
-  key.current = keyOf;
+    const [selected, setSelected] = useState<Set<string>>(() => new Set());
+    const key = useRef(keyOf);
+    key.current = keyOf;
 
-  useEffect(() => {
-    const keys = new Set(visible.map((i) => key.current(i)));
-    setSelected((prev) => {
-      const next = new Set([...prev].filter((k) => keys.has(k)));
-      return next.size === prev.size ? prev : next;
-    });
-  }, [visible]);
+    useEffect(() => {
+        const keys = new Set(visible.map((i) => key.current(i)));
+        setSelected((prev) => {
+            const next = new Set([...prev].filter((k) => keys.has(k)));
+            return next.size === prev.size ? prev : next;
+        });
+    }, [visible]);
 
-  const allSelected = visible.length > 0 && visible.every((i) => selected.has(keyOf(i)));
+    const allSelected = visible.length > 0 && visible.every((i) => selected.has(keyOf(i)));
 
-  const selectAll = useCallback((isSelected: boolean) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      for (const i of visible) {
-        if (isSelected) next.add(key.current(i));
-        else next.delete(key.current(i));
-      }
-      return next;
-    });
-  }, [visible]);
+    const selectAll = useCallback((isSelected: boolean) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            for (const i of visible) {
+                if (isSelected) next.add(key.current(i));
+                else next.delete(key.current(i));
+            }
+            return next;
+        });
+    }, [visible]);
 
-  const selectRow = useCallback((key: string, isSelected: boolean) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (isSelected) next.add(key);
-      else next.delete(key);
-      return next;
-    });
-  }, []);
+    const selectRow = useCallback((key: string, isSelected: boolean) => {
+        setSelected((prev) => {
+            const next = new Set(prev);
+            if (isSelected) next.add(key);
+            else next.delete(key);
+            return next;
+        });
+    }, []);
 
-  return { selected, setSelected, allSelected, selectAll, selectRow };
+    return { selected, setSelected, allSelected, selectAll, selectRow };
 }
 
 // ---------------------------------------------------------------------------

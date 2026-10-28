@@ -7,7 +7,7 @@ import {
     Spinner,
     Button,
     ToggleGroup, ToggleGroupItem,
-    Alert,
+    Alert, Label,
 } from "@patternfly/react-core";
 import { Table, Thead, Tbody, Tr, Th, Td } from "@patternfly/react-table";
 import { UserIcon, UsersIcon, TimesIcon } from "@patternfly/react-icons";
@@ -133,6 +133,9 @@ export function ShareAccessEditor({ access, onChange, isDisabled }: Props) {
                             <Tr key={`${a.kind}:${a.name}`}>
                                 <Td dataLabel={t("User or group")}>
                                     <PrincipalIcon kind={a.kind} /> {a.name}
+                                    {a.unknown && (
+                                        <Label isCompact color="orange" style={{ marginLeft: "0.5rem" }}>{t("Deleted account")}</Label>
+                                    )}
                                 </Td>
                                 <Td dataLabel={t("Permissions")}>
                                     <ToggleGroup isCompact aria-label={t("Permissions")}>
@@ -163,6 +166,12 @@ export function ShareAccessEditor({ access, onChange, isDisabled }: Props) {
                         ))}
                     </Tbody>
                 </Table>
+            )}
+            {access.some(a => a.unknown) && (
+                <Alert variant="warning" isInline style={{ marginTop: "0.5rem" }}
+                    title={t("Some entries name deleted accounts")}>
+                    {t("Remove them: a new account created with the same name would get their access.")}
+                </Alert>
             )}
         </div>
     );

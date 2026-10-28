@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
-    Alert, Button, EmptyState, EmptyStateBody, Label, PageSection, Spinner,
+    Alert, Button, EmptyState, EmptyStateBody, Label, LabelGroup, PageSection, Spinner,
     Toolbar, ToolbarContent, ToolbarItem,
 } from "@patternfly/react-core";
 import { ActionsColumn, Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
@@ -9,11 +9,13 @@ import type { IAction } from "@patternfly/react-table";
 import { AngleDownIcon, AngleRightIcon } from "@patternfly/react-icons";
 
 import { listComputers, listGroups, listOus, listUsers } from "../lib/samba.ts";
+import { listGpos } from "../lib/gpos.ts";
 import { useSingleLoad } from "../lib/hooks.ts";
 import { forgetCachedData } from "../lib/exec.ts";
-import type { Ou } from "../lib/types.ts";
+import type { Gpo, GpoLink, Ou } from "../lib/types.ts";
 import { OuModal } from "./modals/OuModal.tsx";
 import { DeleteOuModal, type OuContents } from "./modals/DeleteOuModal.tsx";
+import { GpoLinksModal } from "./modals/GpoLinksModal.tsx";
 
 // An OU or default container with the accounts directly in it
 interface Row {
@@ -22,6 +24,8 @@ interface Row {
     users: string[];
     groups: string[];
     computers: string[];
+    // The GPOs linked to it, by precedence
+    gpos: { gpo: Gpo; link: GpoLink }[];
 }
 
 function isUnder(dn: string, ancestor: string): boolean {
@@ -30,7 +34,11 @@ function isUnder(dn: string, ancestor: string): boolean {
 }
 
 async function loadRows(): Promise<Row[]> {
-    const [ous, users, groups, computers] = await Promise.all([listOus(), listUsers(), listGroups(), listComputers()]);
+    const [ous, users, groups, computers, gpos] = await Promise.all([
+        listOus(), listUsers(), listGroups(), listComputers(),
+        // The links are shown in passing: the "Group Policy" tab reports its errors
+        listGpos().catch(() => [] as Gpo[]),
+    ]);
     const known = new Set(ous.map(o => o.dn.toLowerCase()));
     const inIt = (container: string, dn: string) => container.toLowerCase() === dn.toLowerCase();
     return ous.map(ou => ({
@@ -41,6 +49,8 @@ async function loadRows(): Promise<Row[]> {
         users: users.filter(u => inIt(u.container, ou.dn)).map(u => u.username),
         groups: groups.filter(g => inIt(g.container, ou.dn)).map(g => g.name),
         computers: computers.filter(c => inIt(c.container, ou.dn)).map(c => c.name),
+        gpos: gpos.flatMap(gpo => gpo.links.filter(l => inIt(l.container, ou.dn)).map(link => ({ gpo, link })))
+            .sort((a, b) => a.link.order - b.link.order),
     }));
 }
 
@@ -48,7 +58,8 @@ type ModalState =
     | { kind: "none" }
     | { kind: "create"; parent: string }
     | { kind: "edit"; ou: Ou }
-    | { kind: "delete"; ou: Ou; contents: OuContents };
+    | { kind: "delete"; ou: Ou; contents: OuContents }
+    | { kind: "gpo"; gpo: Gpo };
 
 interface Props {
     // Bumped when accounts change elsewhere (the counts follow)
@@ -122,6 +133,7 @@ export function OusPage({ refreshToken = 0, onChange }: Props) {
     }
 
     const done = () => { setModal({ kind: "none" }); reload(); onChange?.(); };
+    const gpoFlags = (l: GpoLink) => [l.enforced && t("enforced"), l.disabled && t("disabled")].filter(Boolean).join(", ");
 
     return (
         <PageSection>
@@ -174,6 +186,7 @@ export function OusPage({ refreshToken = 0, onChange }: Props) {
                             <Th>{t("Users")}</Th>
                             <Th>{t("Groups")}</Th>
                             <Th>{t("Computers")}</Th>
+                            <Th>{t("Group Policy")}</Th>
                             <Th aria-label={t("Row actions")} />
                         </Tr>
                     </Thead>
@@ -199,6 +212,18 @@ export function OusPage({ refreshToken = 0, onChange }: Props) {
                                     <Td dataLabel={t("Users")}>{r.users.length || ""}</Td>
                                     <Td dataLabel={t("Groups")}>{r.groups.length || ""}</Td>
                                     <Td dataLabel={t("Computers")}>{r.computers.length || ""}</Td>
+                                    <Td dataLabel={t("Group Policy")}>
+                                        <LabelGroup numLabels={3} expandedText={t("Show less")}
+                                            collapsedText={t("and_n_more", { count: r.gpos.length - 3 })}>
+                                            {r.gpos.map(({ gpo, link }) => (
+                                                <Label key={gpo.guid} isCompact
+                                                    color={link.disabled ? "grey" : link.enforced ? "orange" : "blue"}
+                                                    onClick={() => setModal({ kind: "gpo", gpo })}>
+                                                    {gpo.name}{gpoFlags(link) && ` (${gpoFlags(link)})`}
+                                                </Label>
+                                            ))}
+                                        </LabelGroup>
+                                    </Td>
                                     <Td isActionCell>
                                         <ActionsColumn items={rowActions(r.ou)} />
                                     </Td>
@@ -218,6 +243,9 @@ export function OusPage({ refreshToken = 0, onChange }: Props) {
             {modal.kind === "delete" && (
                 <DeleteOuModal ou={modal.ou} contents={modal.contents} onClose={() => setModal({ kind: "none" })}
                     onSuccess={done} />
+            )}
+            {modal.kind === "gpo" && (
+                <GpoLinksModal gpo={modal.gpo} onClose={() => { setModal({ kind: "none" }); reload(); }} />
             )}
         </PageSection>
     );

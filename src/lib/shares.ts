@@ -102,6 +102,12 @@ export async function deleteShare(name: string, deleteData: boolean): Promise<vo
     }
 }
 
+// The shares that name this user or group: they keep it when it is deleted.
+export function sharesListing(shares: SharedFolder[], kind: "user" | "group", name: string): string[] {
+    const key = name.toLowerCase();
+    return shares.filter(s => s.access.some(a => a.kind === kind && a.name.toLowerCase() === key)).map(s => s.name);
+}
+
 export interface EffectiveShareAccess {
     level: ShareAccessLevel;
     // The entries that grant access: the user itself and/or its groups

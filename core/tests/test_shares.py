@@ -280,6 +280,58 @@ class TestDrives(Base):
         self.assertIn('name="SCHOOL\\mario.rossi"', self.drives()[0]["filters"])
 
 
+class TestStaleEntries(Base):
+    """An account deleted after it was given access stays in the share (an
+    empty list would open it to every domain user): marked, kept, removable."""
+
+    def setUp(self):
+        super().setUp()
+        PRINCIPALS["gbianchi"] = {"name": "gbianchi", "kind": "user", "sid": "S-1-5-21-1-2-3-1201"}
+        POSIX["gbianchi"] = {"u": "3000021", "g": "3000021"}
+        self.shares.set({"name": "Docs", "access": [{"name": "Staff", "level": "write"}, {"name": "gbianchi"}],
+                         "drive": {"letter": "P"}})
+        del PRINCIPALS["gbianchi"], POSIX["gbianchi"]
+
+    def test_marked_unknown(self):
+        [share] = self.again().list()
+        self.assertEqual(share["access"], [{"name": "Staff", "kind": "group", "level": "write"},
+                                           {"name": "gbianchi", "kind": "user", "level": "read", "unknown": True}])
+        self.assertEqual(self.again().get("docs")["access"], share["access"])
+        self.assertEqual(self.again().listing("user", "GBIANCHI"), ["Docs"])
+        self.assertEqual(self.again().listing("group", "gbianchi"), [])
+
+    def test_kept_by_other_changes(self):
+        result = self.again().set({"name": "Docs", "comment": "Files"})
+        self.assertEqual(result["share"]["access"][1], {"name": "gbianchi", "kind": "user", "level": "read",
+                                                        "unknown": True})
+        self.assertIn('"SCHOOL\\gbianchi"', self.dc.registry["Docs"]["valid users"])
+        # The full list sent back, as the page does, with the stale entry in it
+        self.again().set({"name": "Docs", "access": [{"name": "Staff", "level": "write"}, {"name": "gbianchi"},
+                                                     {"name": "mrossi"}]})
+        self.assertIn("mrossi", self.dc.registry["Docs"]["valid users"])
+        # Not in the drive mapping, whose targets need a SID
+        self.assertNotIn("gbianchi", self.drives()[0]["filters"])
+        # A new unknown name is still refused
+        with self.assertRaisesRegex(AddcError, "Unknown user or group: ghost"):
+            self.again().set({"name": "Docs", "access": [{"name": "ghost"}], "access_mode": "append"})
+
+    def test_removed(self):
+        self.again().set({"name": "Docs", "access": [{"name": "gbianchi"}], "access_mode": "remove"})
+        self.assertEqual(self.dc.registry["Docs"]["valid users"], '@"SCHOOL\\Staff"')
+        self.assertNotIn("read list", self.dc.registry["Docs"])
+
+    def test_drive_needs_an_existing_target(self):
+        # Only the stale entry would be left: a mapping with no target would
+        # reach every user. Refused before anything changes.
+        shares = self.again()
+        with self.assertRaisesRegex(AddcError, "at least one existing user or group"):
+            shares.set({"name": "Docs", "access": [{"name": "Staff"}], "access_mode": "remove"})
+        self.assertEqual(self.runner.commands, [])
+        self.again().set({"name": "Docs", "access": [{"name": "Staff"}], "access_mode": "remove", "drive": None})
+        self.assertEqual(self.drives(), [])
+        self.assertEqual(self.dc.registry["Docs"]["valid users"], '"SCHOOL\\gbianchi"')
+
+
 class TestPosixIds(unittest.TestCase):
     """Dc resolves ids by SID through wbinfo: winbind's cache of names keeps
     the SID of a deleted account, which a new one with its name would get."""

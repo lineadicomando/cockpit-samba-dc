@@ -779,6 +779,23 @@ async function coreChecks(): Promise<void> {
             await assert.rejects(run(["addcctl", "gpo", "link"], JSON.stringify(
                 { gpo: "Default Domain Policy", container: "CN=Users" })), /link it to the domain or to an OU/);
         });
+        await step("a deleted user stays in its share: named by the delete, marked unknown, kept, removed", async () => {
+            await run(["samba-tool", "user", "create", "t-x-gone", "--random-password"]);
+            await core("share set", { name: "t-x-stale", access: [{ name: "student1" }, { name: "t-x-gone" }],
+                drive: { letter: "T" } });
+            const deleted = await core("user delete", { name: "t-x-gone" });
+            assert.deepEqual(deleted.shares, ["t-x-stale"]);
+            const get = async () => (await core("share get", { name: "t-x-stale" })).share as
+                { access: (Access & { unknown?: boolean })[] };
+            assert.deepEqual((await get()).access.map(a => [a.name, a.unknown ?? false]),
+                [["student1", false], ["t-x-gone", true]]);
+            const kept = await core("share set", { name: "t-x-stale", comment: "kept" });
+            assert.ok(!("error" in kept), JSON.stringify(kept));
+            assert.ok((await get()).access.some(a => a.name === "t-x-gone"));
+            assert.ok(!(await drivesXml()).includes("t-x-gone"), "not a target of the mapping");
+            await core("share set", { name: "t-x-stale", access: [{ name: "t-x-gone" }], access_mode: "remove" });
+            assert.deepEqual(await shareAccess("t-x-stale"), ["user:student1:read"]);
+        });
         await step("a hand-made share at the shares directory itself is not managed", async () => {
             await run(["net", "conf", "addshare", "t-x-root", "/srv/samba/shares/", "writeable=n", "guest_ok=n"]);
             try {

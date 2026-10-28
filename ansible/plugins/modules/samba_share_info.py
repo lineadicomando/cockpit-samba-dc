@@ -59,7 +59,9 @@ shares:
       description: Whether the share is listed when browsing.
       type: bool
     access:
-      description: Users and groups with their C(kind) (user or group) and C(level) (read or write).
+      description:
+        - Users and groups with their C(kind) (user or group) and C(level) (read or write).
+        - C(unknown=true) marks an entry left by a deleted account, which stays until it is removed.
       type: list
       elements: dict
     drive:

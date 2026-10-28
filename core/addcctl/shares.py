@@ -38,27 +38,50 @@ class Shares:
                 return section, params
         return None, None
 
-    def _describe(self, name, params, mappings):
+    def _known(self, shares):
+        """{lowercased name} of the principals the shares list that exist in
+        the directory, in one search."""
+        names = {e["name"] for params in shares for e in share_access(params)}
+        valid = [n for n in names if n and not n.startswith("-")]
+        return set(self.dc.resolve_principals(sorted(valid))) if valid else set()
+
+    def _describe(self, name, params, mappings, known=None):
+        """A share; with known, the entries left by deleted accounts are
+        marked "unknown"."""
+        access = share_access(params)
+        if known is not None:
+            for entry in access:
+                if entry["name"].lower() not in known:
+                    entry["unknown"] = True
         return {
             "name": name,
             "path": params.get("path", ""),
             "comment": params.get("comment", ""),
             "browseable": parse_bool(params.get("browseable", params.get("browsable")), True),
-            "access": share_access(params),
+            "access": access,
             "drive": mappings.get(name.lower()),
         }
 
+    def _managed_shares(self):
+        return [(name, params) for name, params in sorted(self.dc.shares().items(), key=lambda kv: kv[0].lower())
+                if is_managed_path(params.get("path", ""), self.shares_dir)]
+
     def list(self):
         mappings = self.drives.mappings()
-        return [self._describe(name, params, mappings)
-                for name, params in sorted(self.dc.shares().items(), key=lambda kv: kv[0].lower())
-                if is_managed_path(params.get("path", ""), self.shares_dir)]
+        shares = self._managed_shares()
+        known = self._known([params for _, params in shares])
+        return [self._describe(name, params, mappings, known) for name, params in shares]
 
     def get(self, name):
         section, params = self._find(name)
         if section is None or not is_managed_path(params.get("path", ""), self.shares_dir):
             raise AddcError('Shared folder "%s" not found' % name)
-        return self._describe(section, params, self.drives.mappings())
+        return self._describe(section, params, self.drives.mappings(), self._known([params]))
+
+    def listing(self, kind, name):
+        """Names of the shares whose access list names this user or group."""
+        return [section for section, params in self._managed_shares()
+                if any(e["kind"] == kind and e["name"].lower() == name.lower() for e in share_access(params))]
 
     def _managed(self, name):
         """(section, params) of an existing share; fails on one outside
@@ -71,15 +94,22 @@ class Shares:
 
     # -- principals and ACL
 
-    def _resolve(self, access):
-        """Canonical names and kinds from the directory, with each SID."""
+    def _resolve(self, access, kept=()):
+        """Canonical names and kinds from the directory, with each SID.
+        Entries named in kept (lowercased), already in the share, may name no
+        account any more (left by a deleted one): they stay, marked
+        "unknown", with no SID, until they are removed."""
         check_principal_names([e["name"] for e in access])
         found = self.dc.resolve_principals([e["name"] for e in access])
-        unknown = [e["name"] for e in access if e["name"].lower() not in found]
+        unknown = [e["name"] for e in access if e["name"].lower() not in found and e["name"].lower() not in kept]
         if unknown:
             raise AddcError("Unknown user or group: %s" % ", ".join(unknown))
         resolved = []
         for entry in access:
+            if entry["name"].lower() not in found:
+                resolved.append({"name": entry["name"], "kind": entry.get("kind") or "user", "sid": None,
+                                 "level": entry.get("level") or "read", "unknown": True})
+                continue
             principal = found[entry["name"].lower()]
             if entry.get("kind") and entry["kind"] != principal["kind"]:
                 raise AddcError("%s is a %s, not a %s" % (principal["name"], principal["kind"], entry["kind"]))
@@ -89,6 +119,8 @@ class Shares:
     def _grants(self, access):
         grants = []
         for entry in access:
+            if entry.get("unknown"):
+                continue
             ids = self.dc.posix_ids(entry["name"], entry.get("sid"))
             tag = "g" if entry["kind"] == "group" else "u"
             if tag not in ids:
@@ -130,6 +162,27 @@ class Shares:
         self.runner.change(acl.setfacl_args(path, grants, stale))
         return True
 
+    @staticmethod
+    def _kept(access):
+        return {e["name"].lower() for e in access if e.get("unknown")}
+
+    @staticmethod
+    def _entry(resolved):
+        entry = {"name": resolved["name"], "kind": resolved["kind"], "level": resolved["level"]}
+        if resolved.get("unknown"):
+            entry["unknown"] = True
+        return entry
+
+    @staticmethod
+    def _targets(resolved, drive):
+        """The principals a drive mapping targets: those that exist. A mapping
+        with no target would apply to every user."""
+        targets = [e for e in resolved if not e.get("unknown")]
+        if drive is not None and not targets:
+            raise AddcError("A mapped drive needs at least one existing user or group: "
+                            "add one, or remove the mapping")
+        return targets
+
     # -- changing
 
     @staticmethod
@@ -164,7 +217,7 @@ class Shares:
             raise AddcError("Invalid share name %r: %s" % (name, violation))
         section, params = self._managed(name)
         mappings = self.drives.mappings()
-        before = self._describe(section, params, mappings) if section else None
+        before = self._describe(section, params, mappings, self._known([params])) if section else None
 
         name = section or name
         path = before["path"] if before else "%s/%s" % (self.shares_dir, name)
@@ -181,8 +234,8 @@ class Shares:
         if not desired:
             # An empty "valid users" would open the share to every domain user
             raise AddcError("A shared folder needs at least one user or group")
-        resolved = self._resolve(desired)
-        access = [{"name": e["name"], "kind": e["kind"], "level": e["level"]} for e in resolved]
+        resolved = self._resolve(desired, self._kept(current_access))
+        access = [self._entry(e) for e in resolved]
 
         # Checked before anything changes, so that a letter clash does not
         # leave a share created without its mapping.
@@ -196,6 +249,8 @@ class Shares:
             self.drives.check_letter(name, letter)
             label = request["drive"].get("label") or (current_drive or {}).get("label") or name
             drive = {"letter": letter, "label": label}
+
+        targets = self._targets(resolved, drive)
 
         changed = self._ensure_root(path)
         changed = self._ensure_acl(path, resolved, current_access) or changed
@@ -232,7 +287,7 @@ class Shares:
 
         # Also when only the access list changed: the mapping targets it
         if drive is not None or current_drive is not None:
-            changed = self.drives.set(name, resolved, drive) or changed
+            changed = self.drives.set(name, targets, drive) or changed
 
         after = {"name": name, "path": path, "comment": comment, "browseable": browseable,
                  "access": access, "drive": drive}
@@ -264,20 +319,22 @@ class Shares:
         if old == new:
             return {"changed": False, "shares": renamed}
         mappings = self.drives.mappings()
-        for section, params in sorted(self.dc.shares().items()):
-            if not is_managed_path(params.get("path", ""), self.shares_dir):
-                continue
-            share = self._describe(section, params, mappings)
+        shares = self._managed_shares()
+        known = self._known([params for _, params in shares])
+        for section, params in shares:
+            share = self._describe(section, params, mappings, known)
             hit = [a for a in share["access"] if a["kind"] == kind and a["name"].lower() == old.lower()]
             if not hit:
                 continue
-            access = [dict(a, name=new) if a in hit else a for a in share["access"]]
+            access = [{"name": new, "kind": a["kind"], "level": a["level"]} if a in hit else a
+                      for a in share["access"]]
             readers = [e for e in access if e["level"] == "read"]
             wanted = {"valid users": format_user_list(access, self.dc.workgroup)}
             if readers:
                 wanted["read list"] = format_user_list(readers, self.dc.workgroup)
             self.dc.update_share(section, wanted)
             if share["drive"]:
-                self.drives.set(section, self._resolve(access), share["drive"])
+                resolved = self._resolve(access, self._kept(access))
+                self.drives.set(section, self._targets(resolved, share["drive"]), share["drive"])
             renamed.append(section)
         return {"changed": bool(renamed), "shares": renamed}

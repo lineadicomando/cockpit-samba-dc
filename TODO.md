@@ -334,15 +334,14 @@ Measures on the test DC (2 vCPU), through the page:
 
 ## 0. Follow-ups of the October 2026 review
 
-- [ ] **Stale share entries after a delete.** Deleting a user or group leaves
-      it in `valid users` / `read list` of its shares, on purpose: removing
-      the only entry would leave the list empty, which opens the share to
-      every domain user (rule 6). Core: `share get` and `share list` mark
-      the entries that resolve to no account; `user delete` and `group
-      delete` return the shares that still list it (with `--check`, before
-      the delete). Page: such entries shown as unknown and removable in the
-      share editor, the shares listed in the delete confirmation. Ansible:
-      `samba_share_info` returns them.
+- [x] **Stale share entries after a delete.** Deleting a user or group leaves
+      it in its shares, on purpose (rule 6). `share get` and `share list`
+      mark such entries `unknown`; `share set` keeps them (it refused the
+      share as "Unknown user or group"), outside the ACL and the drive
+      mapping, which needs one existing target; `user delete` and `group
+      delete` return `shares`. Page: "Deleted account" in the list and the
+      editor, the shares named in the delete confirmations (from the cached
+      list); Ansible: `samba_share_info`, `shares` and a warning on delete
 - [ ] **`registry shares` is not checked.** Samba's default is `no`, also on
       a DC; without it smbd should not serve the registry shares addcctl
       creates (home, shared folders). Core: `share list` returns it
@@ -368,9 +367,9 @@ Measures on the test DC (2 vCPU), through the page:
       (A3).
 - [x] **Nested groups** are expanded on the user page
       (`expandNestedGroups`, from the members that `listGroups` reads).
-- [ ] **Linter.** `validators.ts` carries an `eslint-disable` comment but
-      ESLint is not set up: add a config, a script and a CI step;
-      `src/lib/hooks.ts` mixes 2- and 4-space indentation.
+- [x] **Linter.** ESLint (`eslint.config.mjs`: recommended, typescript-eslint,
+      react-hooks), `make lint` and a CI step; `src/lib/hooks.ts` now 4-space
+      (`UsersPage.tsx` and `app.tsx` are still 2-space throughout)
 - [x] **Integration checks.** `test/vm/integration.ts` (run with
       `run-lib.sh` before each release): one scenario (group, user, home
       directory, share with a mapped drive, smbd access, renames, removal)
@@ -405,19 +404,17 @@ Measures on the test DC (2 vCPU), through the page:
       last ones that do, `tasks/_run.yaml`); the `list` and `get`
       operations of the core return the same, structured. Moving them
       drops the raw text output: say so under `Breaking`.
-- [ ] **The GPOs of an OU.** The "Organizational units" tab could show the
-      GPOs linked to each OU (from `gpo list`, no new operation) and open
-      `GpoLinksModal` from there.
-- [ ] **`tdb-tools` missing from the test DC's baseline.** `addcctl`
-      depends on it since v0.10.0, but `test/vm/provision-dc.sh` does not
-      install it, so every `lab.sh deploy` from `lab_baseline` downloads it
-      (and fails when the DC cannot resolve outside names). Install it in
-      `provision-dc.sh`; it reaches the snapshots at the next `build dc`.
-- [ ] **Collection unit tests locally.** `ansible-test units` needs pytest,
-      not installed on the workstations: the modules' tests run only in CI
-      (or call their functions by hand). Install it, or note how to run them.
-- [ ] **Collection: sanity ignore files for ansible-core 2.16–2.18**, below
-      `requires_ansible: ">=2.19.0"` and never run by CI: keep or delete
+- [x] **The GPOs of an OU.** The "Organizational units" tab shows the GPOs
+      linked to each OU (from `gpo list`, no new operation); a label opens
+      `GpoLinksModal`.
+- [x] **`tdb-tools` missing from the test DC's baseline.** `addcctl`
+      depends on it since v0.10.0: `provision-dc.sh` installs it now; it
+      reaches the snapshots at the next `build dc`.
+- [x] **Collection unit tests locally.** `ansible-test units --venv` (and
+      `sanity --venv`) build their own virtual environment with pytest: no
+      install on the host (collection README, "Development")
+- [x] **Collection: sanity ignore files for ansible-core 2.16–2.18**: deleted,
+      below `requires_ansible: ">=2.19.0"`
 - [x] **Rebuild scripts.** The test VMs are built from scratch, with no
       manual step, on a network of the lab's own (`test/vm/lab.conf`,
       after cockpit-fleet's `test/vm/`): `lab.sh build dc` (Debian from the

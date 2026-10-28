@@ -7,6 +7,7 @@
     "test": "node --experimental-strip-types --import ./test/cockpit-loader.mjs --test test/*.test.ts",
     "build": "node build.js",
     "watch": "node build.js --watch",
+    "lint": "eslint --max-warnings 0 .",
     "pot": "i18next",
     "po-compile": "node scripts/po2json.mjs"
   },
@@ -21,13 +22,18 @@
     "react-i18next": "^17.0.8"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^25.6.0",
     "@types/react": "^18.3.1",
     "@types/react-dom": "^18.3.1",
     "esbuild": "^0.28.0",
     "esbuild-sass-plugin": "^3.7.0",
+    "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "gettext-parser": "^9.0.2",
+    "globals": "^17.13.0",
     "i18next-parser": "^9.0.2",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1"
   }
 }

@@ -16,7 +16,7 @@ apt-get update -q
 # No recommends: they would pull NetworkManager and PackageKit into Cockpit
 apt-get install -y -q --no-install-recommends \
     samba samba-ad-dc samba-ad-provision winbind libnss-winbind libpam-winbind krb5-user smbclient \
-    ldb-tools acl attr python3-setproctitle cockpit
+    ldb-tools tdb-tools acl attr python3-setproctitle cockpit
 
 # An AD DC runs everything in the "samba" service
 systemctl disable --now smbd nmbd winbind 2>/dev/null || true

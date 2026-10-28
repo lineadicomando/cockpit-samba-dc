@@ -15,9 +15,9 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 
 - **Users** — list, create (with e-mail, description, job title, department, company, and a password to change at the next logon), edit the same details and the account name, reset password, enable/disable, unlock accounts locked out after failed logons, account expiry date, delete, group membership and primary group, home directory (H:) provisioning; bulk enable, disable, unlock, set expiry, delete, add to or remove from a group, change primary group, provision home directories
 - **Groups** — list, create (with description, e-mail, scope and type: security or distribution), edit name, description and e-mail, move to an OU (one or several), delete, member management (add/remove)
-- **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page
+- **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page, and the entries left by deleted accounts are marked
 - **Computers** — list, a page for each (DNS name, operating system, container, SID) with its description edited, create an account before the computer joins (in a chosen OU), move to an OU (one or several), delete
-- **Organizational units** — a tree of the OUs and the default containers, with the users, groups and computers in each; create, rename, move (with everything in them), describe and delete them (one that is not empty after an explicit confirmation, with what is in it); the container shown and filtered in the users, groups and computers lists, chosen when a user, group or computer account is created; users, groups and computers moved one at a time or in bulk. The default containers (`Users`, `Computers`, `Domain Controllers`) and the built-in accounts stay where they are
+- **Organizational units** — a tree of the OUs and the default containers, with the users, groups and computers in each and the GPOs linked to it (whose links open from there); create, rename, move (with everything in them), describe and delete them (one that is not empty after an explicit confirmation, with what is in it); the container shown and filtered in the users, groups and computers lists, chosen when a user, group or computer account is created; users, groups and computers moved one at a time or in bulk. The default containers (`Users`, `Computers`, `Domain Controllers`) and the built-in accounts stay where they are
 - **DNS** — the records of the domain's zones: add, change and delete A, AAAA, CNAME, MX, PTR, SRV and TXT records (several values per name, TTL), the records clients registered themselves marked as dynamic; the records the domain depends on (the `_msdcs` zone, SOA and NS, the Active Directory service records, the domain controllers' names) shown on request and never changed
 - **Group Policy** — the domain's Group Policy objects with their status, version and where each is linked; link one to the domain or to an OU, enforce or disable a link, remove it. The default GPOs and the drive-mapping GPO stay linked where they are
 - **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), the password and lockout policy of the domain (complexity, length, history, minimum and maximum age, lockout threshold, duration and reset) and fine-grained policies (PSOs) for chosen users and groups, the one that applies shown on the user page, offline backups of the domain
@@ -280,6 +280,14 @@ share (`valid users`, plus `read list` for read-only entries) and by a POSIX
 ACL on the folder tree, the same model used for home directories: Samba's
 `acl_xattr` derives the Windows ACL from it. Only shares whose path is under
 `/srv/samba/shares` are listed and managed by the module.
+
+Deleting a user or a group does not remove it from the shared folders that
+list it: removing a share's only entry would leave `valid users` empty, which
+opens the share to every domain user. The delete confirmation names those
+shares, and the share editor marks such entries as "Deleted account" until
+they are removed; a new account created with the same name would get their
+access. They are not targets of the drive mapping, and a mapped share needs
+at least one existing user or group.
 
 ### Account lockout and expiry
 

@@ -110,6 +110,9 @@ export interface ShareAccess {
     name: string;
     kind: "user" | "group";
     level: ShareAccessLevel;
+    // Left by a deleted account: it stays until removed, since an empty
+    // list would open the share to every domain user
+    unknown?: boolean;
 }
 
 // Network drive mapped at logon for the users and groups with access

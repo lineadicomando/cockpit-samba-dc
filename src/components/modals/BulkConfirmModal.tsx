@@ -7,6 +7,7 @@ import {
 import { enableUser, disableUser, unlockUser, deleteUser, provisionHomeDir } from "../../lib/samba.ts";
 import type { User } from "../../lib/types.ts";
 import { mapLimit, BULK_CONCURRENCY } from "../../lib/concurrency.ts";
+import { SharesKeepingNotice } from "./SharesKeepingNotice.tsx";
 
 export type BulkConfirmAction = "enable" | "disable" | "unlock" | "delete" | "provision-home";
 
@@ -138,6 +139,7 @@ export function BulkConfirmModal({ action, users, onClose, onSuccess }: Props) {
                                 style={{ marginBottom: "1rem" }}
                             />
                         )}
+                        {isDanger && <SharesKeepingNotice kind="user" names={actionable.map(u => u.username)} />}
                         <p style={{ marginBottom: "0.5rem" }}>
                             {willBeText(actionable.length)}
                         </p>

@@ -7,6 +7,8 @@ import {
     Button, Alert,
 } from "@patternfly/react-core";
 import { deleteUser } from "../../lib/samba.ts";
+import { SharesKeepingNotice } from "./SharesKeepingNotice.tsx";
+
 interface Props {
     user: { username: string };
     onClose: () => void;
@@ -44,6 +46,7 @@ export function DeleteUserModal({ user, onClose, onSuccess }: Props) {
             <ModalHeader title={t("Delete user: {{name}}", { name: user.username })} />
             <ModalBody>
                 {error && <Alert variant="danger" isInline title={error} style={{ marginBottom: "1rem" }} />}
+                <SharesKeepingNotice kind="user" names={[user.username]} />
                 <Form>
                     <FormGroup label={t("type_name_to_confirm", { name: user.username })} isRequired fieldId="du-confirm">
                         <TextInput id="du-confirm" value={confirm} onChange={(_e, v) => setConfirm(v)} />

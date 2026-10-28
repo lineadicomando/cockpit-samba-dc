@@ -66,6 +66,14 @@ commands:
   type: list
   elements: str
   returned: always
+shares:
+  description:
+    - The shared folders that still list the user after it is deleted (or would, in check mode).
+    - Nothing removes it from them, since an empty list would open a share to every domain user;
+      M(lineadicomando.samba_dc.samba_share) with O(lineadicomando.samba_dc.samba_share#module:access_mode=remove) does.
+  type: list
+  elements: str
+  returned: when state is absent and the user existed
 """
 
 from ansible.module_utils.basic import AnsibleModule
@@ -103,7 +111,10 @@ def run_module():
         if before is None:
             module.exit_json(changed=False, commands=[])
         result = call(module, "user", "delete", {"name": p["name"]}, check=check)
-        module.exit_json(changed=result["changed"], commands=result["commands"],
+        shares = result.get("shares", [])
+        if shares:
+            module.warn("Shared folders still list %s: %s" % (p["name"], ", ".join(shares)))
+        module.exit_json(changed=result["changed"], commands=result["commands"], shares=shares,
                          diff=dict(before=before, after={}))
 
     rest = settings(p)

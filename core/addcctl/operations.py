@@ -206,7 +206,8 @@ OPERATIONS = {
         "run": lambda ctx, req: _users(ctx).unlock(req),
     },
     ("user", "delete"): {
-        "description": "Delete a domain user (not the built-in ones); shared folders keep listing it",
+        "description": ("Delete a domain user (not the built-in ones); shared folders keep listing it: "
+                        "shares names the ones that do"),
         "mutates": True, "input": _NAME_ONLY(_ACCOUNT, "sAMAccountName of the user"),
         "run": lambda ctx, req: _users(ctx).delete(req),
     },
@@ -252,7 +253,8 @@ OPERATIONS = {
         "run": lambda ctx, req: _groups(ctx).set(req),
     },
     ("group", "delete"): {
-        "description": "Delete a group (not the built-in ones); shared folders keep listing it",
+        "description": ("Delete a group (not the built-in ones); shared folders keep listing it: "
+                        "shares names the ones that do"),
         "mutates": True, "input": _NAME_ONLY(_GROUP, "sAMAccountName of the group"),
         "run": lambda ctx, req: _groups(ctx).delete(req),
     },
@@ -519,13 +521,14 @@ OPERATIONS = {
         "run": lambda ctx, req: Backups(ctx.runner).create(),
     },
     ("share", "list"): {
-        "description": "List the shared folders under /srv/samba/shares, with access and drive mapping",
+        "description": ("List the shared folders under /srv/samba/shares, with access and drive mapping; "
+                        "entries left by deleted accounts are marked unknown"),
         "mutates": False,
         "input": {"type": "object", "properties": {}, "additionalProperties": False},
         "run": lambda ctx, req: {"shares": _shares(ctx).list()},
     },
     ("share", "get"): {
-        "description": "One shared folder",
+        "description": "One shared folder; entries left by deleted accounts are marked unknown",
         "mutates": False,
         "input": {"type": "object", "properties": {"name": _SHARE_NAME}, "required": ["name"],
                   "additionalProperties": False},

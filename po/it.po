@@ -1779,3 +1779,23 @@ msgstr "Un nuovo collegamento ha la precedenza più bassa nel suo punto. I clien
 
 msgid "It is linked to the domain and to every OU."
 msgstr "È collegato al dominio e a ogni unità organizzativa."
+
+msgid "{{name}} (deleted)"
+msgstr "{{name}} (eliminato)"
+
+msgid "Deleted account"
+msgstr "Account eliminato"
+
+msgid "Some entries name deleted accounts"
+msgstr "Alcune voci indicano account eliminati"
+
+msgid "Remove them: a new account created with the same name would get their access."
+msgstr "Rimuovile: un nuovo account creato con lo stesso nome ne otterrebbe l'accesso."
+
+msgid "shares_keep_listing"
+msgid_plural "shares_keep_listing_plural"
+msgstr[0] "Le voci restano in {{count}} cartella condivisa:"
+msgstr[1] "Le voci restano in {{count}} cartelle condivise:"
+
+msgid "Remove them in the Shared folders tab."
+msgstr "Rimuovile dalla scheda Cartelle condivise."

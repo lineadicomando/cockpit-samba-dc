@@ -221,6 +221,12 @@ ansible-test sanity --docker     # from within ansible_collections/lineadicomand
 ansible-test units --docker
 ```
 
+`ansible-test` wants the collection in an
+`ansible_collections/lineadicomando/samba_dc` directory: copy it there (as
+CI does) and run it from that copy. Without a container engine, `--venv`
+instead of `--docker` builds a virtual environment with pytest and the other
+requirements of each test, on the Python versions found on the host.
+
 ## License
 
 GPL-3.0-or-later

@@ -294,9 +294,10 @@ class Users:
         if self.protected(before):
             raise AddcError("%s is a built-in account and cannot be deleted" % before["name"])
         # Shared folders keep listing it: removing the only entry of a share
-        # would open it to every domain user
+        # would open it to every domain user. Say which.
+        shares = Shares(self.dc, self.runner).listing("user", before["name"])
         self.dc.delete_user(before["name"])
-        return {"changed": True, "diff": {"before": before, "after": None}}
+        return {"changed": True, "shares": shares, "diff": {"before": before, "after": None}}
 
 
 class Groups:
@@ -447,8 +448,9 @@ class Groups:
         before = self._describe(record)
         if before["protected"]:
             raise AddcError("%s is a built-in group and cannot be deleted" % before["name"])
+        shares = Shares(self.dc, self.runner).listing("group", before["name"])
         self.dc.delete_group(before["name"])
-        return {"changed": True, "diff": {"before": before, "after": None}}
+        return {"changed": True, "shares": shares, "diff": {"before": before, "after": None}}
 
 
 class Computers:

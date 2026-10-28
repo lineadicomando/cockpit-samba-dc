@@ -7,6 +7,7 @@ import {
 } from "@patternfly/react-core";
 import { deleteGroup } from "../../lib/samba.ts";
 import type { Group } from "../../lib/types.ts";
+import { SharesKeepingNotice } from "./SharesKeepingNotice.tsx";
 
 const MAX_SHOWN = 5;
 
@@ -51,6 +52,7 @@ export function DeleteGroupModal({ group, onClose, onSuccess }: Props) {
                         )}
                     </Alert>
                 )}
+                <SharesKeepingNotice kind="group" names={[group.name]} />
                 <Form>
                     <FormGroup label={t("type_name_to_confirm", { name: group.name })} isRequired fieldId="dg-confirm">
                         <TextInput id="dg-confirm" value={confirm} onChange={(_e, v) => setConfirm(v)} />

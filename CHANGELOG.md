@@ -8,6 +8,26 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- Organizational units: the tab shows the GPOs linked to each OU, by
+  precedence, with their enforced or disabled links; choosing one opens its
+  links.
+- Shared folders: the entries left by a deleted user or group are marked as
+  "Deleted account" in the list and in the share editor, where they can be
+  removed. Deleting a user or a group names, in its confirmation, the shared
+  folders that keep listing it. The same in addcctl (`unknown` in `share
+  list` and `share get`, `shares` in the answer of `user delete` and `group
+  delete`) and in the collection (`samba_share_info`, and `shares` with a
+  warning from `samba_user` and `samba_group` with `state: absent`).
+
+### Fixed
+
+- Shared folders: a share that lists a deleted account can be changed again
+  (it was refused as "Unknown user or group" until the entry was removed by
+  hand); such entries are no longer targets of the drive mapping, which now
+  needs at least one existing user or group.
+
 ## [0.14.0] - 2026-10-28
 
 ### Added

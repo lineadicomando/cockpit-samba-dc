@@ -325,6 +325,15 @@ class TestOthers(Base):
         self.assertTrue(groups.set({"name": "Teachers", "email": ""})["changed"])
         self.assertEqual(self.dc.modified[-1][1], {"mail": None})
 
+    def test_delete_names_the_shares_that_keep_it(self):
+        shares = {"Docs": {"path": "/srv/samba/shares/Docs", "valid users": '@"SCHOOL\\Teachers" "SCHOOL\\mrossi"'},
+                  "Lab": {"path": "/srv/samba/shares/Lab", "valid users": '"SCHOOL\\teachers"'},
+                  "Hand": {"path": "/data/hand", "valid users": '"SCHOOL\\mrossi"'}}
+        self.dc.shares = lambda: shares
+        result = self.users().delete({"name": "MROSSI"})
+        self.assertEqual(result["shares"], ["Docs"])
+        self.assertEqual(Groups(self.dc, self.runner).delete({"name": "teachers"})["shares"], ["Docs"])
+
     def test_computers(self):
         computers = Computers(self.dc, self.runner)
         self.assertEqual([c["name"] for c in computers.list()], ["DC", "PC01"])

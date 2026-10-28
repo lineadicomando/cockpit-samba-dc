@@ -174,6 +174,7 @@ lists use `useSingleLoad` and `usePagination` from `src/lib/hooks.ts`.
 make build | watch      # bundle into dist/, watch mode
 make check              # unit tests: npm test (node --test, cockpit mock) and core/tests (unittest)
 npx tsc --noEmit        # type check (CI runs it before the build)
+make lint               # ESLint (eslint.config.mjs; CI runs it too)
 make schema             # from the core's schemas: src/lib/addcctl-schema.ts, the modules' options (CI checks them)
 make pot                # extract strings into src/locales/*/translation.json
 make po-compile         # po/it.po → src/locales/it/translation.json
@@ -240,7 +241,7 @@ Releases are made only when the user asks; pushing the tag publishes them.
   public history. No secrets, passwords, or details of real (non-test)
   environments or of a developer's machines, in files or commit messages.
 - License: `LGPL-2.1-or-later`; `ansible/` is `GPL-3.0-or-later`.
-- CI: `.github/workflows/ci.yml` (Node.js 22: `npm ci`, type check, build,
+- CI: `.github/workflows/ci.yml` (Node.js 22: `npm ci`, type check, lint, build,
   tests, then `make deb-package` in a Debian 13 container with `lintian`;
   the collection's ansible-lint, sanity and unit tests);
   `.github/workflows/release.yml` on `v*` tags publishes the tarball, the

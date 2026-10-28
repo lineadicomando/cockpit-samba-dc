@@ -7,7 +7,7 @@ DEB_DIR := build
 
 -include Makefile.local
 
-.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check schema pot po-compile next-version release deb deb-package deb-changelog deb-binary help
+.PHONY: all clean distclean build watch install uninstall devel-install devel-uninstall check lint schema pot po-compile next-version release deb deb-package deb-changelog deb-binary help
 
 all: build
 
@@ -43,6 +43,9 @@ uninstall: ## Remove what install copied
 schema: ## Generate from the core's schemas (addcctl schema) the page's types and the collection's module options
 	node scripts/addcctl-types.mjs
 	python3 scripts/ansible-specs.py
+
+lint: ## ESLint on the page, its tests and scripts
+	npm run lint
 
 check: ## Run unit tests (the page and the core)
 	npm test
