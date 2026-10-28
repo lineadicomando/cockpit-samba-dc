@@ -10,6 +10,7 @@ from .accounts import Computers, Groups, Users
 from .backups import BACKUP_DIR, Backups
 from .dns import EDITABLE as _DNS_EDITABLE, Dns
 from .domain import CHECKS, Domain
+from .gpos import Gpos
 from .homes import Homes
 from .ous import Ous
 from .psos import Psos
@@ -76,6 +77,17 @@ _DNS_TYPE = {"type": "string", "enum": list(_DNS_EDITABLE), "description": "Reco
 _DNS_VALUE = {"type": "string", "minLength": 1, "maxLength": 4096,
               "description": ("A record value: an address (A, AAAA), a host name (CNAME, PTR), "
                               "\"host preference\" (MX), \"target port priority weight\" (SRV), text (TXT)")}
+
+
+_GPO = {"type": "string", "minLength": 1, "maxLength": 256,
+        "description": "The GPO: its GUID ({31B2F340-...}) or its display name"}
+_GPO_CONTAINER = {"type": "string", "maxLength": 1024, "default": "",
+                  "description": ("Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), "
+                                  "or empty for the domain itself")}
+
+
+def _gpos(ctx):
+    return Gpos(ctx.dc, ctx.runner, Ous(ctx.dc, ctx.runner))
 
 
 def _policy_settings(max_length, max_history):
@@ -369,6 +381,37 @@ OPERATIONS = {
                        "description": "Only the records with these values; default all of that type"},
         }, "required": ["zone", "name", "type"], "additionalProperties": False},
         "run": lambda ctx, req: Dns(ctx.dc, ctx.runner).delete(req),
+    },
+    # -- Group Policy
+    ("gpo", "list"): {
+        "description": "List the Group Policy objects, with where each is linked",
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: {"gpos": _gpos(ctx).list()},
+    },
+    ("gpo", "get"): {
+        "description": "One Group Policy object, with where it is linked",
+        "mutates": False, "input": {"type": "object", "properties": {"gpo": _GPO}, "required": ["gpo"],
+                                    "additionalProperties": False},
+        "run": lambda ctx, req: {"gpo": _gpos(ctx).get(req["gpo"])},
+    },
+    ("gpo", "link"): {
+        "description": ("Link a GPO to the domain or an OU, or change the flags of its link there; flags left out "
+                        "keep their value (false for a new link). A new link has the lowest precedence"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {
+            "gpo": _GPO, "container": _GPO_CONTAINER,
+            "enforced": {"type": "boolean", "description": "Enforced: applies even where inheritance is blocked"},
+            "disabled": {"type": "boolean", "description": "Disabled: the link stays but does not apply"},
+        }, "required": ["gpo"], "additionalProperties": False},
+        "run": lambda ctx, req: _gpos(ctx).link(req),
+    },
+    ("gpo", "unlink"): {
+        "description": ("Remove the link of a GPO from the domain or an OU; the default GPOs and the drive-mapping "
+                        "GPO stay linked where they are"),
+        "mutates": True,
+        "input": {"type": "object", "properties": {"gpo": _GPO, "container": _GPO_CONTAINER},
+                  "required": ["gpo"], "additionalProperties": False},
+        "run": lambda ctx, req: _gpos(ctx).unlink(req),
     },
     # -- home directories
     ("home", "provision"): {

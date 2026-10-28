@@ -114,6 +114,35 @@ export type DomainSetPasswordPolicyInput = {
 /** domain sysvol-reset: Reset the ACLs of sysvol (samba-tool ntacl sysvolreset), when sysvolcheck reports a mismatch */
 export type DomainSysvolResetInput = Record<string, never>;
 
+/** gpo get: One Group Policy object, with where it is linked */
+export type GpoGetInput = {
+    /** The GPO: its GUID ({31B2F340-...}) or its display name */
+    gpo: string;
+};
+
+/** gpo link: Link a GPO to the domain or an OU, or change the flags of its link there; flags left out keep their value (false for a new link). A new link has the lowest precedence */
+export type GpoLinkInput = {
+    /** Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), or empty for the domain itself */
+    container?: string;
+    /** Disabled: the link stays but does not apply */
+    disabled?: boolean;
+    /** Enforced: applies even where inheritance is blocked */
+    enforced?: boolean;
+    /** The GPO: its GUID ({31B2F340-...}) or its display name */
+    gpo: string;
+};
+
+/** gpo list: List the Group Policy objects, with where each is linked */
+export type GpoListInput = Record<string, never>;
+
+/** gpo unlink: Remove the link of a GPO from the domain or an OU; the default GPOs and the drive-mapping GPO stay linked where they are */
+export type GpoUnlinkInput = {
+    /** Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), or empty for the domain itself */
+    container?: string;
+    /** The GPO: its GUID ({31B2F340-...}) or its display name */
+    gpo: string;
+};
+
 /** group create: Create a group */
 export type GroupCreateInput = {
     /** Default: security */
@@ -451,6 +480,10 @@ export interface AddcctlInputs {
     "domain password-policy": DomainPasswordPolicyInput;
     "domain set-password-policy": DomainSetPasswordPolicyInput;
     "domain sysvol-reset": DomainSysvolResetInput;
+    "gpo get": GpoGetInput;
+    "gpo link": GpoLinkInput;
+    "gpo list": GpoListInput;
+    "gpo unlink": GpoUnlinkInput;
     "group create": GroupCreateInput;
     "group delete": GroupDeleteInput;
     "group get": GroupGetInput;

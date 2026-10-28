@@ -17,6 +17,7 @@ import { SharesPage } from "./components/SharesPage.tsx";
 import { DomainPage } from "./components/DomainPage.tsx";
 import { OusPage } from "./components/OusPage.tsx";
 import { DnsPage } from "./components/DnsPage.tsx";
+import { GpoPage } from "./components/GpoPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
 import { ComputerDetailPage } from "./components/ComputerDetailPage.tsx";
 import { useCockpitLocation } from "./lib/hooks.ts";
@@ -105,6 +106,12 @@ export function App() {
             </Tab>
             <Tab eventKey="dns" title={<TabTitleText>{t("DNS")}</TabTitleText>}>
               <DnsPage />
+            </Tab>
+            <Tab
+              eventKey="gpo"
+              title={<TabTitleText>{t("Group Policy")}</TabTitleText>}
+            >
+              <GpoPage refreshToken={listRefreshToken} />
             </Tab>
             <Tab
               eventKey="domain"

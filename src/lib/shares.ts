@@ -1,5 +1,6 @@
 import { cache, checkName } from "./exec.ts";
 import { addcctl } from "./addcctl.ts";
+import { GPO_PREFIX } from "./gpos.ts";
 import type { ShareSetInput } from "./addcctl-schema.ts";
 import { validateShareName } from "./validators.ts";
 import type { SharedFolder, ShareAccess, ShareAccessLevel, DriveMapping } from "./types.ts";
@@ -13,6 +14,8 @@ import type { SharedFolder, ShareAccess, ShareAccessLevel, DriveMapping } from "
 export const DRIVE_LETTERS = [..."EFGIJKLMNOPQRSTUVWXYZ"];
 
 const SHARES_KEY = "addcctl:share list";
+// A change can create or link the drive-mapping GPO, listed in the "Group Policy" tab
+const changed = (k: string) => k === SHARES_KEY || k.startsWith(GPO_PREFIX);
 
 export interface ShareData {
     comment: string;
@@ -78,7 +81,7 @@ export async function createShare(name: string, data: ShareData): Promise<void> 
     try {
         await addcctl("share set", setRequest(name, data));
     } finally {
-        cache.invalidate(k => k === SHARES_KEY);
+        cache.invalidate(changed);
     }
 }
 
@@ -87,7 +90,7 @@ export async function updateShare(name: string, data: ShareData): Promise<void> 
     try {
         await addcctl("share set", setRequest(name, data));
     } finally {
-        cache.invalidate(k => k === SHARES_KEY);
+        cache.invalidate(changed);
     }
 }
 
@@ -95,7 +98,7 @@ export async function deleteShare(name: string, deleteData: boolean): Promise<vo
     try {
         await addcctl("share delete", { name, delete_data: deleteData });
     } finally {
-        cache.invalidate(k => k === SHARES_KEY);
+        cache.invalidate(changed);
     }
 }
 

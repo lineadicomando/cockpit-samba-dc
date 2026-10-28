@@ -162,6 +162,22 @@ MODULES = {
                 "Time to live in seconds, with O(state=present); unset: the current one, or 900."]),
         },
     },
+    "samba_gpo_link": {
+        "ops": ["gpo link", "gpo unlink"],
+        "options": {
+            "gpo": field("gpo link"),
+            "container": field("gpo link"),
+            "state": dict(STATE, own=dict(STATE["own"], description=[
+                "C(present) links O(gpo) to O(container), or brings its link there to O(enforced) and "
+                "O(disabled); C(absent) removes the link."])),
+            "enforced": field("gpo link", description=[
+                "Enforced: the GPO applies even below OUs that block inheritance. With O(state=present); "
+                "unset: kept on an existing link, false on a new one."]),
+            "disabled": field("gpo link", description=[
+                "Disabled: the link stays but the GPO does not apply there. With O(state=present); "
+                "unset: kept on an existing link, false on a new one."]),
+        },
+    },
     "samba_home": {
         "ops": ["home provision", "home delete"],
         "options": {

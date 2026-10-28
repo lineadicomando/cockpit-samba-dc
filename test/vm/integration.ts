@@ -26,6 +26,7 @@ import { createShare, deleteShare } from "../../src/lib/shares.ts";
 import { addcctl } from "../../src/lib/addcctl.ts";
 import { createBackup, getDomainInfo, listBackups, runHealthChecks } from "../../src/lib/domain.ts";
 import { deleteDnsRecords, listDnsRecords, setDnsRecords } from "../../src/lib/dns.ts";
+import { linkGpo, listGpos, unlinkGpo } from "../../src/lib/gpos.ts";
 
 const env = process.env;
 const password = env.DOMAIN_TEST_PASSWORD!;
@@ -92,6 +93,9 @@ interface Driver {
     // The records of one type at one name become these values; delete some, or all of that type
     setDns(zone: string, name: string, type: string, values: string[], ttl?: number): Promise<void>;
     deleteDns(zone: string, name: string, type: string, values?: string[]): Promise<void>;
+    // Link a GPO (by display name) to a container, or change the link's flags; remove the link
+    linkGpo(gpo: string, container: string, flags?: GpoFlags): Promise<void>;
+    unlinkGpo(gpo: string, container: string): Promise<void>;
     close?(): void;
 }
 
@@ -103,6 +107,8 @@ interface UserDetails {
 interface GroupDetails {
     description: string; email: string; scope: "domain" | "global" | "universal"; category: "security" | "distribution";
 }
+
+interface GpoFlags { enforced?: boolean; disabled?: boolean }
 
 const ouDn = (name: string, parent: string) => (parent ? `OU=${name},${parent}` : `OU=${name}`);
 
@@ -189,6 +195,17 @@ const page: Driver = {
         assert.deepEqual(shown.map(r => r.value).sort(), [...values].sort(), "the tab reads the change");
     },
     deleteDns: (zone, name, type, values) => deleteDnsRecords(zone, name, type as DnsRecordType, values),
+    async linkGpo(gpo, container, flags) {
+        const { guid } = (await listGpos()).find(g => g.name === gpo)!;
+        const after = await linkGpo(guid, container, flags);
+        assert.ok(after.links.some(l => l.container === container), "the answer has the link");
+        assert.ok((await listGpos()).find(g => g.guid === guid)!.links.some(l => l.container === container),
+            "the tab reads the change");
+    },
+    async unlinkGpo(gpo, container) {
+        const { guid } = (await listGpos()).find(g => g.name === gpo)!;
+        await unlinkGpo(guid, container);
+    },
 };
 
 // --- the Ansible modules, one playbook per step
@@ -244,6 +261,11 @@ function ansibleDriver(): Driver {
             play("samba_dns_record", { zone, name, type, values, ...(ttl !== undefined ? { ttl } : {}) }),
         deleteDns: (zone, name, type, values) =>
             play("samba_dns_record", { zone, name, type, state: "absent", ...(values ? { values } : {}) }),
+        async linkGpo(gpo, container, flags) {
+            await play("samba_gpo_link", { gpo, container, ...flags }, true);
+            await play("samba_gpo_link", { gpo, container, ...flags });
+        },
+        unlinkGpo: (gpo, container) => play("samba_gpo_link", { gpo, container, state: "absent" }),
         setPolicy: (changes, check) => play("samba_password_policy",
             Object.fromEntries(Object.entries(changes).map(([k, v]) => [k, v === null ? 0 : v])), check),
         close: () => rmSync(dir, { recursive: true, force: true }),
@@ -339,6 +361,12 @@ async function mcpDriver(): Promise<Driver> {
             await tool("dns_set", { zone, name, type, values, ...(ttl !== undefined ? { ttl } : {}) });
         },
         deleteDns: async (zone, name, type, values) => { await tool("dns_delete", { zone, name, type, ...(values ? { values } : {}) }); },
+        async linkGpo(gpo, container, flags) {
+            const preview = await tool("gpo_link", { gpo, container, ...flags, check: true });
+            assert.equal(preview.changed, true);
+            await tool("gpo_link", { gpo, container, ...flags });
+        },
+        unlinkGpo: async (gpo, container) => { await tool("gpo_unlink", { gpo, container }); },
         async setPolicy(changes, check) {
             const out = await tool("domain_set_password_policy", { ...changes, ...(check ? { check: true } : {}) });
             assert.equal(out.changed, true);
@@ -559,6 +587,22 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
             await sweepDns(p);
         }
     });
+    await step("Group Policy: a GPO linked to an OU, enforced, disabled, unlinked, as samba-tool reads it", async () => {
+        const ou = `${p}gpo`, container = ouDn(ou, ""), gpo = "Default Domain Policy";
+        try {
+            await driver.createOu(ou, "");
+            await driver.linkGpo(gpo, container, { enforced: true });
+            assert.match(await getLink(container), /Default Domain Policy\n\s*Options : GPLINK_OPT_ENFORCE\n/);
+            await driver.linkGpo(gpo, container, { disabled: true });
+            const both = await getLink(container);
+            assert.match(both, /Options : .*GPLINK_OPT_DISABLE/);
+            assert.match(both, /Options : .*GPLINK_OPT_ENFORCE/);
+            await driver.unlinkGpo(gpo, container);
+            assert.match(await getLink(container), /No GPO\(s\) linked/);
+        } finally {
+            await sweepOus(p);
+        }
+    });
     await step("the domain tab: overview, health check, backup", () => driver.domain());
     await step("the password policy: a change, as samba-tool reads it, then restored", () => passwordPolicy(driver));
 }
@@ -659,6 +703,11 @@ async function gpLink(): Promise<string> {
     return raw.replace(/\n /g, "").match(/^gPLink: (.*)$/m)?.[1] ?? "";
 }
 
+// What "samba-tool gpo getlink" reads, locally, of a container relative to the domain
+async function getLink(container: string): Promise<string> {
+    return run(["samba-tool", "gpo", "getlink", `${container},${await baseDn()}`, "-H", "/var/lib/samba/private/sam.ldb"]);
+}
+
 async function coreChecks(): Promise<void> {
     console.log("core:");
     try {
@@ -717,6 +766,18 @@ async function coreChecks(): Promise<void> {
             await core("dns delete", { zone, name: "t-x-dns", type: "AAAA" });
             const dbcheck = await run(["samba-tool", "dbcheck", "--cross-ncs"]);
             assert.match(dbcheck, /\(0 errors\)/);
+        });
+        await step("Group Policy: the default and drive-mapping GPOs stay linked to the domain", async () => {
+            const gpos = (await core("gpo list")).gpos as { name: string; links: { container: string; protected: boolean }[] }[];
+            const maps = gpos.find(g => g.name === "Cockpit - Mapped drives");
+            assert.ok(maps?.links.some(l => l.container === "" && l.protected), JSON.stringify(maps));
+            for (const gpo of ["Default Domain Policy", "Cockpit - Mapped drives"]) {
+                await assert.rejects(run(["addcctl", "gpo", "unlink"], JSON.stringify({ gpo })), /stays linked/);
+                await assert.rejects(run(["addcctl", "gpo", "link"], JSON.stringify({ gpo, disabled: true })),
+                    /cannot be disabled/);
+            }
+            await assert.rejects(run(["addcctl", "gpo", "link"], JSON.stringify(
+                { gpo: "Default Domain Policy", container: "CN=Users" })), /link it to the domain or to an OU/);
         });
         await step("a hand-made share at the shares directory itself is not managed", async () => {
             await run(["net", "conf", "addshare", "t-x-root", "/srv/samba/shares/", "writeable=n", "guest_ok=n"]);

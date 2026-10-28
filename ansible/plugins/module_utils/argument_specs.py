@@ -66,6 +66,13 @@ _SPECS = {
         'values': {'type': 'list', 'elements': 'str'},
         'ttl': {'type': 'int'},
     },
+    'samba_gpo_link': {
+        'gpo': {'type': 'str', 'required': True},
+        'container': {'type': 'str', 'default': ''},
+        'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},
+        'enforced': {'type': 'bool'},
+        'disabled': {'type': 'bool'},
+    },
     'samba_home': {
         'name': {'type': 'str', 'required': True},
         'state': {'type': 'str', 'choices': ['present', 'absent'], 'default': 'present'},

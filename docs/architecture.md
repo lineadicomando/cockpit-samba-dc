@@ -23,7 +23,7 @@ defaults of one school lab.
 The target below is reached for everything the project already did (A1–A5):
 one repository, `addcctl` on the DC with every operation of users, groups,
 computers, organizational units, home directories, shared folders, drive
-mapping, DNS records, the password policy, the domain overview, health checks and
+mapping, DNS records, GPO links, the password policy, the domain overview, health checks and
 backups, and three interfaces on it: the page, the collection's
 modules and `addcctl mcp`. What is left:
 

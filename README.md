@@ -19,6 +19,7 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 - **Computers** — list, a page for each (DNS name, operating system, container, SID) with its description edited, create an account before the computer joins (in a chosen OU), move to an OU (one or several), delete
 - **Organizational units** — a tree of the OUs and the default containers, with the users, groups and computers in each; create, rename, move (with everything in them), describe and delete them (one that is not empty after an explicit confirmation, with what is in it); the container shown and filtered in the users, groups and computers lists, chosen when a user, group or computer account is created; users, groups and computers moved one at a time or in bulk. The default containers (`Users`, `Computers`, `Domain Controllers`) and the built-in accounts stay where they are
 - **DNS** — the records of the domain's zones: add, change and delete A, AAAA, CNAME, MX, PTR, SRV and TXT records (several values per name, TTL), the records clients registered themselves marked as dynamic; the records the domain depends on (the `_msdcs` zone, SOA and NS, the Active Directory service records, the domain controllers' names) shown on request and never changed
+- **Group Policy** — the domain's Group Policy objects with their status, version and where each is linked; link one to the domain or to an OU, enforce or disable a link, remove it. The default GPOs and the drive-mapping GPO stay linked where they are
 - **Domain** — overview (domain and NetBIOS names, Samba version, functional levels, domain controllers, FSMO role owners, Samba processes), health checks run on demand with their output (`samba-tool dbcheck`, report only; `samba-tool ntacl sysvolcheck`, with a reset of the sysvol ACLs offered when it fails; `testparm -s`), the password and lockout policy of the domain (complexity, length, history, minimum and maximum age, lockout threshold, duration and reset) and fine-grained policies (PSOs) for chosen users and groups, the one that applies shown on the user page, offline backups of the domain
 - Automatic protection of built-in system objects (Administrator, krbtgt, Domain Admins, etc.)
 - Live search and filters in every section (users also by locked out and expired; users, groups and computers by container)
@@ -168,7 +169,7 @@ both files) when the client only needs to look.
 provisions a Samba AD DC on Debian 13 and installs this module from its
 Debian package; `samba_tool`, `samba_share`, `samba_ou` and the other roles
 and modules manage users, groups, organizational units, home directories,
-shared folders and DNS records as the module does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
+shared folders, DNS records and GPO links as the module does, so the two can be used on the same DC; `samba_dc_backup` backs it up;
 an MCP server runs the build and the backup for an MCP client. It has the version of
 the repository (collection `X.Y.Z` is release `vX.Y.Z`, whose
 `samba_dc_build` installs this module `X.Y.Z`), and is installed from git:
@@ -324,6 +325,25 @@ changed: the `_msdcs` zone, SOA and NS, the service records (`_ldap`,
 `_kerberos`, `_gc`, `_kpasswd`, `_sites`), `DomainDnsZones` and
 `ForestDnsZones`, the domain controllers' names and the addresses of the
 domain's name.
+
+### Group Policy links
+
+The **Group Policy** tab (and `addcctl gpo`, the collection's
+`samba_gpo_link` module) lists the GPOs of the domain and links them where
+they apply: to the domain itself or to an OU (`Domain Controllers`
+included; Active Directory applies no GPO to the `Users` and `Computers`
+containers). A link is written to the container's `gPLink` in the local
+`sam.ldb`, as `samba-tool gpo setlink` and `dellink` write it, so no domain
+credentials are needed: a new link has the lowest precedence of its place
+(as in the Group Policy Management Console), the others keep their order. A
+link can be enforced (it applies even where inheritance is blocked) or
+disabled (it stays, but does not apply). The Default Domain Policy and the
+drive-mapping GPO stay linked to the domain, and the Default Domain
+Controllers Policy to `Domain Controllers`: those links are never removed or
+disabled. Windows clients apply a change at their next Group Policy refresh
+(`gpupdate /force`). GPOs are not created, edited, backed up or restored
+here (use the Group Policy Management Console from a Windows client); the
+domain backups of the "Domain" tab hold them with sysvol.
 
 ### Network drive mapping
 

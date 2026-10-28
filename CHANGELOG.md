@@ -16,6 +16,12 @@ the README ("Versions and releases"). New entries go under
   request and never changed. The same as `addcctl dns` (`zones`, `list`,
   `set`, `delete`), as MCP tools, and as the collection's module
   `samba_dns_record`.
+- Group Policy: a "Group Policy" tab with the domain's GPOs (status,
+  version, where each is linked); a GPO linked to the domain or an OU, its
+  link enforced or disabled, the link removed, written locally with no
+  domain credentials. The default GPOs and the drive-mapping GPO stay linked
+  where they are. The same as `addcctl gpo` (`list`, `get`, `link`,
+  `unlink`), as MCP tools, and as the collection's module `samba_gpo_link`.
 
 ## [0.13.0] - 2026-10-26
 

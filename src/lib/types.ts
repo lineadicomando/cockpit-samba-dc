@@ -194,3 +194,33 @@ export interface DnsRecord {
     // One the domain depends on: never changed
     protected: boolean;
 }
+
+export interface GpoLink {
+    // Relative to the domain; "" is the domain itself
+    container: string;
+    // Applies even where inheritance is blocked
+    enforced: boolean;
+    // Linked, but not applied
+    disabled: boolean;
+    // Precedence in its container, 1 the highest (the GPMC's link order)
+    order: number;
+    // A default GPO where provisioning linked it, or the drive-mapping GPO on
+    // the domain: never removed or disabled
+    protected: boolean;
+}
+
+export interface Gpo {
+    // "{31B2F340-016D-11D2-945F-00C04FB984F9}"
+    guid: string;
+    name: string;
+    // Its folder in sysvol, as a UNC path
+    path: string;
+    version: { user: number; computer: number };
+    userEnabled: boolean;
+    computerEnabled: boolean;
+    // Default Domain Policy, Default Domain Controllers Policy
+    builtIn: boolean;
+    // The GPO the shared folders map their drives with
+    driveMapping: boolean;
+    links: GpoLink[];
+}

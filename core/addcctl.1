@@ -75,6 +75,12 @@ The DNS zones of the domain and their records, written locally in sam.ldb:
 given (A, AAAA, CNAME, MX, PTR, SRV, TXT), "dns delete" removes some or all
 of them. The records the domain depends on are never changed.
 .TP
+.B gpo list\fR, \fBgpo get\fR, \fBgpo link\fR, \fBgpo unlink
+The Group Policy objects and where they are linked; link one to the domain
+or an OU, enforce or disable the link, remove it, written to the
+container's gPLink in sam.ldb. The default GPOs and the drive-mapping GPO
+stay linked where they are.
+.TP
 .B home provision\fR, \fBhome delete
 A user's home directory under /srv/samba/home, mapped at logon; clear it, and
 with "delete_data" remove its folder.

@@ -277,6 +277,38 @@ options:
     type: int
 '''
 
+    SAMBA_GPO_LINK = r'''
+options:
+  gpo:
+    description:
+      - "The GPO: its GUID ({31B2F340-...}) or its display name."
+    type: str
+    required: true
+  container:
+    description:
+      - "Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), or empty for
+        the domain itself."
+    type: str
+    default: ""
+  state:
+    description:
+      - C(present) links O(gpo) to O(container), or brings its link there to O(enforced) and
+        O(disabled); C(absent) removes the link.
+    type: str
+    default: present
+    choices: [present, absent]
+  enforced:
+    description:
+      - "Enforced: the GPO applies even below OUs that block inheritance. With O(state=present);
+        unset: kept on an existing link, false on a new one."
+    type: bool
+  disabled:
+    description:
+      - "Disabled: the link stays but the GPO does not apply there. With O(state=present); unset:
+        kept on an existing link, false on a new one."
+    type: bool
+'''
+
     SAMBA_HOME = r'''
 options:
   name:

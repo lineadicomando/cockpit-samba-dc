@@ -1674,3 +1674,108 @@ msgstr "Indica destinazione, porta, priorità e peso, come \"sip.example.com 506
 
 msgid "Text of at most 4096 bytes, on one line."
 msgstr "Testo di al massimo 4096 byte, su una riga."
+
+msgid "Group Policy"
+msgstr "Criteri di gruppo"
+
+msgid "Filter GPOs"
+msgstr "Filtra GPO"
+
+msgid "Failed to load Group Policy objects"
+msgstr "Impossibile caricare gli oggetti Criteri di gruppo"
+
+msgid "Loading Group Policy objects"
+msgstr "Caricamento degli oggetti Criteri di gruppo"
+
+msgid "No GPOs match the filter"
+msgstr "Nessun GPO corrisponde al filtro"
+
+msgid "No GPOs"
+msgstr "Nessun GPO"
+
+msgid "Group Policy objects table"
+msgstr "Tabella degli oggetti Criteri di gruppo"
+
+msgid "Linked to"
+msgstr "Collegato a"
+
+msgid "Version"
+msgstr "Versione"
+
+msgid "Mapped drives"
+msgstr "Unità mappate"
+
+msgid "Maps the drives of the shared folders"
+msgstr "Mappa le unità delle cartelle condivise"
+
+msgid "Not linked"
+msgstr "Non collegato"
+
+msgid "User {{user}}, computer {{computer}}"
+msgstr "Utente {{user}}, computer {{computer}}"
+
+msgid "Manage links"
+msgstr "Gestisci collegamenti"
+
+msgid "Enabled"
+msgstr "Abilitato"
+
+msgid "Computer settings disabled"
+msgstr "Impostazioni computer disabilitate"
+
+msgid "User settings disabled"
+msgstr "Impostazioni utente disabilitate"
+
+msgid "enforced"
+msgstr "imposto"
+
+msgid "disabled"
+msgstr "disabilitato"
+
+msgid "Links of {{name}}"
+msgstr "Collegamenti di {{name}}"
+
+msgid "This GPO is not linked: it applies nowhere."
+msgstr "Questo GPO non è collegato: non si applica da nessuna parte."
+
+msgid "GPO links table"
+msgstr "Tabella dei collegamenti del GPO"
+
+msgid "Order"
+msgstr "Ordine"
+
+msgid "Precedence among the GPOs linked to the same place: 1 is the highest"
+msgstr "Precedenza tra i GPO collegati allo stesso punto: 1 è la più alta"
+
+msgid "Enforced"
+msgstr "Imposto"
+
+msgid "Applies even where inheritance is blocked"
+msgstr "Si applica anche dove l'ereditarietà è bloccata"
+
+msgid "The link stays, but the GPO does not apply there"
+msgstr "Il collegamento resta, ma il GPO lì non si applica"
+
+msgid "This link belongs to the domain and stays"
+msgstr "Questo collegamento appartiene al dominio e resta"
+
+msgid "Always linked"
+msgstr "Sempre collegato"
+
+msgid "Remove link"
+msgstr "Rimuovi collegamento"
+
+msgid "Link to"
+msgstr "Collega a"
+
+msgid "Where to link it"
+msgstr "Dove collegarlo"
+
+msgid "Add link"
+msgstr "Aggiungi collegamento"
+
+msgid "A new link has the lowest precedence of its place. Windows clients apply the change at their next Group Policy refresh."
+msgstr "Un nuovo collegamento ha la precedenza più bassa nel suo punto. I client Windows applicano la modifica al prossimo aggiornamento dei Criteri di gruppo."
+
+msgid "It is linked to the domain and to every OU."
+msgstr "È collegato al dominio e a ogni unità organizzativa."
