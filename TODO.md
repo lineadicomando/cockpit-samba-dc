@@ -13,9 +13,9 @@ Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementa
 
 Order: sections A1–A6 first, so that what follows is written for the new
 layout (A6 rewrote it); then sections 8, 4, 5, 6 and 7 (done,
-v0.10.0–v0.14.0). The next release has no plan yet: choose it with the user
-(section 0, the open item of A6, the table "Left out"). Section 0 collects
-the follow-ups of the last review, done when convenient.
+v0.10.0–v0.14.0), and section 0, the follow-ups of the last review (done,
+v0.15.0). The release after it has no plan yet: choose it with the user
+(section 9, the table "Left out").
 
 Versions: only the next release is planned. The heading of each section
 that goes into it ends with its version (`— v0.2.0`), which it keeps once
@@ -38,10 +38,12 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-28: v0.14.0 released (section 7: DNS records and GPO
-links; `gpo backup` and `restore` left out); the next release not planned
-yet. A6 done but for the archive of the old repository; the test VMs built
-from scratch by scripts.
+Updated on 2026-10-28: v0.14.0 released; v0.15.0 planned (section 0:
+share entries of deleted accounts, `registry shares` checked, home
+directories of renamed or deleted users, GPOs in the OU tab,
+`samba_directory_info`, ESLint). A6 done, the old repository archived; the
+test VMs built from scratch by scripts. Section 9 waits for a breaking
+release.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -66,7 +68,7 @@ from scratch by scripts.
   - `ansible/`: the **collection** `lineadicomando.samba_dc` (roles
     `samba_dc_build`, `samba_tool`, `samba_dc_backup`; modules `samba_user`,
     `samba_group`, `samba_computer`, `samba_home`, `samba_share`,
-    `samba_share_info`, `samba_dc_info`, `samba_password_policy`,
+    `samba_share_info`, `samba_directory_info`, `samba_dc_info`, `samba_password_policy`,
     `samba_pso`, `samba_ou`, `samba_dns_record`, `samba_gpo_link`, all on addcctl, their
     options generated from the schemas by `make schema`; the `samba_tool`
     role dispatches users, groups, computers, home directories and shares
@@ -86,6 +88,7 @@ from scratch by scripts.
   `make release` and `git push origin main vX.Y.Z`). Each release carries
   the page's tarball, the `.deb` of `cockpit-samba-dc` and of `addcctl`, and
   the collection's tarball.
+- ESLint (`eslint.config.mjs`, `make lint`) runs in CI with the type check.
 - Debian source package with two binaries (`debian/control`): `addcctl`
   (`/usr/bin/addcctl`, modules in `/usr/lib/addcctl`, man page) and
   `cockpit-samba-dc` (depends on `addcctl` of the same version); `make deb`
@@ -99,8 +102,7 @@ from scratch by scripts.
   client roles (`domain`: join, leave, status; v0.3.0);
   `ansible-win_edulab` takes the collection from `cockpit-samba-dc.git#/ansible/`
   at v0.9.0 and documents `addcctl mcp` for its DC; the old
-  `ansible-collection-samba_dc` points here and is archived at the end of
-  the plan (A6).
+  `ansible-collection-samba_dc` points here and is archived (A6).
 - Test environment: two VMs, a Samba AD DC and a Windows 11 client joined
   to it, on a libvirt network of the lab's own (`cockpit-samba`,
   `192.168.142.0/24`), driven by `test/vm/lab.sh` (`build` and `rebuild`
@@ -148,11 +150,9 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - plan the next release with the user: open items of section 0 (the
-     GPOs of an OU, stale share entries, `registry shares`, the home
-     directory after a rename, ESLint, `samba_tool`'s read-only actions),
-     the archive of the old repository (A6, ask first), or an entry of
-     "Left out"; end the headings of what goes in with its version, as
+   - the release of v0.15.0 when the user asks (CI first); then a plan
+     for the next release with the user (section 9, an entry of "Left
+     out"); end the headings of what goes in with its version, as
      "Versions" says.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
@@ -327,12 +327,11 @@ Measures on the test DC (2 vCPU), through the page:
       writes the doc fragment `options` and `module_utils/argument_specs.py`;
       what only a module has (`state`, `create`, `update_password`, aliases,
       its own descriptions) is in the script's `MODULES`
-- [ ] Archive `ansible-collection-samba_dc` on GitHub, once the plan is
-      done (ask first: it is public)
+- [x] Archive `ansible-collection-samba_dc` on GitHub (2026-10-28)
 - [?] Rename the repository: it keeps its name for now; to reconsider when
       the project is more mature (GitHub redirects the old name)
 
-## 0. Follow-ups of the October 2026 review
+## 0. Follow-ups of the October 2026 review (done) — v0.15.0
 
 - [x] **Stale share entries after a delete.** Deleting a user or group leaves
       it in its shares, on purpose (rule 6). `share get` and `share list`
@@ -342,19 +341,20 @@ Measures on the test DC (2 vCPU), through the page:
       delete` return `shares`. Page: "Deleted account" in the list and the
       editor, the shares named in the delete confirmations (from the cached
       list); Ansible: `samba_share_info`, `shares` and a warning on delete
-- [ ] **`registry shares` is not checked.** Samba's default is `no`, also on
-      a DC; without it smbd should not serve the registry shares addcctl
-      creates (home, shared folders). Core: `share list` returns it
-      (loadparm: `Dc.param("registry shares")`, `True` on the test DC), and
-      `share set` and `home provision` warn (or refuse: decide) without it.
-      Page: a warning on the Shared folders tab and before provisioning home
-      directories; Ansible: the modules' warnings. Confirm on a DC without
-      it.
-- [ ] **Home directory after a user rename.** The folder
-      (`/srv/samba/home/<old name>`) and `homeDirectory` keep the old name
-      (`user set` with `new_name` renames the account and its shares only).
-      Access still works (ownership follows the SID); decide whether `user
-      set` renames both: the page and `samba_user` need no change.
+- [x] **`registry shares` is not checked.** Confirmed on the test DC: with
+      `no`, `net conf` writes a share that smbd does not serve
+      (`BAD_NETWORK_NAME`); with `include = registry` it does, and only
+      smbd's (s3) loadparm says so. `share set` and `home provision` refuse
+      without it (`Dc.registry_shares`), `share list` returns it; a warning
+      on the Shared folders tab, `registry_shares` in `samba_share_info`
+- [x] **Home directory after a user rename.** `home provision` and `home
+      delete` follow `homeDirectory`, so a renamed user keeps its folder;
+      a folder owned by another account (renamed or deleted) is neither
+      handed to a new namesake nor deleted with its data
+- [?] **Rename the home folder with the user.** `user set` with `new_name`
+      could move `/srv/samba/home/<old>` and `homeDirectory` too (only when
+      they are the ones `home provision` made); a user logged on loses H:
+      until the next logon. Optional: the folder works under its old name
 - [x] **`ensureHomeShare` remembers success for the whole session**: the
       promise is now kept only while it runs, so the next provisioning checks
       the share again.
@@ -387,23 +387,17 @@ Measures on the test DC (2 vCPU), through the page:
       `review-smoke.ts`. Its second run found that a
       user or group deleted and created again under the same name got the
       old uid/gid (winbind's name cache): addcctl now resolves ids by SID
-- [ ] **`lab.sh root` lost its stdin once** (2026-10-23): a `tar | lab.sh
-      root 'tar -x'` got no archive, and the same command worked right after.
-      Not reproduced; if it happens again, look at how the first line (the
-      sudo password) is read when sudo needs one. `lab.sh root` writes that
-      line itself and drops it when sudo asks none (`sudo -n true`): the
-      caller pipes only the command's data (a password piped in front of it
-      reached the command on 2026-10-24, a caller's mistake).
+- [x] **`lab.sh root` lost its stdin once** (2026-10-23, not reproduced):
+      sudo no longer reads the command's stdin. The remote shell reads the
+      password line and gives it to `sudo -v` on a pipe of its own, then
+      runs `sudo -n sh -c` with the rest
 - [x] **Collection: `samba_tool_user` bugs** (enable, disable and
       setprimarygroup creating a missing user; any failure read as "no such
       user"; an empty DN reaching `ldbmodify`; `commands` documented as
       conditional): gone with the module, replaced by `samba_user` on addcctl
       (A4), which fails on a missing user unless given a password
-- [ ] **Collection: `samba_tool`'s read-only actions on addcctl.** `user`,
-      `group` and `computer` `list` and `show` still run `samba-tool` (the
-      last ones that do, `tasks/_run.yaml`); the `list` and `get`
-      operations of the core return the same, structured. Moving them
-      drops the raw text output: say so under `Breaking`.
+- [x] **Collection: structured reads.** `samba_directory_info` returns the
+      users, groups or computers (`addcctl … list` / `get`)
 - [x] **The GPOs of an OU.** The "Organizational units" tab shows the GPOs
       linked to each OU (from `gpo list`, no new operation); a label opens
       `GpoLinksModal`.
@@ -652,6 +646,16 @@ which will also hold the policies of section 4.
       offline` wants `tdbbackup` (`tdb-tools`), which a DC lacks: `addcctl`
       depends on it, `samba_dc_build` installs it, and `backup create` says
       so when it is missing
+
+## 9. With the next breaking release
+
+Changes that ask the users of the collection to act: kept for a release
+that has a breaking change anyway.
+
+- [ ] **Collection: `samba_tool`'s read-only actions on addcctl.** `user`,
+      `group` and `computer` `list` and `show` still run `samba-tool`
+      (`tasks/_run.yaml`): move them to `samba_directory_info` with the
+      next breaking release, under `Breaking` (the raw text goes)
 
 ## Left out — future implementation to be decided
 

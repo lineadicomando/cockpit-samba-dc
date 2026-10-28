@@ -58,6 +58,16 @@ class Dc:
     # -- registry shares (what "net conf" edits)
 
     @property
+    def registry_shares(self):
+        """Whether smbd serves the registry shares ("registry shares = yes",
+        or "include = registry"), as smbd's own loadparm reads it: the other
+        one, self.lp, ignores the include."""
+        from samba.samba3 import param as s3param
+        lp = s3param.get_context()
+        lp.load_default()
+        return bool(lp.get("registry shares"))
+
+    @property
     def registry(self):
         if self._registry is None:
             from samba.samba3 import param as s3param

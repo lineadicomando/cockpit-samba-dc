@@ -5,7 +5,7 @@ import os
 
 from .accounts import Users, first
 from .errors import AddcError
-from .shares import check_principal_names
+from .shares import check_principal_names, check_registry_shares
 from .smbconf import parse_bool
 
 HOMES_DIR = "/srv/samba/home"
@@ -51,8 +51,31 @@ class Homes:
             self.dc.update_share(section or HOME_SHARE, wanted, create=section is None)
         return bool(wanted)
 
+    def _folder(self, record):
+        """The name of the user's folder under HOMES_DIR: the one its
+        homeDirectory names on the home share (a renamed user keeps its
+        folder), else the account name."""
+        parts = first(record, "homeDirectory").split("\\")
+        if (len(parts) == 5 and parts[:2] == ["", ""] and parts[2].lower() == self.dc.netbios_name.lower()
+                and parts[3].lower() == HOME_SHARE and is_home_path("%s/%s" % (HOMES_DIR, parts[4]), parts[4])):
+            return parts[4]
+        return first(record, "sAMAccountName")
+
+    def _check_owner(self, record, path):
+        """The data of a folder may go only with the account that owns it:
+        the one of a user renamed away from this name is someone else's."""
+        name = first(record, "sAMAccountName")
+        account = self.dc.posix_account(name, first(record, "objectSid"))
+        if account is None:
+            raise AddcError("user %s\\%s cannot be resolved through winbind; check that winbind is running"
+                            % (self.dc.workgroup, name))
+        owner = os.stat(path).st_uid
+        if owner not in (0, account[0]):
+            raise AddcError("%s belongs to another account (uid %d): it is not deleted" % (path, owner))
+
     def provision(self, request):
         record = self._user(request["name"])
+        check_registry_shares(self.dc)
         name = first(record, "sAMAccountName")
         drive = request.get("drive", "H:")
         account = self.dc.posix_account(name, first(record, "objectSid"))
@@ -60,13 +83,19 @@ class Homes:
             raise AddcError("user %s\\%s cannot be resolved through winbind; check that winbind is running"
                             % (self.dc.workgroup, name))
         uid, gid = account
-        path = "%s/%s" % (HOMES_DIR, name)
+        folder = self._folder(record)
+        path = "%s/%s" % (HOMES_DIR, folder)
         changed = False
 
         try:
             st = os.stat(path)
         except OSError:
             st = None
+        # A folder left by another account (deleted, or renamed away from
+        # this name) would hand its files to this one
+        if st is not None and st.st_uid not in (0, uid):
+            raise AddcError("%s belongs to another account (uid %d): move or delete it, or give it to %s "
+                            "by hand" % (path, st.st_uid, name))
         if st is None:
             self.runner.record("mkdir %s" % path)
             if not self.runner.check:
@@ -85,7 +114,7 @@ class Homes:
                 os.chown(path, uid, gid)
             changed = True
 
-        unc = "\\\\%s\\%s\\%s" % (self.dc.netbios_name, HOME_SHARE, name)
+        unc = "\\\\%s\\%s\\%s" % (self.dc.netbios_name, HOME_SHARE, folder)
         attrs = {}
         if first(record, "homeDrive") != drive:
             attrs["homeDrive"] = drive
@@ -99,16 +128,19 @@ class Homes:
 
     def delete(self, request):
         """Clear homeDrive and homeDirectory; with delete_data, remove the
-        folder, only when it is exactly <HOMES_DIR>/<user>."""
+        folder, only when it is exactly <HOMES_DIR>/<folder> and the user's."""
         record = self._user(request["name"])
-        name = first(record, "sAMAccountName")
+        folder = self._folder(record)
+        path = "%s/%s" % (HOMES_DIR, folder)
+        remove = bool(request.get("delete_data")) and is_home_path(path, folder) and os.path.exists(path)
+        if remove:
+            self._check_owner(record, path)
         changed = False
         attrs = {a: None for a in ("homeDrive", "homeDirectory") if first(record, a)}
         if attrs:
             self.dc.modify(first(record, "dn"), attrs)
             changed = True
-        path = "%s/%s" % (HOMES_DIR, name)
-        if request.get("delete_data") and is_home_path(path, name) and os.path.exists(path):
+        if remove:
             self.runner.change(["rm", "-rf", "--one-file-system", "--", path])
             changed = True
         return {"changed": changed}

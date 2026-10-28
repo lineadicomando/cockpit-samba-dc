@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
@@ -27,7 +27,7 @@ import {
 import type { IAction } from "@patternfly/react-table";
 import { UserIcon, UsersIcon } from "@patternfly/react-icons";
 
-import { listShares } from "../lib/shares.ts";
+import { listShares, registrySharesServed } from "../lib/shares.ts";
 import { useSingleLoad, usePagination, PER_PAGE_OPTIONS } from "../lib/hooks.ts";
 import type { SharedFolder } from "../lib/types.ts";
 import { ShareModal } from "./modals/ShareModal.tsx";
@@ -49,6 +49,12 @@ export function SharesPage() {
         reload: loadShares,
         reloadFresh: loadSharesFresh,
     } = useSingleLoad(listShares);
+
+    const [served, setServed] = useState(true);
+    useEffect(() => {
+        // From the cached list: no call of its own
+        registrySharesServed().then(setServed).catch(() => undefined);
+    }, [shares]);
 
     const [search, setSearch] = useState("");
     const [modal, setModal] = useState<ModalState>({ kind: "none" });
@@ -107,6 +113,12 @@ export function SharesPage() {
                     </ToolbarItem>
                 </ToolbarContent>
             </Toolbar>
+
+            {!served && (
+                <Alert variant="warning" isInline title={t("Samba does not serve these shares")} style={{ marginBottom: "1rem" }}>
+                    {t("smb.conf lacks \"registry shares = yes\" in its [global] section, so no shared folder or home directory can be reached, and none can be created. Add it and restart samba-ad-dc.")}
+                </Alert>
+            )}
 
             {/* ---- Inline errors ---- */}
             {error && (

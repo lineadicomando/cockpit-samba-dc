@@ -57,7 +57,10 @@ On the server, a Samba Active Directory domain controller with:
   controller: check with
   `testparm -s --parameter-name="registry shares"`, and set it when
   provisioning (`samba-tool domain provision --option="registry shares =
-  yes"`) or add it to `smb.conf` and restart `samba-ad-dc`
+  yes"`) or add it to `smb.conf` and restart `samba-ad-dc`. Without it
+  `net conf` still writes the shares but smbd serves none of them: the
+  module refuses to create or change shared folders and home directories,
+  and the Shared folders tab says why
 
 To build from the sources:
 
@@ -267,13 +270,18 @@ Everything the module creates on disk lives under `/srv/samba`:
 
 | Path | Share | Contents |
 |---|---|---|
-| `/srv/samba/home/<user>` | `home` (hidden) | Home directories, mapped as `H:` through the user's `homeDrive`/`homeDirectory` |
+| `/srv/samba/home/<user>` | `home` (hidden) | Home directories, mapped as `H:` through the user's `homeDrive`/`homeDirectory`; a renamed user keeps its folder, under the old name |
 | `/srv/samba/shares/<name>` | `<name>` | Shared folders |
 
 Domain backups made from the **Domain** tab (or by `addcctl backup create`,
 the collection's `samba_dc_backup` role and `samba_dc_info` module) go to
 `/var/backups/samba-dc`, readable by root only: the archives hold the password
 hashes of every account.
+
+A home directory follows the user's `homeDirectory`, so a renamed user keeps
+its folder. A folder that belongs to another account (left by a user that
+was renamed or deleted) is neither given to a new user of the same name nor
+deleted with that user's home directory: move or remove it by hand.
 
 Shared folders are registry shares (`net conf`). Access is enforced by the
 share (`valid users`, plus `read list` for read-only entries) and by a POSIX

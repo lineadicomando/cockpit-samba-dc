@@ -796,6 +796,30 @@ async function coreChecks(): Promise<void> {
             await core("share set", { name: "t-x-stale", access: [{ name: "t-x-gone" }], access_mode: "remove" });
             assert.deepEqual(await shareAccess("t-x-stale"), ["user:student1:read"]);
         });
+        await step("a renamed user keeps its home; a deleted user's folder is not handed to, or deleted by, a namesake", async () => {
+            await run(["samba-tool", "user", "create", "t-x-home", "--random-password"]);
+            await core("home provision", { name: "t-x-home" });
+            await core("user set", { name: "t-x-home", new_name: "t-x-home2" });
+            const again = (await core("home provision", { name: "t-x-home2" })).home as { path: string };
+            assert.equal(again.path, "/srv/samba/home/t-x-home");
+            assert.ok(!(await exists("/srv/samba/home/t-x-home2")));
+            await core("home delete", { name: "t-x-home2", delete_data: true });
+            assert.ok(!(await exists("/srv/samba/home/t-x-home")));
+            // Deleted with its folder kept, then created again
+            await run(["samba-tool", "user", "create", "t-x-gone2", "--random-password"]);
+            await core("home provision", { name: "t-x-gone2" });
+            await core("user delete", { name: "t-x-gone2" });
+            await run(["samba-tool", "user", "create", "t-x-gone2", "--random-password"]);
+            try {
+                await assert.rejects(run(["addcctl", "home", "provision"], JSON.stringify({ name: "t-x-gone2" })),
+                    /belongs to another account/);
+                await assert.rejects(run(["addcctl", "home", "delete"],
+                    JSON.stringify({ name: "t-x-gone2", delete_data: true })), /belongs to another account/);
+                assert.ok(await exists("/srv/samba/home/t-x-gone2"));
+            } finally {
+                await run(["rm", "-rf", "--one-file-system", "--", "/srv/samba/home/t-x-gone2"]);
+            }
+        });
         await step("a hand-made share at the shares directory itself is not managed", async () => {
             await run(["net", "conf", "addshare", "t-x-root", "/srv/samba/shares/", "writeable=n", "guest_ok=n"]);
             try {

@@ -76,6 +76,13 @@ shares:
         - {name: Staff, kind: group, level: write}
         - {name: Domain Users, kind: group, level: read}
       drive: {letter: P, label: Projects}
+registry_shares:
+  description:
+    - Whether smbd serves the registry shares (C(registry shares = yes) or C(include = registry) in C(smb.conf)).
+    - When false, none of the shares is reachable, and M(lineadicomando.samba_dc.samba_share) and
+      M(lineadicomando.samba_dc.samba_home) refuse to create or change them.
+  type: bool
+  returned: always
 """
 
 from ansible.module_utils.basic import AnsibleModule
@@ -89,10 +96,14 @@ def run_module():
         supports_check_mode=True,
     )
     check_fixed_paths(module)
-    result = call(module, "share", "list", {})["shares"]
+    answer = call(module, "share", "list", {})
+    result = answer["shares"]
     if module.params["name"] is not None:
         result = [s for s in result if s["name"].lower() == module.params["name"].lower()]
-    module.exit_json(changed=False, shares=result)
+    served = answer.get("registry_shares", True)
+    if not served:
+        module.warn('smb.conf lacks "registry shares = yes": smbd serves none of these shares')
+    module.exit_json(changed=False, shares=result, registry_shares=served)
 
 
 def main():

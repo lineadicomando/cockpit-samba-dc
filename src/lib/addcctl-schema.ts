@@ -332,7 +332,7 @@ export type ShareGetInput = {
     name: string;
 };
 
-/** share list: List the shared folders under /srv/samba/shares, with access and drive mapping; entries left by deleted accounts are marked unknown */
+/** share list: List the shared folders under /srv/samba/shares, with access and drive mapping; entries left by deleted accounts are marked unknown; registry_shares false: smbd serves none of them (smb.conf lacks "registry shares = yes") */
 export type ShareListInput = Record<string, never>;
 
 /** share rename-principal: Follow the rename of a user or group in every shared folder that lists it */

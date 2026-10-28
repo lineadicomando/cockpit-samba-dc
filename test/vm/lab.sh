@@ -225,15 +225,23 @@ case $cmd in
         t=$1; shift; vm_of "$t" >/dev/null
         SSHPASS=$(pass_of "$t") exec sshpass -e ssh "${SSH_OPTS[@]}" "$(user_of "$t")@$(host_of "$t")" "$@" ;;
     root)
-        # sudo reads the password from the first line of stdin; the rest of
-        # stdin reaches the command. When sudo asks none (NOPASSWD, as for
-        # the browser tests), the shell drops that line instead, or it would
-        # reach the command.
+        # The first line of stdin is the password, the rest the command's.
+        # The remote shell reads that line itself (read takes one byte at a
+        # time from a pipe, so the rest stays whole) and hands it to sudo -v
+        # in a here-document: sudo never reads the command's stdin. Both
+        # sudo are children of that shell (in a pipeline sudo -v would run
+        # in a subshell, and the shell would exec a last command), so the
+        # second finds the credentials of the first; with NOPASSWD, -v needs
+        # none.
         [[ $# -gt 0 ]] || die "root needs a command"
         cmd=$(printf '%q' "$*")
         { printf '%s\n' "$DC_ADMIN_PASSWORD"; [[ -t 0 ]] || cat; } |
             SSHPASS=$DC_ADMIN_PASSWORD sshpass -e ssh "${SSH_OPTS[@]}" "$DC_ADMIN_USER@$DC_HOST" \
-                "if sudo -n true 2>/dev/null; then IFS= read -r _; exec sudo -n sh -c $cmd; else exec sudo -S -p '' sh -c $cmd; fi" ;;
+                "IFS= read -r pw
+sudo -S -p '' -v 2>/dev/null <<EOF || { echo 'sudo refused the password' >&2; exit 1; }
+\$pw
+EOF
+unset pw; sudo -n sh -c $cmd; rc=\$?; exit \$rc" ;;
     deploy)
         # The Debian package, as an administrator would install it. Copies
         # left in a user's ~/.local (or under the pre-rename name) would

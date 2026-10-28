@@ -522,10 +522,11 @@ OPERATIONS = {
     },
     ("share", "list"): {
         "description": ("List the shared folders under /srv/samba/shares, with access and drive mapping; "
-                        "entries left by deleted accounts are marked unknown"),
+                        "entries left by deleted accounts are marked unknown; registry_shares false: "
+                        "smbd serves none of them (smb.conf lacks \"registry shares = yes\")"),
         "mutates": False,
         "input": {"type": "object", "properties": {}, "additionalProperties": False},
-        "run": lambda ctx, req: {"shares": _shares(ctx).list()},
+        "run": lambda ctx, req: {"shares": _shares(ctx).list(), "registry_shares": ctx.dc.registry_shares},
     },
     ("share", "get"): {
         "description": "One shared folder; entries left by deleted accounts are marked unknown",

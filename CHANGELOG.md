@@ -10,6 +10,8 @@ the README ("Versions and releases"). New entries go under
 
 ### Added
 
+- Ansible: the module `samba_directory_info` returns the users, groups or
+  computer accounts (all, or one), structured as addcctl reports them.
 - Organizational units: the tab shows the GPOs linked to each OU, by
   precedence, with their enforced or disabled links; choosing one opens its
   links.
@@ -21,12 +23,29 @@ the README ("Versions and releases"). New entries go under
   delete`) and in the collection (`samba_share_info`, and `shares` with a
   warning from `samba_user` and `samba_group` with `state: absent`).
 
+### Changed
+
+- Shared folders and home directories are refused when `smb.conf` lacks
+  `registry shares = yes` (or `include = registry`): smbd would serve none
+  of them, while they looked created. The Shared folders tab warns about
+  it; `addcctl share list` and `samba_share_info` return `registry_shares`.
+
 ### Fixed
 
+- Home directories: a renamed user keeps its folder when its home directory
+  is provisioned again (a new, empty one was created under the new name),
+  and deleting it with its data removes that folder.
 - Shared folders: a share that lists a deleted account can be changed again
   (it was refused as "Unknown user or group" until the entry was removed by
   hand); such entries are no longer targets of the drive mapping, which now
   needs at least one existing user or group.
+
+### Security
+
+- Home directories: a folder that belongs to another account (left by a
+  renamed or deleted user) is no longer handed to a new user of the same
+  name when its home directory is provisioned, nor deleted with that user's
+  data.
 
 ## [0.14.0] - 2026-10-28
 

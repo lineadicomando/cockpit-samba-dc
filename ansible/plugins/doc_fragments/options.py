@@ -536,6 +536,21 @@ options:
 options: {}
 '''
 
+    SAMBA_DIRECTORY_INFO = r'''
+options:
+  kind:
+    description:
+      - "What to read: the domain's users, groups or computer accounts."
+    type: str
+    required: true
+    choices: [user, group, computer]
+  name:
+    description:
+      - Only return this account (sAMAccountName, matched case-insensitively; a computer with or
+        without the trailing C($)). All of O(kind) are returned when unset.
+    type: str
+'''
+
     SAMBA_SHARE_INFO = r'''
 options:
   name:

@@ -44,13 +44,23 @@ function fromCore(s: CoreShare): SharedFolder {
     };
 }
 
-export async function listShares(): Promise<SharedFolder[]> {
+async function readShares(): Promise<{ shares: CoreShare[]; registry_shares?: boolean }> {
     let raw = cache.get(SHARES_KEY, 30_000);
     if (raw === null) {
         raw = JSON.stringify(await addcctl("share list", {}));
         cache.set(SHARES_KEY, raw);
     }
-    return (JSON.parse(raw) as { shares: CoreShare[] }).shares.map(fromCore);
+    return JSON.parse(raw) as { shares: CoreShare[]; registry_shares?: boolean };
+}
+
+export async function listShares(): Promise<SharedFolder[]> {
+    return (await readShares()).shares.map(fromCore);
+}
+
+// False when smb.conf lacks "registry shares = yes": smbd then serves none
+// of the shares (home directories included), and addcctl refuses to make them
+export async function registrySharesServed(): Promise<boolean> {
+    return (await readShares()).registry_shares !== false;
 }
 
 function checkShareData(data: ShareData): void {

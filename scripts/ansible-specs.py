@@ -280,6 +280,16 @@ MODULES = {
         "ops": ["domain info", "backup list"],
         "options": {},
     },
+    "samba_directory_info": {
+        "ops": ["user list", "group list", "computer list"],
+        "options": {
+            "kind": own(type="str", choices=["user", "group", "computer"], required=True, description=[
+                "What to read: the domain's users, groups or computer accounts."]),
+            "name": own(type="str", description=[
+                "Only return this account (sAMAccountName, matched case-insensitively; a computer with or "
+                "without the trailing C($)). All of O(kind) are returned when unset."]),
+        },
+    },
     "samba_share_info": {
         "ops": ["share list"],
         "options": {

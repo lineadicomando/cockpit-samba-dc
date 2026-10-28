@@ -43,6 +43,7 @@ class FakeDc:
     workgroup = "SCHOOL"
     netbios_name = "DC"
     realm = "SCHOOL.INTERNAL"
+    registry_shares = True
 
     def __init__(self, runner, sysvol):
         self.runner = runner
@@ -220,6 +221,12 @@ class TestShareSet(Base):
         self.assertIn("u:3000010", removed)
         self.assertIn("g:3000010:r-X", added)
         self.assertNotIn("g:3000010:rwX", added)
+
+    def test_refused_without_registry_shares(self):
+        self.dc.registry_shares = False
+        with self.assertRaisesRegex(AddcError, 'set "registry shares = yes"'):
+            self.create()
+        self.assertEqual((self.dc.registry, self.runner.commands), ({}, []))
 
     def test_check_mode_changes_nothing(self):
         self.runner.check = True

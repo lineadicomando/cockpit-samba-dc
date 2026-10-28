@@ -126,6 +126,10 @@ _SPECS = {
         'lockout_window_minutes': {'type': 'int'},
     },
     'samba_dc_info': {},
+    'samba_directory_info': {
+        'kind': {'type': 'str', 'choices': ['user', 'group', 'computer'], 'required': True},
+        'name': {'type': 'str'},
+    },
     'samba_share_info': {
         'name': {'type': 'str'},
         'shares_dir': {'type': 'path', 'default': '/srv/samba/shares'},

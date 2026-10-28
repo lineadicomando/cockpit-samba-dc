@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, sharesListing } from "../src/lib/shares.ts";
+import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess, expandNestedGroups, sharesListing, registrySharesServed } from "../src/lib/shares.ts";
 
 // Verbatim shape of "addcctl share list"
 const LIST = JSON.stringify({ shares: [{
@@ -74,6 +74,18 @@ describe("entries of deleted accounts", () => {
         assert.deepEqual(sharesListing(shares, "user", "MROSSI"), ["docs"]);
         assert.deepEqual(sharesListing(shares, "group", "students"), ["lab"]);
         assert.deepEqual(sharesListing(shares, "user", "Students"), []);
+    });
+});
+
+describe("registrySharesServed", () => {
+    it("reads registry_shares from the cached list, true when the core does not say", async () => {
+        core({ list: JSON.stringify({ shares: [], registry_shares: false }) });
+        await deleteShare("none", false);
+        assert.equal(await registrySharesServed(), false);
+        assert.equal(calls.filter(c => isCore(c, "list")).length, 1);
+        core();
+        await deleteShare("none", false);
+        assert.equal(await registrySharesServed(), true);
     });
 });
 

@@ -1799,3 +1799,9 @@ msgstr[1] "Le voci restano in {{count}} cartelle condivise:"
 
 msgid "Remove them in the Shared folders tab."
 msgstr "Rimuovile dalla scheda Cartelle condivise."
+
+msgid "Samba does not serve these shares"
+msgstr "Samba non serve queste condivisioni"
+
+msgid "smb.conf lacks \"registry shares = yes\" in its [global] section, so no shared folder or home directory can be reached, and none can be created. Add it and restart samba-ad-dc."
+msgstr "In smb.conf manca \"registry shares = yes\" nella sezione [global]: nessuna cartella condivisa o home è raggiungibile e non se ne possono creare. Aggiungilo e riavvia samba-ad-dc."

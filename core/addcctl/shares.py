@@ -15,6 +15,14 @@ from .smbconf import (SHARES_DIR, access_key, format_user_list, is_managed_path,
                       share_access, share_name_violation)
 
 
+def check_registry_shares(dc):
+    """smbd does not serve registry shares without "registry shares": net
+    conf writes them all the same, and nothing would say they do not work."""
+    if not dc.registry_shares:
+        raise AddcError('smbd does not serve the shares addcctl creates: set "registry shares = yes" in the '
+                        '[global] section of smb.conf and restart samba-ad-dc')
+
+
 def check_principal_names(names):
     # A leading "-" would be read as an option by the tools these names reach
     for name in names:
@@ -215,6 +223,7 @@ class Shares:
         violation = share_name_violation(name)
         if violation:
             raise AddcError("Invalid share name %r: %s" % (name, violation))
+        check_registry_shares(self.dc)
         section, params = self._managed(name)
         mappings = self.drives.mappings()
         before = self._describe(section, params, mappings, self._known([params])) if section else None
