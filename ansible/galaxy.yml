@@ -1,6 +1,6 @@
 namespace: lineadicomando
 name: samba_dc
-version: 0.14.0
+version: 0.15.0
 readme: README.md
 authors:
   - Alessandro Gagliano <alessandro.gagliano@lineadicomando.it>

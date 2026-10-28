@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-10-28
+
 ### Added
 
 - Ansible: the module `samba_directory_info` returns the users, groups or
