@@ -14,8 +14,9 @@ Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementa
 Order: sections A1–A6 first, so that what follows is written for the new
 layout (A6 rewrote it); then sections 8, 4, 5, 6 and 7 (done,
 v0.10.0–v0.14.0), and section 0, the follow-ups of the last review (done,
-v0.15.0). Section 9 goes into v0.16.0 (planned on 2026-10-29); other
-entries can join it (the table "Left out"), chosen with the user.
+v0.15.0). Section 9 goes into v0.16.0 (planned on 2026-10-29); section 10,
+the domain provisioning from the page, comes next, its release to be
+chosen with the user.
 
 Versions: only the next release is planned. The heading of each section
 that goes into it ends with its version (`— v0.2.0`), which it keeps once
@@ -41,8 +42,8 @@ on the test DC (skill `vm-lab`) before the commit.
 Updated on 2026-10-29: v0.15.0 released (section 0: share entries of
 deleted accounts, `registry shares` checked, home directories of renamed
 or deleted users, GPOs in the OU tab, `samba_directory_info`, ESLint).
-v0.16.0 planned with section 9, done in the work tree: `samba_tool` reads
-through `samba_directory_info`. A6 done, the old repository archived; the
+v0.16.0 planned with section 9, done: `samba_tool` reads through
+`samba_directory_info`; section 10 (domain provisioning) planned. A6 done, the old repository archived; the
 test VMs built from scratch by scripts.
 
 - One project, three parts that share one version:
@@ -151,9 +152,8 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - try section 9 on the test DC (`lab.sh ansible`: the role's `list`,
-     `show` and `listmembers`), then release v0.16.0 or add to it an
-     entry of "Left out", chosen with the user.
+   - section 10, the domain provisioning from the page, starting with its
+     spike; release v0.16.0 before it or with it, as the user chooses.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -328,8 +328,8 @@ Measures on the test DC (2 vCPU), through the page:
       what only a module has (`state`, `create`, `update_password`, aliases,
       its own descriptions) is in the script's `MODULES`
 - [x] Archive `ansible-collection-samba_dc` on GitHub (2026-10-28)
-- [?] Rename the repository: it keeps its name for now; to reconsider when
-      the project is more mature (GitHub redirects the old name)
+- [x] Rename the repository after the collection joined it: decided on
+      2026-10-29 to keep `cockpit-samba-dc`
 
 ## 0. Follow-ups of the October 2026 review (done) — v0.15.0
 
@@ -657,6 +657,83 @@ that has a breaking change anyway.
       `samba_directory_info` (`tasks/_info.yaml`): `samba_tool_result.objects`
       replaces the raw text, `samba_tool_bin` is gone
 
+## 10. Domain provisioning from the page
+
+The package depends on `samba-ad-dc`, so `apt install cockpit-samba-dc` on
+a clean Debian brings Samba with no domain, and the page has nothing to
+manage: most installations start there. A guided procedure provisions a new
+domain from the page (decided on 2026-10-29). Scope: a new forest with one
+DC. No join to an existing domain, no demotion, never over an existing
+domain (no "force", unlike `samba_dc_build_force_provision`). The network is
+verified, not changed (decided on 2026-10-29): changing the address from the
+browser would drop the session; the static address is set in Cockpit's
+"Networking" page, or by hand.
+
+- [ ] **Spike: the provisioning in the process.** `samba.provision`
+      (`provision()`, what `samba-tool domain provision` runs) called from
+      addcctl, with the administrator's password from stdin: `samba-tool`
+      takes it only in argv (`--adminpass`), against rule 2. Check on Samba
+      4.22 that it gives the same result as the command (`--server-role=dc
+      --use-rfc2307 --dns-backend=SAMBA_INTERNAL --host-ip`). If it does not,
+      fall back to `samba-tool` with a random throwaway password, then the
+      real one set through SamDB in the same process
+- [ ] **Core: `domain setup-check`**, read-only, also on a host with no
+      domain (today addcctl assumes `sam.ldb`). Whether the host is a DC
+      already (`sam.ldb`, `server role` in `smb.conf`), then each
+      prerequisite with its state and what to do:
+  - a static address on the interface of the default route (ifupdown
+    `inet static`, NetworkManager `method=manual`, systemd-networkd with no
+    DHCP), which becomes the `--host-ip`;
+  - a host name that is not `localhost` and fits the realm (the FQDN is
+    `<host>.<realm>`), at most 15 characters for NetBIOS;
+  - nothing else on ports 53, 88, 389, 445 (`smbd`, `nmbd`, `dnsmasq`,
+    `bind9`, `systemd-resolved`'s stub);
+  - time sync (chrony), free space under `/var/lib/samba`;
+  - the defaults it would propose: realm and NetBIOS name from the host's
+    domain, DNS forwarder from the current resolver
+- [ ] **Core: `domain provision`**, a change under the lock, refused when a
+      domain exists or a prerequisite fails. Input: realm, NetBIOS name,
+      administrator's password (`writeOnly`, checked against the default
+      complexity before starting), DNS forwarder (required: without it the
+      DC resolves no outside name, and apt breaks). Steps, each recorded in
+      `commands`:
+  - stop and mask `smbd`, `nmbd`, `winbind`; `smb.conf` kept as
+    `smb.conf.dist`;
+  - the provisioning (spike), then in `smb.conf` `registry shares = yes`
+    (the shared folders need it) and `dns forwarder`;
+  - host name and `/etc/hosts` (the FQDN on the static address, no
+    `127.0.1.1`), `/etc/krb5.conf` linked to Samba's, winbind in
+    `nsswitch.conf` (`passwd`, `group`), chrony's `ntp_signd`;
+  - `samba-ad-dc` unmasked, enabled, started; once its DNS answers,
+    `resolv.conf` on the DC itself and `systemd-resolved` stopped;
+  - a failure before `sam.ldb` is written leaves the host as it was; after
+    it, the answer says what is left and what to remove by hand, with no
+    automatic cleanup (rule 4).
+  It runs for a minute or two: the page waits as for a backup. Not served
+  by `addcctl mcp`: once only, and destructive if misused
+- [ ] **Page.** When the setup check says no domain, the tabs give way to a
+      setup page: the prerequisites with their state and how to fix them (a
+      link to Cockpit's "Networking" page for the address), the form (realm,
+      NetBIOS name, password and confirmation with `passwordUtils.ts`,
+      forwarder) with its validators, a confirmation that names what
+      changes on the host, the wait, then the normal tabs. The firewall is
+      not touched: the README lists the ports a DC needs
+- [ ] **Ansible.** `samba_dc_build` provisions through `domain provision`
+      instead of the shell task with `--adminpass` (rule 1 and 2); `addcctl`
+      is installed before it, not after. The role keeps what the page does
+      not do: network, OS upgrade, packages, nftables, chrony's
+      configuration, the admin user. `samba_dc_build_force_provision` stays
+      in the role, outside addcctl
+- [ ] **Tried on the test DC** from snapshot `baseline` (Debian, no Samba):
+      the packages installed, the procedure run in the browser, the
+      integration suite on the new domain; `samba_dc_build` from `baseline`
+      too (`lab.sh ansible test/vm/samba_dc_build.yaml`); the refusals
+      (DHCP address, a domain already there). Then `lab.sh reset`: the
+      client's trust is with the domain of `lab_baseline`
+- [ ] README ("Installation": from a clean Debian; "Setting up a new
+      domain"), `CHANGELOG.md`; `domain provision` out of the table "Left
+      out"
+
 ## Left out — future implementation to be decided
 
 Not planned: outside the current scope of the module (a single-DC domain
@@ -666,7 +743,7 @@ the note says what would make it worth doing.
 | | Command | Why left out | Would be reconsidered if |
 |---|---|---|---|
 | [?] | `drs showrepl`, `drs replicate`, `drs kcc` | Meaningless with one DC | Multi-DC deployments are supported |
-| [?] | `domain join`, `domain demote`, `domain provision` | One-off, destructive, better done from a shell | A guided setup wizard is wanted |
+| [?] | `domain join`, `domain demote` | One-off, destructive, better done from a shell; a new domain is section 10 | Multi-DC deployments are supported |
 | [?] | `fsmo transfer`, `fsmo seize` | Rare and risky; only `fsmo show` is planned | Multi-DC deployments are supported |
 | [?] | `domain level raise`, `domain schemaupgrade` | Irreversible | A guided upgrade procedure is wanted |
 | [?] | `domain trust` | No use case with a single domain | Trusts with other domains are needed |
