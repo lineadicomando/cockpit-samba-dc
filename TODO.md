@@ -14,8 +14,8 @@ Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementa
 Order: sections A1–A6 first, so that what follows is written for the new
 layout (A6 rewrote it); then sections 8, 4, 5, 6 and 7 (done,
 v0.10.0–v0.14.0), and section 0, the follow-ups of the last review (done,
-v0.15.0). The release after it has no plan yet: choose it with the user
-(section 9, the table "Left out").
+v0.15.0). Section 9 goes into v0.16.0 (planned on 2026-10-29); other
+entries can join it (the table "Left out"), chosen with the user.
 
 Versions: only the next release is planned. The heading of each section
 that goes into it ends with its version (`— v0.2.0`), which it keeps once
@@ -38,12 +38,12 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-28: v0.15.0 released (section 0: share entries of
+Updated on 2026-10-29: v0.15.0 released (section 0: share entries of
 deleted accounts, `registry shares` checked, home directories of renamed
-or deleted users, GPOs in the OU tab, `samba_directory_info`, ESLint); the
-next release not planned yet. A6 done, the old repository archived; the
-test VMs built from scratch by scripts. Section 9 waits for a breaking
-release.
+or deleted users, GPOs in the OU tab, `samba_directory_info`, ESLint).
+v0.16.0 planned with section 9, done in the work tree: `samba_tool` reads
+through `samba_directory_info`. A6 done, the old repository archived; the
+test VMs built from scratch by scripts.
 
 - One project, three parts that share one version:
   - `core/`: **addcctl**, the core on the DC (Python, JSON in and out,
@@ -151,9 +151,9 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - plan the next release with the user (section 9, an entry of "Left
-     out"); end the headings of what goes in with its version, as
-     "Versions" says.
+   - try section 9 on the test DC (`lab.sh ansible`: the role's `list`,
+     `show` and `listmembers`), then release v0.16.0 or add to it an
+     entry of "Left out", chosen with the user.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -647,15 +647,15 @@ which will also hold the policies of section 4.
       depends on it, `samba_dc_build` installs it, and `backup create` says
       so when it is missing
 
-## 9. With the next breaking release
+## 9. With the next breaking release — v0.16.0
 
 Changes that ask the users of the collection to act: kept for a release
 that has a breaking change anyway.
 
-- [ ] **Collection: `samba_tool`'s read-only actions on addcctl.** `user`,
-      `group` and `computer` `list` and `show` still run `samba-tool`
-      (`tasks/_run.yaml`): move them to `samba_directory_info` with the
-      next breaking release, under `Breaking` (the raw text goes)
+- [x] **Collection: `samba_tool`'s read-only actions on addcctl.** `user`,
+      `group` and `computer` `list` and `show`, and `group listmembers`, run
+      `samba_directory_info` (`tasks/_info.yaml`): `samba_tool_result.objects`
+      replaces the raw text, `samba_tool_bin` is gone
 
 ## Left out — future implementation to be decided
 

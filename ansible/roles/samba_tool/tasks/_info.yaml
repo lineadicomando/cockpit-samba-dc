@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# Read-only actions on users, groups and computers, through
+# samba_directory_info (addcctl): list, show, and a group's listmembers.
+# samba_tool_result is the module's result: objects, the accounts found.
+
+- name: "Read the directory: {{ samba_tool_object ~ ' ' ~ samba_tool_action }}"
+  lineadicomando.samba_dc.samba_directory_info:
+    kind: "{{ samba_tool_object }}"
+    name: "{{ samba_tool_args.name if samba_tool_action != 'list' else omit }}"
+  register: samba_tool_result
+
+- name: Require the account to exist
+  ansible.builtin.assert:
+    that: samba_tool_result.objects | length > 0
+    fail_msg: "{{ samba_tool_object | capitalize }} '{{ samba_tool_args.name }}' not found."
+    quiet: true
+  when: samba_tool_action != 'list'
+
+# Not covered by samba_tool_no_log: returning this is the whole point of the
+# read-only actions, and addcctl never returns password material.
+- name: Report the accounts
+  ansible.builtin.debug:
+    var: samba_tool_result.objects
+  when: samba_tool_action != 'listmembers'
+
+# Members of the group, with the accounts whose primary group it is
+- name: Report the members
+  ansible.builtin.debug:
+    msg: >-
+      {{ (samba_tool_result.objects[0].members
+          + samba_tool_result.objects[0].primary_members) | sort(case_sensitive=false) }}
+  when: samba_tool_action == 'listmembers'

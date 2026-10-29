@@ -8,6 +8,15 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Breaking
+
+- Ansible: the role `samba_tool` reads users, groups and computer accounts
+  (`list`, `show`, `listmembers`) through `samba_directory_info`, on addcctl,
+  instead of `samba-tool`: `samba_tool_result` holds `objects`, structured,
+  no longer the text in `stdout_lines`; `show` and `listmembers` fail on a
+  missing account, and `samba_tool_bin` is gone. Playbooks that read the
+  text must read `samba_tool_result.objects` (role README, "Reading").
+
 ## [0.15.0] - 2026-10-28
 
 ### Added

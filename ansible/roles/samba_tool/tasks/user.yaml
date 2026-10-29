@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 ---
 # User operations.
-#   read-only : list, show          -> generic executor
+#   read-only : list, show          -> samba_directory_info (addcctl)
 #   mutating  : create/present, delete/absent, enable, disable, setpassword,
 #               setprimarygroup -> the samba_user module (addcctl)
 
@@ -25,17 +25,9 @@
       - setpassword
       - setprimarygroup
 
-- name: Read-only user operations
+- name: Read-only user operations (samba_directory_info, on addcctl)
   when: samba_tool_action in ['list', 'show']
-  block:
-    - name: Build argv for user {{ samba_tool_action }}
-      ansible.builtin.set_fact:
-        _samba_tool_argv: >-
-          {{ ['user', samba_tool_action]
-             + ([samba_tool_args.name] if samba_tool_action == 'show' else []) }}
-
-    - name: Run read-only user command
-      ansible.builtin.include_tasks: _run.yaml
+  ansible.builtin.include_tasks: _info.yaml
 
 # Through samba_user, on addcctl: enable, disable and setprimarygroup act on
 # an existing user only (no password, so a missing one is an error, not a

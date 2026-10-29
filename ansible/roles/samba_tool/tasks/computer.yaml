@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 ---
 # Computer account operations.
-#   read-only : list, show
+#   read-only : list, show -> samba_directory_info (addcctl)
 #   mutating  : create, delete/absent -> the samba_computer module (addcctl)
 
 - name: Validate computer action
@@ -19,17 +19,9 @@
       - delete
       - absent
 
-- name: Read-only computer operations
+- name: Read-only computer operations (samba_directory_info, on addcctl)
   when: samba_tool_action in ['list', 'show']
-  block:
-    - name: Build argv for computer {{ samba_tool_action }}
-      ansible.builtin.set_fact:
-        _samba_tool_argv: >-
-          {{ ['computer', samba_tool_action]
-             + ([samba_tool_args.name] if samba_tool_action == 'show' else []) }}
-
-    - name: Run read-only computer command
-      ansible.builtin.include_tasks: _run.yaml
+  ansible.builtin.include_tasks: _info.yaml
 
 - name: Computer account present or absent (samba_computer, on addcctl)
   when: samba_tool_action in ['create', 'delete', 'absent']

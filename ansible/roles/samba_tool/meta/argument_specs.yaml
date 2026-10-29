@@ -2,7 +2,7 @@
 ---
 argument_specs:
   main:
-    short_description: Manage a Samba AD DC object via samba-tool
+    short_description: Manage the objects of a Samba AD DC
     description:
       - Entry point for the samba_tool role. Dispatches an action against an
         object (user, group, computer), provisions a user home directory or
@@ -15,7 +15,7 @@ argument_specs:
         required: true
         choices: [user, group, computer, home, share]
       samba_tool_action:
-        description: The samba-tool verb to run (e.g. create, delete, list, show, addmembers).
+        description: The action to run (e.g. create, delete, list, show, addmembers).
         type: str
         required: true
       samba_tool_args:
@@ -24,10 +24,6 @@ argument_specs:
           - C(name) is required for every action except C(list).
         type: dict
         default: {}
-      samba_tool_bin:
-        description: Path to the samba-tool executable on the target.
-        type: str
-        default: samba-tool
       samba_tool_shares_dir:
         description:
           - Directory holding the shared folders managed by O(samba_tool_object=share).

@@ -8,10 +8,6 @@ samba_tool_object: ~          # user | group | computer | home | share
 samba_tool_action: ~          # samba-tool verb: create, delete, list, show, ...
 samba_tool_args: {}           # dictionary of action-specific arguments
 
-# Path to the samba-tool executable on the target.
-samba_tool_bin: samba-tool
-
-
 # Directory holding the shared folders (object: share). Must match the one
 # used by cockpit-samba-dc for the two to manage the same shares.
 samba_tool_shares_dir: /srv/samba/shares

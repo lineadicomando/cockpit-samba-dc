@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 ---
 # Group operations.
-#   read-only : list, listmembers, show
+#   read-only : list, listmembers, show -> samba_directory_info (addcctl)
 #   mutating  : add/create, delete/absent, addmembers, removemembers
 #               -> the samba_group module (addcctl)
 
@@ -24,17 +24,9 @@
       - addmembers
       - removemembers
 
-- name: Read-only group operations
+- name: Read-only group operations (samba_directory_info, on addcctl)
   when: samba_tool_action in ['list', 'listmembers', 'show']
-  block:
-    - name: Build argv for group {{ samba_tool_action }}
-      ansible.builtin.set_fact:
-        _samba_tool_argv: >-
-          {{ ['group', samba_tool_action]
-             + ([samba_tool_args.name] if samba_tool_action != 'list' else []) }}
-
-    - name: Run read-only group command
-      ansible.builtin.include_tasks: _run.yaml
+  ansible.builtin.include_tasks: _info.yaml
 
 - name: Group present or absent (samba_group, on addcctl)
   when: samba_tool_action in ['add', 'create', 'delete', 'absent']

@@ -27,8 +27,6 @@ mapping, DNS records, GPO links, the password policy, the domain overview, healt
 backups, and three interfaces on it: the page, the collection's
 modules and `addcctl mcp`. What is left:
 
-- The read-only actions of the collection's `samba_tool` role still run
-  `samba-tool` directly.
 - The roadmap (`TODO.md`, sections 4–8) adds every new feature as
   operations of the core first.
 

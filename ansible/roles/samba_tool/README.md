@@ -1,25 +1,24 @@
 <!-- SPDX-License-Identifier: GPL-3.0-or-later -->
 # Role: samba_tool
 
-A wrapper around `samba-tool` to manage the objects of a Samba 4 AD DC (users,
-groups, computers), to provision user home directories and to manage
-shared folders, from playbooks (`lineadicomando.samba_dc.samba`). An MCP
+One entry point, object + action + arguments, to manage the objects of a
+Samba 4 AD DC (users, groups, computers), to provision user home directories
+and to manage shared folders, from playbooks (`lineadicomando.samba_dc.samba`). An MCP
 client manages the same objects through `addcctl mcp` on the DC.
 
 Domain backup and restore live in the separate
 [`samba_dc_backup`](../samba_dc_backup/README.md) role.
 
 It runs **on the domain controller** and requires elevated privileges
-(`become: true`), because `samba-tool` reads the local `sam.ldb` database.
+(`become: true`), because `addcctl` reads and writes the local `sam.ldb` database.
 
 ## Interface
 
 | Variable | Description |
 |----------|-------------|
 | `samba_tool_object` | `user` \| `group` \| `computer` \| `home` \| `share` |
-| `samba_tool_action` | samba-tool verb (`create`, `delete`, `list`, `show`, `addmembers`, …) |
+| `samba_tool_action` | action (`create`, `delete`, `list`, `show`, `addmembers`, …) |
 | `samba_tool_args` | dictionary of action-specific arguments. `name` is required for every action except `list` |
-| `samba_tool_bin` | path to samba-tool, for the read-only actions (default `samba-tool`) |
 | `samba_tool_shares_dir` | directory holding the shared folders (default `/srv/samba/shares`) |
 | `samba_tool_no_log` | hide the output of tasks containing passwords (default `true`) |
 
@@ -32,6 +31,17 @@ It runs **on the domain controller** and requires elevated privileges
 | `computer` | `list`, `show`, `create`, `delete`, `absent` |
 | `home` | `provision`, `absent` |
 | `share` | `list`, `show`, `create`, `present`, `grant`, `revoke`, `delete`, `absent` |
+
+## Reading
+
+`list`, `show` and a group's `listmembers` go through
+[`samba_directory_info`](../../plugins/modules/samba_directory_info.py):
+`samba_tool_result.objects` holds the accounts as `addcctl` reports them
+(group members and user groups as account names), and the role prints them.
+`show` and `listmembers` fail on a missing account; `listmembers` prints the
+group's members with the accounts whose primary group it is. Up to
+collection 0.15.0 these actions ran `samba-tool` and returned its text in
+`samba_tool_result.stdout_lines`, and `samba_tool_bin` named its path.
 
 ## Idempotency
 
