@@ -20,15 +20,16 @@ defaults of one school lab.
 
 ## Today
 
-The target below is reached for everything the project already did (A1–A5):
-one repository, `addcctl` on the DC with every operation of users, groups,
-computers, organizational units, home directories, shared folders, drive
-mapping, DNS records, GPO links, the password policy, the domain overview, health checks and
-backups, and three interfaces on it: the page, the collection's
-modules and `addcctl mcp`. What is left:
+The target below is reached (A1–A6): one repository, `addcctl` on the DC
+with every operation of users, groups, computers, organizational units, home
+directories, shared folders, drive mapping, DNS records, GPO links, the
+password policy, the domain overview, health checks and backups, and the
+setup check and provisioning of a new domain, and three interfaces on it:
+the page, the collection's modules and `addcctl mcp`. What is left:
 
-- The roadmap (`TODO.md`, sections 4–8) adds every new feature as
-  operations of the core first.
+- The roadmap (`TODO.md`, from section 11) adds every new feature as
+  operations of the core first, and fixes the interface that stays stable
+  from 1.0.0 (section 13).
 
 ## Target
 
@@ -138,4 +139,4 @@ collection may import the core.
 | Core: spike on shared folders and drive mapping, go/no-go | A3 | done: go; shared folders and drive mapping in `addcctl`, TypeScript types generated |
 | Core: every other operation | A4 | done: users, groups, computers, home directories, password policy; Ansible modules on the core |
 | MCP server on the DC | A5 | done: `addcctl mcp`, reached through SSH; the orchestration MCP keeps the build and the backup; an integration suite through the three interfaces |
-| Roadmap rewritten for the new layout | A6 | under way: sections 0 and 4–8 rewritten as operations of the core; the modules' options generated from the schemas; win_edulab on v0.9.0 with `addcctl mcp`; the archive of the old repository still to do |
+| Roadmap rewritten for the new layout | A6 | done: sections 0 and 4–8 rewritten as operations of the core; the modules' options generated from the schemas; win_edulab on v0.9.0 with `addcctl mcp`; the old repository archived (2026-10-28); the name `cockpit-samba-dc` kept (2026-10-29) |
