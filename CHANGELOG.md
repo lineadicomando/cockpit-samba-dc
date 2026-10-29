@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-10-29
+
 ### Breaking
 
 - Ansible: the role `samba_tool` reads users, groups and computer accounts
