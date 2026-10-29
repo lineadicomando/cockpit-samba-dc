@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-10-29
+
 ### Added
 
 - A new domain from the page: on a host with Samba and no domain, a setup
