@@ -3,7 +3,8 @@
 Roadmap. First, sections A1–A6: one project with
 `ansible-collection-samba_dc`, around a core shared by the Cockpit page,
 Ansible and MCP (`docs/architecture.md`). Then the `samba-tool` features not
-yet exposed (sections 3–8). Every subcommand and flag named in sections 3–8
+yet exposed (sections 3–8), a breaking change of the collection (section 9)
+and the provisioning of a new domain from the page (section 10). Every subcommand and flag named in sections 3–8
 was checked with `samba-tool <cmd>
 --help` on the test DC (Samba 4.22.11) on 2026-10-23; check again on the
 target before implementing, since some were renamed across releases (e.g.
@@ -14,9 +15,9 @@ Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementa
 Order: sections A1–A6 first, so that what follows is written for the new
 layout (A6 rewrote it); then sections 8, 4, 5, 6 and 7 (done,
 v0.10.0–v0.14.0), and section 0, the follow-ups of the last review (done,
-v0.15.0). Section 9 goes into v0.16.0 (planned on 2026-10-29); section 10,
-the domain provisioning from the page, comes next, its release to be
-chosen with the user.
+v0.15.0), then section 9 (done, v0.16.0). Next: section 10, the domain
+provisioning from the page; its release (v0.17.0, alone or with other
+entries) is to be chosen with the user, then written in its heading.
 
 Versions: only the next release is planned. The heading of each section
 that goes into it ends with its version (`— v0.2.0`), which it keeps once
@@ -29,9 +30,10 @@ releases".
 
 Since A6, each item of sections 0 and 4–8 says what the core does
 (operations of `addcctl`), then what the page and the collection add. The
-MCP tool comes with the operation: `addcctl mcp` serves every one.
+MCP tool comes with the operation: `addcctl mcp` serves every one
+(`domain provision`, section 10, will be the first exception).
 
-Each feature item (sections 3–8) also needs what `CLAUDE.md` lists under
+Each feature item (sections 3–8, 10) also needs what `CLAUDE.md` lists under
 "Adding things" (the operation in addcctl with its schema and tests, `make
 schema`, the page's call, validators, cache invalidation, translations, the
 Ansible side when it applies, README and `CHANGELOG.md` entries) and a check
@@ -39,11 +41,11 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-29: v0.15.0 released (section 0: share entries of
-deleted accounts, `registry shares` checked, home directories of renamed
-or deleted users, GPOs in the OU tab, `samba_directory_info`, ESLint).
-v0.16.0 planned with section 9, done: `samba_tool` reads through
-`samba_directory_info`; section 10 (domain provisioning) planned. A6 done, the old repository archived; the
+Updated on 2026-10-29: v0.16.0 released (section 9: the `samba_tool`
+role reads through `samba_directory_info`, a breaking change of the
+collection). Section 10, the domain provisioning from the page, planned
+and not started: `[Unreleased]` in `CHANGELOG.md` is empty. A6 done (the
+repository keeps its name), the old collection repository archived; the
 test VMs built from scratch by scripts.
 
 - One project, three parts that share one version:
@@ -73,8 +75,8 @@ test VMs built from scratch by scripts.
     `samba_pso`, `samba_ou`, `samba_dns_record`, `samba_gpo_link`, all on addcctl, their
     options generated from the schemas by `make schema`; the `samba_tool`
     role dispatches users, groups, computers, home directories and shares
-    to them, and runs `samba-tool` itself only for its read-only `list` and
-    `show`; dispatcher
+    to them, reads included (`samba_directory_info`, `samba_share_info`),
+    and runs no `samba-tool` itself; dispatcher
     playbooks `samba`, `samba_dc_build`, `samba_dc_backup`; an MCP server on
     the control node, `ansible/mcp/server.py`, with the tools
     `samba_dc_build` and `samba_dc_backup` only).
@@ -85,9 +87,11 @@ test VMs built from scratch by scripts.
   policy edited, fine-grained policies), `v0.12.0` (organizational units),
   `v0.13.0` (richer create and edit forms, a page for each computer),
   `v0.14.0` (DNS records, GPO links), `v0.15.0` (the follow-ups of
-  section 0).
+  section 0), `v0.16.0` (section 9, breaking for the collection).
   Release only when the user asks (run the integration suite first, then
-  `make release` and `git push origin main vX.Y.Z`). Each release carries
+  `make release` and `git push origin main vX.Y.Z`; then check that the
+  `Release` workflow passed and the release has its assets: `gh run list`,
+  `gh release view vX.Y.Z`). Each release carries
   the page's tarball, the `.deb` of `cockpit-samba-dc` and of `addcctl`, and
   the collection's tarball.
 - ESLint (`eslint.config.mjs`, `make lint`) runs in CI with the type check.
@@ -95,11 +99,11 @@ test VMs built from scratch by scripts.
   (`/usr/bin/addcctl`, modules in `/usr/lib/addcctl`, man page) and
   `cockpit-samba-dc` (depends on `addcctl` of the same version); `make deb`
   builds both in a Debian 13 container and runs `lintian`.
-- CI (`.github/workflows/ci.yml`): page (type check, build, `node --test`),
-  core (`unittest`), generated types up to date, both packages with
-  `lintian`, the collection's ansible-lint and `ansible-test` sanity and units
-  on ansible-core 2.19 and 2.20; the generated files up to date. Push when
-  the user asks, and check CI before a release.
+- CI (`.github/workflows/ci.yml`): the generated files up to date (page
+  types, modules' options), page (type check, ESLint, build, `node --test`),
+  core (`unittest`), both packages with `lintian`, the collection's
+  ansible-lint and `ansible-test` sanity and units on ansible-core 2.19 and
+  2.20. Push when the user asks, and check CI before a release.
 - Other repositories: `ansible-collection-win_workman` has the Windows
   client roles (`domain`: join, leave, status; v0.3.0);
   `ansible-win_edulab` takes the collection from `cockpit-samba-dc.git#/ansible/`
@@ -152,8 +156,11 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - section 10, the domain provisioning from the page, starting with its
-     spike; release v0.16.0 before it or with it, as the user chooses.
+   - section 10, the domain provisioning from the page, item by item from
+     its spike (the spike decides how the core provisions: tell the user
+     its outcome before going on);
+   - before its release, choose its version with the user and write it at
+     the end of the heading of section 10 (`make next-version` checks it).
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -607,13 +614,13 @@ locally (first item), as it already does for the drive-mapping GPO.
         the integration suite for each interface (link a GPO to a `t-` OU,
         enforce, disable, unlink, as `samba-tool gpo getlink` reads it) and
         one of the core (the protected links refused); the tab and its modal
-        tried in the browser. Not done: the "Organizational units" tab could
-        show the GPOs linked to each OU (section 0)
+        tried in the browser. The GPOs of each OU in the "Organizational
+        units" tab came later (section 0, v0.15.0)
 
 ## 8. Domain status and maintenance — v0.10.0
 
 A new "Domain" tab (`src/components/DomainPage.tsx`, `src/lib/domain.ts`),
-which will also hold the policies of section 4.
+which also holds the policies of section 4.
 
 - [x] **Overview** — core: `domain info` (`core/addcctl/domain.py`), read
       locally (sam.ldb: functional levels, FSMO owners from `fSMORoleOwner`,
@@ -647,7 +654,7 @@ which will also hold the policies of section 4.
       depends on it, `samba_dc_build` installs it, and `backup create` says
       so when it is missing
 
-## 9. With the next breaking release — v0.16.0
+## 9. With the next breaking release (done) — v0.16.0
 
 Changes that ask the users of the collection to act: kept for a release
 that has a breaking change anyway.
@@ -676,7 +683,11 @@ browser would drop the session; the static address is set in Cockpit's
       4.22 that it gives the same result as the command (`--server-role=dc
       --use-rfc2307 --dns-backend=SAMBA_INTERNAL --host-ip`). If it does not,
       fall back to `samba-tool` with a random throwaway password, then the
-      real one set through SamDB in the same process
+      real one set through SamDB in the same process. Also check what the
+      Debian packages leave on a clean host once installed (`smbd`, `nmbd`
+      running with the default `smb.conf`, `samba-ad-dc` masked or not) and
+      what addcctl does today without `sam.ldb` (it opens it only when an
+      operation needs it, `Dc.samdb` in `dc.py`)
 - [ ] **Core: `domain setup-check`**, read-only, also on a host with no
       domain (today addcctl assumes `sam.ldb`). Whether the host is a DC
       already (`sam.ldb`, `server role` in `smb.conf`), then each
@@ -710,9 +721,12 @@ browser would drop the session; the static address is set in Cockpit's
     it, the answer says what is left and what to remove by hand, with no
     automatic cleanup (rule 4).
   It runs for a minute or two: the page waits as for a backup. Not served
-  by `addcctl mcp`: once only, and destructive if misused
-- [ ] **Page.** When the setup check says no domain, the tabs give way to a
-      setup page: the prerequisites with their state and how to fix them (a
+  by `addcctl mcp`: once only, and destructive if misused; `mcp.tools()`
+  has no such exclusion today (only `--read-only`), so the operation gets a
+  flag in `OPERATIONS` that `mcp.py` honours, with a test
+- [ ] **Page.** `src/app.tsx` asks for the setup check first; when it says
+      no domain, the tabs give way to a setup page
+      (`src/components/SetupPage.tsx`, its calls in `src/lib/domain.ts`): the prerequisites with their state and how to fix them (a
       link to Cockpit's "Networking" page for the address), the form (realm,
       NetBIOS name, password and confirmation with `passwordUtils.ts`,
       forwarder) with its validators, a confirmation that names what
@@ -724,12 +738,19 @@ browser would drop the session; the static address is set in Cockpit's
       not do: network, OS upgrade, packages, nftables, chrony's
       configuration, the admin user. `samba_dc_build_force_provision` stays
       in the role, outside addcctl
-- [ ] **Tried on the test DC** from snapshot `baseline` (Debian, no Samba):
-      the packages installed, the procedure run in the browser, the
-      integration suite on the new domain; `samba_dc_build` from `baseline`
-      too (`lab.sh ansible test/vm/samba_dc_build.yaml`); the refusals
-      (DHCP address, a domain already there). Then `lab.sh reset`: the
-      client's trust is with the domain of `lab_baseline`
+- [ ] **Tried on the test DC** from snapshot `baseline` (Debian with a
+      static address, no Samba): `lab.sh deploy` there (written for a
+      provisioned DC: check it, and that apt resolves the dependencies), the
+      procedure run in the browser, then the test accounts the integration
+      suite needs (`Teachers`/`teacher1`, `Students`/`student1`,
+      `student2`, as `test/vm/provision-dc.sh` makes them) and the suite on
+      the new domain; `samba_dc_build` from `baseline` too (`lab.sh ansible
+      test/vm/samba_dc_build.yaml`). The refusals (a DHCP address, a domain
+      already there) in `core/tests` with `FakeDc`, and the second on the DC.
+      A step of the integration suite: `domain setup-check` on the test DC
+      says it is a DC, `domain provision` is refused (and absent from
+      `addcctl mcp`). Then `lab.sh reset`: the client's trust is with the
+      domain of `lab_baseline`
 - [ ] README ("Installation": from a clean Debian; "Setting up a new
       domain"), `CHANGELOG.md`; `domain provision` out of the table "Left
       out"
@@ -744,7 +765,7 @@ the note says what would make it worth doing.
 |---|---|---|---|
 | [?] | `drs showrepl`, `drs replicate`, `drs kcc` | Meaningless with one DC | Multi-DC deployments are supported |
 | [?] | `domain join`, `domain demote` | One-off, destructive, better done from a shell; a new domain is section 10 | Multi-DC deployments are supported |
-| [?] | `fsmo transfer`, `fsmo seize` | Rare and risky; only `fsmo show` is planned | Multi-DC deployments are supported |
+| [?] | `fsmo transfer`, `fsmo seize` | Rare and risky; the owners are shown in the "Domain" overview (section 8) | Multi-DC deployments are supported |
 | [?] | `domain level raise`, `domain schemaupgrade` | Irreversible | A guided upgrade procedure is wanted |
 | [?] | `domain trust` | No use case with a single domain | Trusts with other domains are needed |
 | [?] | `sites`, `sites subnet` | Single-site domain | Multi-site deployments are supported |
