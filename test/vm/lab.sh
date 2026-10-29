@@ -262,6 +262,9 @@ unset pw; sudo -n sh -c $cmd; rc=\$?; exit \$rc" ;;
             rm -rf /usr/share/cockpit/samba-ad-dc /home/*/.local/share/cockpit/samba-dc /home/*/.local/share/cockpit/samba-ad-dc
             dir=$(mktemp -d); trap "rm -rf $dir" EXIT
             tar -C "$dir" -xf -; chmod 755 "$dir"; chmod 644 "$dir"/*.deb
+            # From a snapshot, the package lists may name versions the
+            # mirror no longer has; a failed update leaves them as they were.
+            apt-get update -q >/dev/null || true
             DEBIAN_FRONTEND=noninteractive apt-get install -y -q --reinstall --allow-downgrades "$dir"/*.deb >/dev/null
             dpkg-query -W -f="installed: \${Package} \${Version}\n" cockpit-samba-dc addcctl
             sha256sum /usr/share/cockpit/samba-dc/index.js'

@@ -62,7 +62,7 @@ def tools(operations, read_only=False):
     """{tool name: (operation, MCP tool definition)}."""
     found = {}
     for key, op in sorted(operations.items()):
-        if read_only and op["mutates"]:
+        if op.get("mcp") is False or read_only and op["mutates"]:
             continue
         schema = copy.deepcopy(op["input"])
         description = op["description"]

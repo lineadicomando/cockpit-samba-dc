@@ -744,6 +744,20 @@ async function coreChecks(): Promise<void> {
             const checks = (await core("domain check")).checks as { name: string; ok: boolean; output: string }[];
             for (const c of checks) assert.ok(c.ok, `${c.name}:\n${c.output}`);
         });
+        await step("domain setup-check: a DC already; domain provision refused, and no MCP tool", async () => {
+            const status = await core("domain setup-check");
+            assert.equal(status.provisioned, true);
+            assert.equal(status.ready, false);
+            await assert.rejects(run(["addcctl", "domain", "provision"], JSON.stringify({ realm: "t-x.test",
+                netbios_domain: "TX", admin_password: password, dns_forwarder: "192.0.2.53" })),
+            /domain controller already/);
+            const rpc = [{ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } },
+                { jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }].map(m => JSON.stringify(m)).join("\n");
+            const answers = (await run(["addcctl", "mcp"], rpc + "\n")).trim().split("\n").map(l => JSON.parse(l));
+            const names = (answers[1].result.tools as { name: string }[]).map(t => t.name);
+            assert.ok(names.includes("domain_setup_check"), names.join(" "));
+            assert.ok(!names.includes("domain_provision"), "domain_provision is an MCP tool");
+        });
         await step("DNS: the domain's records refused, a deleted name used again, dbcheck clean", async () => {
             const zone = dnsZone();
             const records = (await core("dns list", { zone })).records as { name: string; type: string; protected: boolean }[];

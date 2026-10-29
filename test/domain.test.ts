@@ -3,7 +3,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
-import { getDomainInfo, runHealthChecks, resetSysvolAcls, listBackups, createBackup } from "../src/lib/domain.ts";
+import {
+    getDomainInfo, runHealthChecks, resetSysvolAcls, listBackups, createBackup, getSetupStatus, previewProvision,
+    provisionDomain,
+} from "../src/lib/domain.ts";
 
 const BACKUP = { name: "samba-backup-samba.test-2026-10-24T10-00-00.000000.tar.bz2",
     path: "/var/backups/samba-dc/samba-backup-samba.test-2026-10-24T10-00-00.000000.tar.bz2",
@@ -98,3 +101,66 @@ describe("backups", () => {
         assert.equal(sent("backup list").length, 1);
     });
 });
+
+const SETUP = { provisioned: false, ready: true,
+    checks: [{ name: "address", state: "ok", message: "Static address 192.168.1.20/24 on enp1s0" },
+        { name: "time", state: "warning", message: "The clock is not synchronized", fix: "Install chrony" }],
+    host: { name: "dc", address: "192.168.1.20", prefix_length: 24, interface: "enp1s0" },
+    defaults: { realm: "EXAMPLE.LAN", netbios_domain: "EXAMPLE", dns_forwarder: "192.168.1.1" } };
+const PROVISIONED = { changed: true, check: false, commands: ["systemctl stop smbd nmbd winbind"],
+    domain: { realm: "SCHOOL.EXAMPLE.ORG", dns_domain: "school.example.org", netbios_domain: "SCHOOL",
+        server: "dc.school.example.org", address: "192.168.1.20", dns_forwarder: "192.168.1.1" },
+    smb_conf_dist: "/etc/samba/smb.conf.dist" };
+const NEW_DOMAIN = { realm: "school.example.org", netbiosDomain: "SCHOOL", adminPassword: "Secret-Pass1",
+    dnsForwarder: "192.168.1.1" };
+
+describe("a new domain", () => {
+    it("reads the setup check", async () => {
+        setSpawnHandler(() => JSON.stringify(SETUP));
+        const status = await getSetupStatus();
+        assert.equal(status.ready, true);
+        assert.deepEqual(status.host, { name: "dc", address: "192.168.1.20", prefixLength: 24, interface: "enp1s0" });
+        assert.deepEqual(status.defaults, { realm: "EXAMPLE.LAN", netbiosDomain: "EXAMPLE",
+            dnsForwarder: "192.168.1.1" });
+        assert.equal(status.checks[1].fix, "Install chrony");
+        setSpawnHandler(() => JSON.stringify({ provisioned: true, ready: false, checks: [], host: null,
+            defaults: null }));
+        const done = await getSetupStatus();
+        assert.equal(done.provisioned, true);
+        assert.equal(done.host, null);
+    });
+
+    it("previews with --check, the password on stdin only", async () => {
+        calls.length = 0;
+        setSpawnHandler(() => JSON.stringify(dict(PROVISIONED, { check: true })));
+        assert.deepEqual(await previewProvision(NEW_DOMAIN), ["systemctl stop smbd nmbd winbind"]);
+        assert.deepEqual(calls[0].args, ["addcctl", "domain", "provision", "--check"]);
+        assert.deepEqual(JSON.parse(calls[0].input!), { realm: "school.example.org", netbios_domain: "SCHOOL",
+            admin_password: "Secret-Pass1", dns_forwarder: "192.168.1.1" });
+        assert.ok(!calls[0].args.some(a => a.includes("Secret")));
+    });
+
+    it("provisions and drops every cached answer, also on failure", async () => {
+        core();
+        await getDomainInfo();
+        calls.length = 0;
+        setSpawnHandler(call => JSON.stringify(op(call) === "domain provision" ? PROVISIONED : ANSWERS[op(call)]));
+        const done = await provisionDomain(NEW_DOMAIN);
+        assert.equal(done.server, "dc.school.example.org");
+        assert.deepEqual(calls[0].args, ["addcctl", "domain", "provision"]);
+        await getDomainInfo();
+        assert.equal(sent("domain info").length, 1);
+        setSpawnHandler(call => {
+            if (op(call) === "domain provision") throw new Error("This host is a domain controller already");
+            return JSON.stringify(ANSWERS[op(call)]);
+        });
+        // setSpawnHandler clears the calls
+        await assert.rejects(provisionDomain(NEW_DOMAIN), /domain controller already/);
+        await getDomainInfo();
+        assert.equal(sent("domain info").length, 1);
+    });
+});
+
+function dict<T extends object>(base: T, extra: Partial<T>): T {
+    return { ...base, ...extra };
+}

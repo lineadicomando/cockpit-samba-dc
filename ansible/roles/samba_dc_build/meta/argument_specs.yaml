@@ -4,14 +4,17 @@ argument_specs:
   main:
     short_description: Provision a Samba 4 AD Domain Controller on Debian Trixie
     description:
-      - Installs and provisions a Samba 4 Active Directory Domain Controller,
-        configures Kerberos, static networking, DNS, an nftables firewall,
-        chrony as authoritative NTP source and the cockpit-samba-dc web UI.
+      - Configures static networking, installs Samba and cockpit-samba-dc
+        (addcctl and the web UI), provisions a Samba 4 Active Directory
+        Domain Controller through C(addcctl domain provision), and configures
+        an nftables firewall and chrony as authoritative NTP source.
       - All host-specific options are mandatory and are normally supplied from
         host_vars. The role fails explicitly when one is missing.
     options:
       samba_dc_build_realm:
-        description: Kerberos realm in uppercase, e.g. EXAMPLE.COM.
+        description:
+          - Kerberos realm in uppercase, e.g. EXAMPLE.COM; also the DNS domain
+            of the DC, whose FQDN is its host name followed by the realm.
         type: str
         required: true
       samba_dc_build_domain:
@@ -19,7 +22,9 @@ argument_specs:
         type: str
         required: true
       samba_dc_build_fqdn:
-        description: Fully qualified domain name of the DC, inside the search domain.
+        description:
+          - Fully qualified domain name of the DC, inside the search domain;
+            the host name followed by the realm in lowercase, e.g. dc01.example.com.
         type: str
         required: true
       samba_dc_build_search_domain:
@@ -27,13 +32,18 @@ argument_specs:
         type: str
         required: true
       samba_dc_build_nameserver:
-        description: Nameserver written to /etc/resolv.conf and to the interface configuration.
+        description:
+          - Nameserver of the interface configuration (C(dns-nameservers)).
+            Once the domain is provisioned, the DC resolves through its own
+            DNS (C(nameserver 127.0.0.1) in /etc/resolv.conf).
         type: str
         required: true
       samba_dc_build_address:
         description:
-          - Static IPv4 address of the DC. Also registered in the internal DNS
-            zone at provisioning time (C(--host-ip)).
+          - Static IPv4 address of the DC, on the interface of the default
+            route. Applied (with a reboot) before the provisioning, which
+            registers it in the internal DNS zone; the role fails if the
+            address addcctl finds is a different one.
         type: str
         required: true
       samba_dc_build_netmask:
@@ -47,7 +57,7 @@ argument_specs:
       samba_dc_build_dns_forwarder:
         description:
           - Upstream resolver the internal Samba DNS forwards non-authoritative
-            queries to. Defaults to the gateway.
+            queries to (C(dns forwarder) in smb.conf). Defaults to the gateway.
         type: str
         default: "{{ samba_dc_build_gateway }}"
       samba_dc_build_ifname:
@@ -74,8 +84,10 @@ argument_specs:
         required: true
       samba_dc_build_force_provision:
         description:
-          - Force a destructive re-provisioning of an existing domain. When
-            false, provisioning is skipped as soon as a Samba database is found.
+          - Force a destructive re-provisioning of an existing domain. The
+            role stops Samba and removes its databases, sysvol and smb.conf,
+            then addcctl provisions a new one. When false, provisioning is
+            skipped as soon as a Samba database (sam.ldb) is found.
         type: bool
         default: false
       samba_dc_build_base_packages:

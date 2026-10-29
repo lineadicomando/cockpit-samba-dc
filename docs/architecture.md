@@ -83,14 +83,16 @@ project of its own, not part of Samba.
   cache, the hooks and the types, and loses the parsing of tool output.
 - **Ansible**: modules that call the core on the target and map its result
   to `changed`, `diff` and `check_mode`. Roles keep provisioning
-  (`samba_dc_build`) and backup (`samba_dc_backup`); day-two roles become
-  thin wrappers of the modules.
+  (`samba_dc_build`: the host, then the domain through the core's `domain
+  provision`, the same the page runs on a host with no domain) and backup
+  (`samba_dc_backup`); day-two roles become thin wrappers of the modules.
 - **MCP**, in two roles:
   - *day-two management* (users, groups, shares, …): `addcctl mcp`,
     an MCP server over stdio that runs on the DC and is reached through
     SSH (`ssh -T dc sudo -n addcctl mcp`, with a sudoers rule for that
     command alone). Its tools are the core's operations, generated from the
-    schemas, with check mode as preview. No playbook, no output to parse.
+    schemas, with check mode as preview, but `domain provision` (once
+    only, destructive if misused). No playbook, no output to parse.
   - *orchestration* (building a DC, backups across hosts): the MCP server
     that runs playbooks on the control node, as today, without the day-two
     tools.

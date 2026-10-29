@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName, validateComputerName, validateEmail, validateDnsName, validateDnsValue } from "../src/lib/validators.ts";
+import { validateUsername, validateGroupName, validateMemberName, validateShareName, validateExpiryDay, expiryInstantFromDay, dayFromExpiryInstant, validatePasswordPolicy, validatePso, validateOuName, validateComputerName, validateEmail, validateDnsName, validateDnsValue, validateRealm, validateNetbiosDomain, validateForwarder, adminPasswordContainsName } from "../src/lib/validators.ts";
 import type { PasswordPolicy } from "../src/lib/types.ts";
 
 describe("validateUsername", () => {
@@ -247,5 +247,40 @@ describe("DNS names and values", () => {
         assert.equal(validateDnsValue("TXT", "v=spf1 mx -all"), null);
         assert.equal(validateDnsValue("TXT", "a\tb"), "text");
         assert.equal(validateDnsValue("A", " "), "empty");
+    });
+});
+
+describe("a new domain", () => {
+    it("checks the realm as addcctl does", () => {
+        assert.equal(validateRealm("school.example.org", "dc"), null);
+        assert.equal(validateRealm("School.Example.Org.", "dc"), null);
+        assert.equal(validateRealm("", "dc"), "empty");
+        for (const bad of ["school", "-a.org", "a..org", "a.b_c.org", "a.org;x"])
+            assert.equal(validateRealm(bad, "dc"), "invalid", bad);
+        assert.equal(validateRealm("school.123", "dc"), "numeric");
+    });
+
+    it("checks the NetBIOS name", () => {
+        assert.equal(validateNetbiosDomain("school", "dc"), null);
+        assert.equal(validateNetbiosDomain("dc", "dc"), "hostName");
+        assert.equal(validateNetbiosDomain("SIXTEEN-LETTERS1", "dc"), "tooLong");
+        assert.equal(validateNetbiosDomain("SCH.OOL", "dc"), "invalidChars");
+        assert.equal(validateNetbiosDomain("-SCHOOL", "dc"), "dash");
+        assert.equal(validateNetbiosDomain("123", "dc"), "onlyDigits");
+    });
+
+    it("checks the DNS forwarder", () => {
+        assert.equal(validateForwarder("192.168.1.1", "192.168.1.20"), null);
+        assert.equal(validateForwarder("2001:db8::1", "192.168.1.20"), null);
+        assert.equal(validateForwarder("dns.example.org", null), "invalid");
+        assert.equal(validateForwarder("1.1.1.1 8.8.8.8", null), "invalid");
+        assert.equal(validateForwarder("239.1.1.1", null), "invalid");
+        assert.equal(validateForwarder("127.0.0.1", null), "local");
+        assert.equal(validateForwarder("192.168.1.20", "192.168.1.20"), "local");
+    });
+
+    it("refuses the account name in the administrator's password", () => {
+        assert.equal(adminPasswordContainsName("MyAdministrator1!"), true);
+        assert.equal(adminPasswordContainsName("Secret-Pass1"), false);
     });
 });

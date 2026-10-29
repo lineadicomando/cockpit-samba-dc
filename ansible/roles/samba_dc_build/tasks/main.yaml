@@ -9,18 +9,26 @@
 - name: Bash customizations
   ansible.builtin.import_tasks: bash.yaml
 
-# Network first: the domain provisioning registers the DC address in the
-# internal DNS zone, so the static address and the FQDN resolution must
-# already be in place when samba.yaml runs. The resolver switchover is
-# deliberately not part of this step — see resolver.yaml.
+# Network first: addcctl registers the address of the interface of the
+# default route in the internal DNS zone, and refuses a DHCP address.
 - name: Network configuration
   ansible.builtin.import_tasks: network.yaml
 
-- name: Samba provisioning
+# The static address of network.yaml (and the OS upgrade) take effect with
+# the reboot: before the provisioning, which reads the address from the host.
+- name: Apply pending reboot before provisioning
+  ansible.builtin.meta: flush_handlers
+
+- name: Samba packages
   ansible.builtin.import_tasks: samba.yaml
 
-- name: Kerberos configuration
-  ansible.builtin.import_tasks: kerberos.yaml
+# addcctl before the provisioning, which it runs, and before the accounts
+# below, which the collection's modules manage through it
+- name: Install cockpit-samba-dc (addcctl and the Cockpit page)
+  ansible.builtin.import_tasks: cockpit_samba_dc.yaml
+
+- name: Samba domain provisioning
+  ansible.builtin.import_tasks: provision.yaml
 
 - name: Firewall configuration
   ansible.builtin.import_tasks: firewall.yaml
@@ -28,17 +36,10 @@
 - name: Services activation
   ansible.builtin.import_tasks: services.yaml
 
-- name: Resolver switchover
-  ansible.builtin.import_tasks: resolver.yaml
-
-# Apply the pending reboot (OS upgrade, network, provisioning) before touching
-# the directory, so that account management runs against a settled DC.
+# Apply the pending reboot (smb.conf of an existing DC) before touching the
+# directory, so that account management runs against a settled DC.
 - name: Apply pending reboot before managing directory objects
   ansible.builtin.meta: flush_handlers
-
-# addcctl first: the collection's modules, used for the accounts below, call it
-- name: Install cockpit-samba-dc (addcctl and the Cockpit page)
-  ansible.builtin.import_tasks: cockpit_samba_dc.yaml
 
 - name: Passwords
   ansible.builtin.import_tasks: passwords.yaml

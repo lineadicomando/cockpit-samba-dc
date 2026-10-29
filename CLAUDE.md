@@ -45,7 +45,7 @@ describe one developer's own machines (test VMs, addresses, deploy targets).
 Nothing of them goes into tracked files, which must make sense to anyone who
 clones the repository.
 
-Layout: `src/app.tsx` the tabs, `src/components/` pages and
+Layout: `src/app.tsx` the tabs (or `SetupPage` on a host with no domain), `src/components/` pages and
 `src/components/modals/`, `src/lib/` everything that talks to the system
 (`exec.ts` spawn wrappers; `addcctl.ts` the call to the core; `samba.ts`
 users, groups, computers, home directories, password policy, `shares.ts`
@@ -56,7 +56,8 @@ health checks, backups), all through it, translating and caching;
 `core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
 operations and their JSON Schemas, `dc.py` everything that reads or writes
 the DC, `accounts.py` users groups computers, `ous.py` organizational units, `homes.py`, `domain.py`
-(policy, overview, health checks), `backups.py`,
+(policy, overview, health checks), `setup.py` (a new domain: setup check and
+provisioning), `backups.py`,
 `shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`, `ad.py`; `tests/`,
 `bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,

@@ -91,6 +91,18 @@ export type DomainInfoInput = Record<string, never>;
 /** domain password-policy: The domain password and lockout settings */
 export type DomainPasswordPolicyInput = Record<string, never>;
 
+/** domain provision: Provision a new domain (a new forest with this host as its only domain controller), refused when a domain exists or a prerequisite of domain setup-check fails: smbd, nmbd and winbind stopped and masked, Debian's smb.conf kept as smb.conf.dist, the domain provisioned with registry shares, /etc/hosts, /etc/krb5.conf, nsswitch.conf and chrony set up, samba-ad-dc started, the host resolving through it. Not served by addcctl mcp */
+export type DomainProvisionInput = {
+    /** Password of the domain's Administrator: at least 7 characters, three of lower-case, upper-case, digits and other characters; a secret, never returned */
+    admin_password: string;
+    /** IP address of the DNS server that answers for the names outside the domain (the router's, the provider's) */
+    dns_forwarder: string;
+    /** NetBIOS name of the domain (pre-Windows 2000), e.g. SCHOOL */
+    netbios_domain: string;
+    /** DNS name of the domain, e.g. school.example.org; also the Kerberos realm */
+    realm: string;
+};
+
 /** domain set-password-policy: Bring the domain password and lockout settings to the given values; settings left out keep their value */
 export type DomainSetPasswordPolicyInput = {
     /** Passwords must mix character classes and avoid the account name */
@@ -110,6 +122,9 @@ export type DomainSetPasswordPolicyInput = {
     /** Minimum password length, from 0 to 14 */
     min_length?: number;
 };
+
+/** domain setup-check: Whether this host is a domain controller already and, when it is not, the prerequisites of a new domain (static address, host name, free ports, time, disk), each with its state (ok, warning, error) and what to do, and the values proposed for it */
+export type DomainSetupCheckInput = Record<string, never>;
 
 /** domain sysvol-reset: Reset the ACLs of sysvol (samba-tool ntacl sysvolreset), when sysvolcheck reports a mismatch */
 export type DomainSysvolResetInput = Record<string, never>;
@@ -478,7 +493,9 @@ export interface AddcctlInputs {
     "domain check": DomainCheckInput;
     "domain info": DomainInfoInput;
     "domain password-policy": DomainPasswordPolicyInput;
+    "domain provision": DomainProvisionInput;
     "domain set-password-policy": DomainSetPasswordPolicyInput;
+    "domain setup-check": DomainSetupCheckInput;
     "domain sysvol-reset": DomainSysvolResetInput;
     "gpo get": GpoGetInput;
     "gpo link": GpoLinkInput;

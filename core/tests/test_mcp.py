@@ -50,7 +50,9 @@ class TestMcp(unittest.TestCase):
 
     def test_one_tool_per_operation(self):
         listed = {t["name"]: t for t in self.rpc("tools/list")["result"]["tools"]}
-        self.assertEqual(len(listed), len(OPERATIONS))
+        # Every operation but those marked "mcp": False (domain provision)
+        self.assertEqual(len(listed), len([op for op in OPERATIONS.values() if op.get("mcp") is not False]))
+        self.assertNotIn("domain_provision", listed)
         self.assertIn("share_rename_principal", listed)
         self.assertIn("domain_password_policy", listed)
         user_list, user_delete = listed["user_list"], listed["user_delete"]

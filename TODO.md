@@ -15,9 +15,8 @@ Legend: `[ ]` planned · `[x]` done · `[?]` left out for now, future implementa
 Order: sections A1–A6 first, so that what follows is written for the new
 layout (A6 rewrote it); then sections 8, 4, 5, 6 and 7 (done,
 v0.10.0–v0.14.0), and section 0, the follow-ups of the last review (done,
-v0.15.0), then section 9 (done, v0.16.0). Next: section 10, the domain
-provisioning from the page; its release (v0.17.0, alone or with other
-entries) is to be chosen with the user, then written in its heading.
+v0.15.0), then section 9 (done, v0.16.0), then section 10, the domain
+provisioning from the page (done, v0.17.0, alone).
 
 Versions: only the next release is planned. The heading of each section
 that goes into it ends with its version (`— v0.2.0`), which it keeps once
@@ -30,8 +29,8 @@ releases".
 
 Since A6, each item of sections 0 and 4–8 says what the core does
 (operations of `addcctl`), then what the page and the collection add. The
-MCP tool comes with the operation: `addcctl mcp` serves every one
-(`domain provision`, section 10, will be the first exception).
+MCP tool comes with the operation: `addcctl mcp` serves every one but
+`domain provision` (section 10, `"mcp": False`).
 
 Each feature item (sections 3–8, 10) also needs what `CLAUDE.md` lists under
 "Adding things" (the operation in addcctl with its schema and tests, `make
@@ -43,8 +42,9 @@ on the test DC (skill `vm-lab`) before the commit.
 
 Updated on 2026-10-29: v0.16.0 released (section 9: the `samba_tool`
 role reads through `samba_directory_info`, a breaking change of the
-collection). Section 10, the domain provisioning from the page, planned
-and not started: `[Unreleased]` in `CHANGELOG.md` is empty. A6 done (the
+collection). Section 10, the domain provisioning from the page, done and
+tried on the test DC, not released: it is v0.17.0, alone (`[Unreleased]`
+in `CHANGELOG.md`). A6 done (the
 repository keeps its name), the old collection repository archived; the
 test VMs built from scratch by scripts.
 
@@ -53,7 +53,7 @@ test VMs built from scratch by scripts.
     `addcctl schema`, `--check`, a lock for changes): users, groups,
     computers, home directories, shared folders, drive mapping, password
     policy and fine-grained policies (PSOs), organizational units, the
-    domain overview, health checks and backups, DNS records, GPO links; 49 operations
+    domain overview, health checks and backups, DNS records, GPO links; 51 operations
     (`core/addcctl/operations.py`). `addcctl mcp` (`mcp.py`) serves them
     as MCP tools on stdio, reached through SSH and a sudoers rule (README,
     "MCP server on the DC"); `--read-only`.
@@ -156,11 +156,8 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - section 10, the domain provisioning from the page, item by item from
-     its spike (the spike decides how the core provisions: tell the user
-     its outcome before going on);
-   - before its release, choose its version with the user and write it at
-     the end of the heading of section 10 (`make next-version` checks it).
+   - release v0.17.0 (section 10) when the user asks;
+   - then plan the next release with the user.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -664,7 +661,7 @@ that has a breaking change anyway.
       `samba_directory_info` (`tasks/_info.yaml`): `samba_tool_result.objects`
       replaces the raw text, `samba_tool_bin` is gone
 
-## 10. Domain provisioning from the page
+## 10. Domain provisioning from the page — v0.17.0
 
 The package depends on `samba-ad-dc`, so `apt install cockpit-samba-dc` on
 a clean Debian brings Samba with no domain, and the page has nothing to
@@ -676,84 +673,82 @@ verified, not changed (decided on 2026-10-29): changing the address from the
 browser would drop the session; the static address is set in Cockpit's
 "Networking" page, or by hand.
 
-- [ ] **Spike: the provisioning in the process.** `samba.provision`
-      (`provision()`, what `samba-tool domain provision` runs) called from
-      addcctl, with the administrator's password from stdin: `samba-tool`
-      takes it only in argv (`--adminpass`), against rule 2. Check on Samba
-      4.22 that it gives the same result as the command (`--server-role=dc
-      --use-rfc2307 --dns-backend=SAMBA_INTERNAL --host-ip`). If it does not,
-      fall back to `samba-tool` with a random throwaway password, then the
-      real one set through SamDB in the same process. Also check what the
-      Debian packages leave on a clean host once installed (`smbd`, `nmbd`
-      running with the default `smb.conf`, `samba-ad-dc` masked or not) and
-      what addcctl does today without `sam.ldb` (it opens it only when an
-      operation needs it, `Dc.samdb` in `dc.py`)
-- [ ] **Core: `domain setup-check`**, read-only, also on a host with no
-      domain (today addcctl assumes `sam.ldb`). Whether the host is a DC
-      already (`sam.ldb`, `server role` in `smb.conf`), then each
-      prerequisite with its state and what to do:
-  - a static address on the interface of the default route (ifupdown
-    `inet static`, NetworkManager `method=manual`, systemd-networkd with no
-    DHCP), which becomes the `--host-ip`;
-  - a host name that is not `localhost` and fits the realm (the FQDN is
-    `<host>.<realm>`), at most 15 characters for NetBIOS;
-  - nothing else on ports 53, 88, 389, 445 (`smbd`, `nmbd`, `dnsmasq`,
-    `bind9`, `systemd-resolved`'s stub);
-  - time sync (chrony), free space under `/var/lib/samba`;
-  - the defaults it would propose: realm and NetBIOS name from the host's
-    domain, DNS forwarder from the current resolver
-- [ ] **Core: `domain provision`**, a change under the lock, refused when a
-      domain exists or a prerequisite fails. Input: realm, NetBIOS name,
-      administrator's password (`writeOnly`, checked against the default
-      complexity before starting), DNS forwarder (required: without it the
-      DC resolves no outside name, and apt breaks). Steps, each recorded in
-      `commands`:
-  - stop and mask `smbd`, `nmbd`, `winbind`; `smb.conf` kept as
-    `smb.conf.dist`;
-  - the provisioning (spike), then in `smb.conf` `registry shares = yes`
-    (the shared folders need it) and `dns forwarder`;
-  - host name and `/etc/hosts` (the FQDN on the static address, no
-    `127.0.1.1`), `/etc/krb5.conf` linked to Samba's, winbind in
-    `nsswitch.conf` (`passwd`, `group`), chrony's `ntp_signd`;
-  - `samba-ad-dc` unmasked, enabled, started; once its DNS answers,
-    `resolv.conf` on the DC itself and `systemd-resolved` stopped;
-  - a failure before `sam.ldb` is written leaves the host as it was; after
-    it, the answer says what is left and what to remove by hand, with no
-    automatic cleanup (rule 4).
-  It runs for a minute or two: the page waits as for a backup. Not served
-  by `addcctl mcp`: once only, and destructive if misused; `mcp.tools()`
-  has no such exclusion today (only `--read-only`), so the operation gets a
-  flag in `OPERATIONS` that `mcp.py` honours, with a test
-- [ ] **Page.** `src/app.tsx` asks for the setup check first; when it says
-      no domain, the tabs give way to a setup page
-      (`src/components/SetupPage.tsx`, its calls in `src/lib/domain.ts`): the prerequisites with their state and how to fix them (a
-      link to Cockpit's "Networking" page for the address), the form (realm,
-      NetBIOS name, password and confirmation with `passwordUtils.ts`,
-      forwarder) with its validators, a confirmation that names what
-      changes on the host, the wait, then the normal tabs. The firewall is
-      not touched: the README lists the ports a DC needs
-- [ ] **Ansible.** `samba_dc_build` provisions through `domain provision`
-      instead of the shell task with `--adminpass` (rule 1 and 2); `addcctl`
-      is installed before it, not after. The role keeps what the page does
-      not do: network, OS upgrade, packages, nftables, chrony's
-      configuration, the admin user. `samba_dc_build_force_provision` stays
-      in the role, outside addcctl
-- [ ] **Tried on the test DC** from snapshot `baseline` (Debian with a
-      static address, no Samba): `lab.sh deploy` there (written for a
-      provisioned DC: check it, and that apt resolves the dependencies), the
-      procedure run in the browser, then the test accounts the integration
-      suite needs (`Teachers`/`teacher1`, `Students`/`student1`,
-      `student2`, as `test/vm/provision-dc.sh` makes them) and the suite on
-      the new domain; `samba_dc_build` from `baseline` too (`lab.sh ansible
-      test/vm/samba_dc_build.yaml`). The refusals (a DHCP address, a domain
-      already there) in `core/tests` with `FakeDc`, and the second on the DC.
-      A step of the integration suite: `domain setup-check` on the test DC
-      says it is a DC, `domain provision` is refused (and absent from
-      `addcctl mcp`). Then `lab.sh reset`: the client's trust is with the
-      domain of `lab_baseline`
-- [ ] README ("Installation": from a clean Debian; "Setting up a new
-      domain"), `CHANGELOG.md`; `domain provision` out of the table "Left
-      out"
+- [x] **Spike: the provisioning in the process** (2026-10-29, Samba
+      4.22, from snapshot `baseline` with the packages installed).
+      `samba.provision.provision()` called from Python with the arguments
+      `samba-tool domain provision` passes (`serverrole="dc"`,
+      `use_rfc2307=True`, `dns_backend="SAMBA_INTERNAL"`, `hostip`,
+      `dns_forwarder`, `base_schema="2019"`, `adprep_level` 2016, level
+      2008 R2, `useeadb=False`, `lp` with `registry shares = yes`) gives the
+      same domain as the command: directory (every object and attribute,
+      SIDs and GUIDs aside), `smb.conf`, sysvol ACLs and files; only the
+      KDS root key differs (random). It takes about 5 s. The password read
+      from stdin works for `Administrator` through NTLM and Kerberos, and
+      is in no log. No fallback needed. Found on the way:
+  - the packages leave `smbd`, `nmbd`, `winbind` enabled and running with
+    Debian's `smb.conf` (`server role = standalone server`), which makes
+    `provision()` fail (`guess_names`): moving it aside is required.
+    `samba-ad-dc` is enabled, not masked, and not running
+    (`ExecCondition=/usr/share/samba/is-configured`). The `.tdb` files of
+    the standalone server do not hinder the provisioning: left alone;
+  - `samba-tool domain provision` has no `--dns-forwarder`: without
+    `--interactive` it takes the first `nameserver` of `resolv.conf`
+    (`--option` does not override it); `provision()` takes it as an
+    argument;
+  - `libnss-winbind` already adds winbind to `nsswitch.conf`; no chrony
+    (Debian uses `systemd-timesyncd`), so the DC serves no time to its
+    clients: the setup check reports it, the procedure does not install it;
+  - `cockpit-samba-dc` brings `cockpit-bridge` only, not the web service:
+    the README's installation is `apt install cockpit cockpit-samba-dc`;
+  - addcctl without `sam.ldb`: an operation that reads the directory ends
+    in a Python traceback (`LdbError` from `Dc.samdb`), not a JSON error;
+  - `lab.sh deploy` from a snapshot needed `apt-get update` (stale package
+    lists): added
+- [x] **Core: `domain setup-check`** (`core/addcctl/setup.py`),
+      read-only, also with no `sam.ldb` (an operation that needs it now
+      says "No domain on this host"): a DC already, or each prerequisite
+      with its state (ok, warning, error) and its fix: `smb.conf` (none, or
+      Debian's standalone one with no shares of its own; no leftovers of a
+      provisioning), a static address on the interface of the default route
+      (read from `ip -j`: an address from DHCP is `dynamic`, with a finite
+      lifetime, whatever manages it), the host name, the ports of a DC
+      (`ss`; `smbd`, `nmbd`, `systemd-resolved` are stopped by the
+      provisioning), time and chrony (warnings), free space; the defaults
+      (realm and NetBIOS name from the FQDN, the forwarder from
+      `resolv.conf`)
+- [x] **Core: `domain provision`**, under the lock, refused on a domain or
+      a failed prerequisite, values checked as the page does (realm,
+      NetBIOS name, forwarder, password with `samba.check_password_quality`).
+      The steps of the plan, each in `commands` (so `--check` is the page's
+      confirmation); Samba's messages in
+      `/var/log/samba/addcctl-provision.log`, not on stdout or stderr. A
+      failure before `sam.ldb` puts back `smb.conf` and the services; after
+      it, the error names what is left. About 10 s on the test DC. `"mcp":
+      False` in `OPERATIONS` keeps it out of `addcctl mcp`
+- [x] **Page.** `src/app.tsx` asks `getSetupStatus()` first; with no
+      domain, `SetupPage.tsx` (prerequisites, "Check again", a link to the
+      Networking page, the form with `validators.ts`) and
+      `modals/ProvisionModal.tsx` (the commands of `--check`, the wait);
+      `provisionDomain()` drops every cached answer. The prerequisites'
+      messages are addcctl's, in English, under translated titles
+- [x] **Ansible.** `samba_dc_build`: the reboot of the network applied
+      first, then the packages, addcctl, `tasks/provision.yaml` (setup check,
+      `addcctl domain provision` with the JSON on stdin, `no_log`);
+      `kerberos.yaml` and `resolver.yaml` gone (addcctl does them). The
+      forced re-provisioning clears the databases, the old sysvol and
+      `smb.conf` before addcctl runs. An existing DC keeps `registry
+      shares` and the forwarder, compared as `testparm` reads them
+- [x] **Tried on the test DC** (inspiron27, 2026-10-29) from `baseline`:
+      `deploy`, the setup page in the browser (Debian with no Cockpit
+      web server: `cockpit-ws` installed by hand), the tabs on the new
+      domain; `addcctl domain provision` from the shell, with chrony;
+      `samba_dc_build` from `baseline` (4 min, a second run changes
+      nothing), then the test accounts and the integration suite, all
+      passing (its new step: `setup-check` says a DC, `provision` refused,
+      no MCP tool). Not tried: a failure halfway on a real host
+- [x] README ("Requirements", "Installation" from a clean Debian, "Setting
+      up a new domain" with the ports, "MCP server on the DC"),
+      `CHANGELOG.md`
 
 ## Left out — future implementation to be decided
 

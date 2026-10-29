@@ -1805,3 +1805,139 @@ msgstr "Samba non serve queste condivisioni"
 
 msgid "smb.conf lacks \"registry shares = yes\" in its [global] section, so no shared folder or home directory can be reached, and none can be created. Add it and restart samba-ad-dc."
 msgstr "In smb.conf manca \"registry shares = yes\" nella sezione [global]: nessuna cartella condivisa o home è raggiungibile e non se ne possono creare. Aggiungilo e riavvia samba-ad-dc."
+
+# ---------------------------------------------------------------------------
+# Nuovo dominio (pagina di configurazione)
+# ---------------------------------------------------------------------------
+
+msgid "Cannot check this host"
+msgstr "Impossibile controllare questo host"
+
+msgid "Checking this host"
+msgstr "Controllo di questo host"
+
+msgid "Set up a new domain"
+msgstr "Configura un nuovo dominio"
+
+msgid "Samba is installed, but this host is not a domain controller yet. Check the prerequisites, then create a new domain with this host as its domain controller."
+msgstr "Samba è installato, ma questo host non è ancora un domain controller. Controlla i prerequisiti, poi crea un nuovo dominio con questo host come domain controller."
+
+msgid "Prerequisites"
+msgstr "Prerequisiti"
+
+msgid "Samba configuration"
+msgstr "Configurazione di Samba"
+
+msgid "Static address"
+msgstr "Indirizzo statico"
+
+msgid "Host name"
+msgstr "Nome host"
+
+msgid "Network ports"
+msgstr "Porte di rete"
+
+msgid "Time synchronization"
+msgstr "Sincronizzazione dell'ora"
+
+msgid "Disk space"
+msgstr "Spazio su disco"
+
+msgid "Check again"
+msgstr "Controlla di nuovo"
+
+msgid "Open the Networking page"
+msgstr "Apri la pagina Rete"
+
+msgid "New domain"
+msgstr "Nuovo dominio"
+
+msgid "Fix the prerequisites marked as errors, then check again."
+msgstr "Correggi i prerequisiti segnati come errori, poi controlla di nuovo."
+
+msgid "Domain name"
+msgstr "Nome del dominio"
+
+msgid "The DNS name of the domain, also its Kerberos realm. This host becomes {{fqdn}}."
+msgstr "Il nome DNS del dominio, che è anche il suo realm Kerberos. Questo host diventa {{fqdn}}."
+
+msgid "NetBIOS name of the domain"
+msgstr "Nome NetBIOS del dominio"
+
+msgid "Administrator password"
+msgstr "Password dell'amministratore"
+
+msgid "DNS forwarder"
+msgstr "Server DNS di inoltro"
+
+msgid "The DNS server that answers for the names outside the domain, such as the router's."
+msgstr "Il server DNS che risponde per i nomi fuori dal dominio, per esempio quello del router."
+
+msgid "The firewall is not changed: open the ports a domain controller needs (see the README)."
+msgstr "Il firewall non viene modificato: apri le porte che servono a un domain controller (vedi il README)."
+
+msgid "Create the domain"
+msgstr "Crea il dominio"
+
+msgid "Create the domain {{realm}}"
+msgstr "Crea il dominio {{realm}}"
+
+msgid "This host becomes the domain controller of a new domain, {{netbios}}. Samba's file server is replaced by the domain controller, and these changes are made on the host:"
+msgstr "Questo host diventa il domain controller di un nuovo dominio, {{netbios}}. Il file server di Samba viene sostituito dal domain controller, e sull'host vengono fatte queste modifiche:"
+
+msgid "Keep the administrator password: it is the only account that can manage the new domain."
+msgstr "Conserva la password dell'amministratore: è l'unico account che può gestire il nuovo dominio."
+
+msgid "Creating the domain"
+msgstr "Creazione del dominio"
+
+msgid "Creating the domain: this takes less than a minute."
+msgstr "Creazione del dominio in corso: richiede meno di un minuto."
+
+msgid "The password must be at least 7 characters."
+msgstr "La password deve avere almeno 7 caratteri."
+
+msgid "The password must mix three of: lower-case letters, upper-case letters, digits, other characters."
+msgstr "La password deve combinare tre tra: lettere minuscole, lettere maiuscole, cifre, altri caratteri."
+
+msgid "The password must not contain the account name."
+msgstr "La password non deve contenere il nome dell'account."
+
+msgid "Domain name is required."
+msgstr "Il nome del dominio è obbligatorio."
+
+msgid "Give a DNS name of two or more parts, such as school.example.org: letters, digits and hyphens."
+msgstr "Indica un nome DNS di due o più parti, per esempio scuola.esempio.it: lettere, cifre e trattini."
+
+msgid "The domain name cannot end with a number."
+msgstr "Il nome del dominio non può finire con un numero."
+
+msgid "The domain name cannot be the host name."
+msgstr "Il nome del dominio non può essere il nome dell'host."
+
+msgid "NetBIOS name is required."
+msgstr "Il nome NetBIOS è obbligatorio."
+
+msgid "NetBIOS name cannot exceed 15 characters."
+msgstr "Il nome NetBIOS non può superare i 15 caratteri."
+
+msgid "NetBIOS name can contain only letters, digits and hyphens."
+msgstr "Il nome NetBIOS può contenere solo lettere, cifre e trattini."
+
+msgid "NetBIOS name cannot start or end with a hyphen."
+msgstr "Il nome NetBIOS non può iniziare o finire con un trattino."
+
+msgid "NetBIOS name cannot be made of digits only."
+msgstr "Il nome NetBIOS non può essere composto solo da cifre."
+
+msgid "NetBIOS name cannot be the host name."
+msgstr "Il nome NetBIOS non può essere il nome dell'host."
+
+msgid "DNS forwarder is required."
+msgstr "Il server DNS di inoltro è obbligatorio."
+
+msgid "Give the IP address of a DNS server, such as 192.168.1.1."
+msgstr "Indica l'indirizzo IP di un server DNS, per esempio 192.168.1.1."
+
+msgid "Give another DNS server (the router's, the provider's), not this host."
+msgstr "Indica un altro server DNS (quello del router o del provider), non questo host."

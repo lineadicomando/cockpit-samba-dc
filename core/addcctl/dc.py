@@ -7,6 +7,7 @@ network query or domain credentials. The samba Python bindings are imported
 on first use, so the pure parts of addcctl load without them (tests).
 """
 import grp
+import os
 import pwd
 
 from .errors import AddcError
@@ -118,6 +119,9 @@ class Dc:
     @property
     def samdb(self):
         if self._samdb is None:
+            if not os.path.exists(SAM_LDB):
+                raise AddcError("No domain on this host (%s is missing): provision one first "
+                                "(addcctl domain provision)" % SAM_LDB)
             from samba.auth import system_session
             from samba.samdb import SamDB
             self._samdb = SamDB(url=SAM_LDB, session_info=system_session(), lp=self.lp)

@@ -1,0 +1,226 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+---
+# The domain is provisioned by addcctl domain provision, what the page runs:
+# the administrator's password goes on its stdin, never into an argv, and
+# addcctl does the rest of a new DC (smbd, nmbd and winbind masked, smb.conf
+# with registry shares and the forwarder, /etc/hosts, /etc/krb5.conf,
+# nsswitch.conf, chrony's ntp_signd, samba-ad-dc started, /etc/resolv.conf on
+# the DC itself). addcctl never provisions over a domain: the forced
+# re-provisioning below is the role's, and clears the old one first.
+- name: Check whether the Samba directory database already exists
+  ansible.builtin.stat:
+    path: /var/lib/samba/private/sam.ldb
+  register: samba_dc_build_sam_ldb
+
+- name: Set operating variables
+  ansible.builtin.set_fact:
+    samba_dc_build_setup: "{{ samba_dc_build_force_provision | bool or not samba_dc_build_sam_ldb.stat.exists }}"
+
+- name: Warn when an existing domain is about to be re-provisioned
+  ansible.builtin.debug:
+    msg: >-
+      samba_dc_build_force_provision is true and a Samba database is present:
+      the existing domain on {{ inventory_hostname }} will be destroyed and
+      re-provisioned.
+  when:
+    - samba_dc_build_force_provision | bool
+    - samba_dc_build_sam_ldb.stat.exists
+
+# What addcctl refuses to provision over: the running DC, the databases of
+# any server (*.tdb, *.ldb), the old sysvol and an smb.conf of a DC.
+- name: Clear the existing domain before a forced re-provisioning
+  when: samba_dc_build_force_provision | bool
+  block:
+    - name: Stop the Samba services
+      ansible.builtin.systemd:
+        name: "{{ samba_dc_build_svc_item }}"
+        state: stopped
+      loop:
+        - samba-ad-dc
+        - winbind
+        - nmbd
+        - smbd
+      loop_control:
+        loop_var: samba_dc_build_svc_item
+
+    - name: Read the directories of the Samba databases
+      ansible.builtin.command:
+        argv: [smbd, -b]
+      register: samba_dc_build_smbd_paths
+      changed_when: false
+      check_mode: false
+
+    - name: Find the Samba databases
+      ansible.builtin.find:
+        paths: >-
+          {{ samba_dc_build_smbd_paths.stdout
+             | regex_findall('(?m)^\s*(?:LOCKDIR|STATEDIR|CACHEDIR|PRIVATE_DIR):\s*(\S+)') }}
+        patterns: ["*.tdb", "*.ldb"]
+        file_type: file
+      register: samba_dc_build_databases
+
+    - name: Find the contents of the old sysvol
+      ansible.builtin.find:
+        paths: /var/lib/samba/sysvol
+        file_type: any
+        hidden: true
+      register: samba_dc_build_sysvol
+
+    - name: Remove the Samba databases and the old sysvol
+      ansible.builtin.file:
+        path: "{{ samba_dc_build_path_item }}"
+        state: absent
+      loop: >-
+        {{ (samba_dc_build_databases.files + samba_dc_build_sysvol.files) | map(attribute='path') | list
+           + ['/var/lib/samba/private/sam.ldb.d'] }}
+      loop_control:
+        loop_var: samba_dc_build_path_item
+
+    - name: Check whether smb.conf exists
+      ansible.builtin.stat:
+        path: /etc/samba/smb.conf
+      register: samba_dc_build_smb_conf
+
+    - name: Copy smb.conf to smb.conf.dist if it doesn't already exist
+      ansible.builtin.copy:
+        src: /etc/samba/smb.conf
+        dest: /etc/samba/smb.conf.dist
+        remote_src: true
+        force: false
+        mode: "0644"
+      when: samba_dc_build_smb_conf.stat.exists
+
+    - name: Delete the samba configuration file
+      ansible.builtin.file:
+        path: /etc/samba/smb.conf
+        state: absent
+
+# The cleanup keeps the account state markers, so they would skip the
+# recreation of the administrator account against the brand-new domain.
+- name: Remove account state markers before provisioning
+  ansible.builtin.file:
+    path: "/var/lib/samba/{{ samba_dc_build_marker_item }}"
+    state: absent
+  loop:
+    - .administrator_password_set
+    - .admin_user_created
+  loop_control:
+    loop_var: samba_dc_build_marker_item
+  when: samba_dc_build_setup | bool
+
+# In check mode addcctl may not be installed yet (a new host)
+- name: Check whether addcctl is installed
+  ansible.builtin.stat:
+    path: /usr/bin/addcctl
+  register: samba_dc_build_addcctl
+  when: samba_dc_build_setup | bool
+
+- name: Check the prerequisites of a new domain
+  ansible.builtin.command:
+    argv: [addcctl, domain, setup-check]
+    stdin: "{}"
+  register: samba_dc_build_setup_check_run
+  changed_when: false
+  check_mode: false
+  when:
+    - samba_dc_build_setup | bool
+    - samba_dc_build_addcctl.stat.exists or not ansible_check_mode
+
+- name: Read the answer of the setup check
+  ansible.builtin.set_fact:
+    samba_dc_build_setup_check: "{{ samba_dc_build_setup_check_run.stdout | from_json }}"
+  when: samba_dc_build_setup_check_run is not skipped
+
+# addcctl registers the address of the interface of the default route, and
+# needs it static: network.yaml's address must be applied by now (the reboot
+# is flushed before this file).
+- name: Make sure the host is ready for a new domain
+  ansible.builtin.assert:
+    that:
+      - samba_dc_build_setup_check.ready
+      - samba_dc_build_setup_check.host.address == samba_dc_build_address
+    fail_msg: >-
+      {% if samba_dc_build_setup_check.ready %}The address of the interface of
+      the default route ({{ samba_dc_build_setup_check.host.interface }}) is
+      {{ samba_dc_build_setup_check.host.address }}, not samba_dc_build_address
+      ({{ samba_dc_build_address }}).{% else %}The host is not ready for a new
+      domain: {% for c in samba_dc_build_setup_check.checks | selectattr('state', 'equalto', 'error') %}{{
+      c.message }}{{ ' (' ~ c.fix ~ ')' if c.fix is defined else '' }}{{ '; ' if not loop.last else '' }}{% endfor %}{% endif %}
+    quiet: true
+  when:
+    - samba_dc_build_setup_check is defined
+    - not ansible_check_mode
+
+# no_log hides the password on stdin, and with it any error: failed_when is
+# false here, and the task below shows addcctl's error, which never holds it.
+- name: Samba domain provisioning (addcctl domain provision)
+  ansible.builtin.command:
+    argv: "{{ ['addcctl', 'domain', 'provision'] + (['--check'] if ansible_check_mode else []) }}"
+    stdin: >-
+      {{ {'realm': samba_dc_build_realm, 'netbios_domain': samba_dc_build_domain,
+          'admin_password': samba_dc_build_administrator_passwd,
+          'dns_forwarder': samba_dc_build_dns_forwarder} | to_json }}
+  register: samba_dc_build_provision
+  changed_when: >-
+    samba_dc_build_provision.rc == 0
+    and (samba_dc_build_provision.stdout | from_json).changed | default(false)
+  failed_when: false
+  check_mode: false
+  no_log: true
+  when:
+    - samba_dc_build_setup | bool
+    - samba_dc_build_setup_check is defined
+    - not ansible_check_mode or samba_dc_build_setup_check.ready
+
+- name: Fail with addcctl's error
+  ansible.builtin.fail:
+    msg: >-
+      addcctl domain provision failed:
+      {{ samba_dc_build_provision.stderr | default('', true) | trim
+         or 'exit code ' ~ samba_dc_build_provision.rc }}
+  when:
+    - samba_dc_build_provision is not skipped
+    - samba_dc_build_provision.rc != 0
+
+- name: Show the new domain
+  ansible.builtin.debug:
+    msg: "{{ (samba_dc_build_provision.stdout | from_json).domain }}"
+  when: samba_dc_build_provision is not skipped
+
+# An existing DC: keep in smb.conf what a new domain gets from addcctl.
+# After provisioning the DC resolves through itself, and SAMBA_INTERNAL is
+# authoritative only for the AD zone: without a forwarder every external name
+# returns SERVFAIL, which breaks apt, git and the domain members that use the
+# DC as their resolver. The shared folders need registry shares. Compared as
+# Samba reads them (testparm): Samba writes "Yes" where the role wrote "yes".
+- name: Read registry shares and the DNS forwarder in smb.conf
+  ansible.builtin.command:
+    argv: [testparm, -s, --parameter-name, "{{ samba_dc_build_smb_item }}"]
+  loop:
+    - registry shares
+    - dns forwarder
+  loop_control:
+    loop_var: samba_dc_build_smb_item
+  register: samba_dc_build_smb_values
+  changed_when: false
+  check_mode: false
+  when: not samba_dc_build_setup | bool
+
+- name: Set registry shares and the DNS forwarder in smb.conf
+  ansible.builtin.lineinfile:
+    path: /etc/samba/smb.conf
+    insertafter: '^\[global\]'
+    regexp: '^\s*{{ samba_dc_build_smb_result.samba_dc_build_smb_item }}\s*='
+    line: "\t{{ samba_dc_build_smb_result.samba_dc_build_smb_item }} = {{ samba_dc_build_smb_wanted[samba_dc_build_smb_result.samba_dc_build_smb_item] }}"
+  vars:
+    samba_dc_build_smb_wanted:
+      registry shares: "yes"
+      dns forwarder: "{{ samba_dc_build_dns_forwarder }}"
+  loop: "{{ samba_dc_build_smb_values.results | default([]) }}"
+  loop_control:
+    loop_var: samba_dc_build_smb_result
+    label: "{{ samba_dc_build_smb_result.samba_dc_build_smb_item }}"
+  when:
+    - not samba_dc_build_setup | bool
+    - samba_dc_build_smb_result.stdout | trim | lower != samba_dc_build_smb_wanted[samba_dc_build_smb_result.samba_dc_build_smb_item] | lower
+  notify: samba_dc reboot

@@ -14,6 +14,7 @@ from .gpos import Gpos
 from .homes import Homes
 from .ous import Ous
 from .psos import Psos
+from .setup import Setup
 from .shares import Shares
 
 _NAME = {"type": "string", "minLength": 1, "maxLength": 256}
@@ -506,6 +507,37 @@ OPERATIONS = {
         "description": "Reset the ACLs of sysvol (samba-tool ntacl sysvolreset), when sysvolcheck reports a mismatch",
         "mutates": True, "input": _NONE,
         "run": lambda ctx, req: Domain(ctx.dc, ctx.runner).sysvol_reset(),
+    },
+    ("domain", "setup-check"): {
+        "description": ("Whether this host is a domain controller already and, when it is not, the prerequisites "
+                        "of a new domain (static address, host name, free ports, time, disk), each with its "
+                        "state (ok, warning, error) and what to do, and the values proposed for it"),
+        "mutates": False, "input": _NONE,
+        "run": lambda ctx, req: Setup(ctx.runner).check(),
+    },
+    ("domain", "provision"): {
+        "description": ("Provision a new domain (a new forest with this host as its only domain controller), "
+                        "refused when a domain exists or a prerequisite of domain setup-check fails: smbd, nmbd "
+                        "and winbind stopped and masked, Debian's smb.conf kept as smb.conf.dist, the domain "
+                        "provisioned with registry shares, /etc/hosts, /etc/krb5.conf, nsswitch.conf and chrony "
+                        "set up, samba-ad-dc started, the host resolving through it. Not served by addcctl mcp"),
+        "mutates": True,
+        # Once only, and destructive if misused: not an MCP tool
+        "mcp": False,
+        "input": {"type": "object", "properties": {
+            "realm": {"type": "string", "minLength": 1, "maxLength": 253,
+                      "description": "DNS name of the domain, e.g. school.example.org; also the Kerberos realm"},
+            "netbios_domain": {"type": "string", "minLength": 1, "maxLength": 15,
+                               "description": "NetBIOS name of the domain (pre-Windows 2000), e.g. SCHOOL"},
+            "admin_password": dict(_PASSWORD, description=("Password of the domain's Administrator: at least 7 "
+                                                           "characters, three of lower-case, upper-case, digits "
+                                                           "and other characters; a secret, never returned")),
+            "dns_forwarder": {"type": "string", "minLength": 1, "maxLength": 64,
+                              "description": ("IP address of the DNS server that answers for the names outside "
+                                              "the domain (the router's, the provider's)")},
+        }, "required": ["realm", "netbios_domain", "admin_password", "dns_forwarder"],
+            "additionalProperties": False},
+        "run": lambda ctx, req: Setup(ctx.runner).provision(req),
     },
     # -- backups
     ("backup", "list"): {

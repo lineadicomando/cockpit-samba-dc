@@ -16,10 +16,10 @@ samba_dc_build_ifname: enp1s0
 samba_dc_build_ntp_server: ~
 samba_dc_build_ntp_allow_network: ~
 
-# Upstream resolver the internal Samba DNS forwards to.
-# Once /etc/resolv.conf points at the DC itself, SAMBA_INTERNAL answers only for
-# the AD zone and returns SERVFAIL for everything else unless a forwarder is
-# set. The gateway is the sensible default on a lab network; override it with
+# Upstream resolver the internal Samba DNS forwards to (the dns_forwarder of
+# addcctl domain provision). Once /etc/resolv.conf points at the DC itself,
+# SAMBA_INTERNAL answers only for the AD zone and returns SERVFAIL for
+# everything else unless a forwarder is set. The gateway is the sensible default on a lab network; override it with
 # the site resolver where the gateway does not serve DNS.
 samba_dc_build_dns_forwarder: "{{ samba_dc_build_gateway }}"
 
@@ -32,9 +32,10 @@ samba_dc_build_administrator_username: admin
 samba_dc_build_administrator_passwd: ~
 
 # Re-provisioning guard.
-# The domain is only (re-)provisioned when smb.conf does not declare a DC AND
-# no sam.ldb is present. Set this to true to force a destructive
-# re-provisioning of an existing DC — it wipes the Samba databases.
+# The domain is only provisioned when no sam.ldb is present, and addcctl
+# domain provision never provisions over a domain. Set this to true to force a
+# destructive re-provisioning of an existing DC: the role stops Samba and
+# wipes its databases, sysvol and smb.conf before addcctl runs.
 samba_dc_build_force_provision: false
 
 # Packages installed on the DC.

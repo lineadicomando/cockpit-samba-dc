@@ -108,6 +108,22 @@ Run health checks and report their exit code and output: "samba\-tool dbcheck
 .B domain sysvol\-reset
 Reset the ACLs of sysvol ("samba\-tool ntacl sysvolreset").
 .TP
+.B domain setup\-check
+Whether this host is a domain controller already and, when it is not, the
+prerequisites of a new domain (smb.conf, a static address, the host name,
+free ports, time, disk space), each with its state (ok, warning, error) and
+its fix, and the values proposed for it.
+.TP
+.B domain provision
+Provision a new domain with this host as its only domain controller: realm,
+netbios_domain, admin_password, dns_forwarder. Refused when a domain exists or
+a prerequisite fails. Stops and masks smbd, nmbd and winbind, keeps Debian's
+smb.conf as smb.conf.dist, runs Samba's provisioning in the process (the
+password never in an argv; its messages in
+/var/log/samba/addcctl\-provision.log), sets up /etc/hosts, /etc/krb5.conf,
+nsswitch.conf and chrony, starts samba\-ad\-dc and points /etc/resolv.conf at
+it. Not served by "addcctl mcp".
+.TP
 .B backup list\fR, \fBbackup create
 The offline backups of the domain in /var/backups/samba\-dc; make one
 ("samba\-tool domain backup offline"). The directory and the archives are

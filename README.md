@@ -13,6 +13,7 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 
 ## Features
 
+- **New domain** — on a host with Samba and no domain (a clean Debian after `apt install`), a setup page checks the prerequisites (static address, host name, free ports, time synchronization, disk space) and provisions a new domain with this host as its domain controller, after a confirmation that lists what changes on the host ("Setting up a new domain")
 - **Users** — list, create (with e-mail, description, job title, department, company, and a password to change at the next logon), edit the same details and the account name, reset password, enable/disable, unlock accounts locked out after failed logons, account expiry date, delete, group membership and primary group, home directory (H:) provisioning; bulk enable, disable, unlock, set expiry, delete, add to or remove from a group, change primary group, provision home directories
 - **Groups** — list, create (with description, e-mail, scope and type: security or distribution), edit name, description and e-mail, move to an OU (one or several), delete, member management (add/remove)
 - **Shared folders** — create, edit and delete folders shared with domain users and groups (read-only or read-write), optionally mapped as a network drive at logon on Windows clients; each user's access is shown on the user page, and the entries left by deleted accounts are marked
@@ -42,7 +43,9 @@ provisions the DC and manages it from playbooks (in [`ansible/`](ansible/README.
 
 ## Requirements
 
-On the server, a Samba Active Directory domain controller with:
+On the server, Debian 13 with a static address: a Samba Active Directory
+domain controller, or a host where the page provisions one ("Setting up a
+new domain"), with:
 
 - Cockpit ≥ 337
 - Samba 4.22, with `samba-tool` at `/usr/bin/samba-tool` (the page is shown
@@ -57,7 +60,8 @@ On the server, a Samba Active Directory domain controller with:
   controller: check with
   `testparm -s --parameter-name="registry shares"`, and set it when
   provisioning (`samba-tool domain provision --option="registry shares =
-  yes"`) or add it to `smb.conf` and restart `samba-ad-dc`. Without it
+  yes"`; a domain provisioned from the page has it) or add it to
+  `smb.conf` and restart `samba-ad-dc`. Without it
   `net conf` still writes the shares but smbd serves none of them: the
   module refuses to create or change shared folders and home directories,
   and the Shared folders tab says why
@@ -70,17 +74,23 @@ To build from the sources:
 
 ## Installation
 
-On Debian 13, install the two packages attached to each release on the
+On Debian 13, a domain controller already or a clean install, install the
+two packages attached to each release on the
 [Releases page](https://github.com/lineadicomando/cockpit-samba-dc/releases):
-`addcctl_X.Y.Z_all.deb`, the command the page runs on the DC for the shared
-folders and the drive mapping (also used by the Ansible collection), and
-`cockpit-samba-dc_X.Y.Z_all.deb`, the page, which depends on `addcctl` of the
-same version. apt brings in what they need (`cockpit-bridge`, `samba-ad-dc`,
-`python3-samba`, `ldb-tools`, `acl`):
+`addcctl_X.Y.Z_all.deb`, the command the page runs on the DC (also used by
+the Ansible collection), and `cockpit-samba-dc_X.Y.Z_all.deb`, the page,
+which depends on `addcctl` of the same version. apt brings in what they need
+(`cockpit-bridge`, `samba-ad-dc`, `python3-samba`, `ldb-tools`, `acl`), but
+not Cockpit's web server: on a host without Cockpit, install `cockpit` too,
+and `chrony` for a new domain (its computers take the time from the DC):
 
 ```bash
-sudo apt install ./addcctl_X.Y.Z_all.deb ./cockpit-samba-dc_X.Y.Z_all.deb
+sudo apt install cockpit chrony ./addcctl_X.Y.Z_all.deb ./cockpit-samba-dc_X.Y.Z_all.deb
 ```
+
+On a host with no domain, open the page at `https://<host>:9090/samba-dc`
+with administrative access: it offers to provision one ("Setting up a new
+domain").
 
 Upgrade the same way, with the newer packages; `sudo apt remove
 cockpit-samba-dc addcctl` removes them. On first install the package replaces
@@ -122,14 +132,17 @@ It reads the configuration and the directory locally (Samba's loadparm,
 so the page and the Ansible collection can be used at the same moment. It
 handles users, groups, computers, home directories, shared folders, the drive
 mapping, the password policy and the fine-grained policies, for the page, the collection and the
-MCP server below (`docs/architecture.md`).
+MCP server below (`docs/architecture.md`). `addcctl domain setup-check` and
+`addcctl domain provision` check a host with no domain and provision one
+("Setting up a new domain").
 
 ### MCP server on the DC
 
 `addcctl mcp` is an MCP server on standard input and output, for an MCP
 client (Claude, Cursor, …) that manages the DC: one tool per operation of
 `addcctl` (`user_create`, `share_set`, …, the list is `addcctl schema`), with
-the same input. A tool that changes something takes `"check": true`, which
+the same input, but `domain provision`: done once, and destructive if misused,
+it is left to the page, the command and the Ansible collection. A tool that changes something takes `"check": true`, which
 reports what it would do and changes nothing. Passwords are never in a
 result; every change goes to the system log (`journalctl -t addcctl-mcp`)
 with the user who started the server and the passwords masked.
@@ -165,6 +178,74 @@ On the client:
 The `mcp` user has the power of a domain administrator over what `addcctl`
 manages: guard its key as such, or give it `addcctl mcp --read-only` (in
 both files) when the client only needs to look.
+
+## Setting up a new domain
+
+On a host where Samba is installed and no domain is provisioned (no
+`/var/lib/samba/private/sam.ldb`), the page shows a setup page instead of
+its tabs. Scope: a new domain (a new forest) with this host as its only
+domain controller. It never joins an existing domain, and never provisions
+over one: a host that is a domain controller already is refused, as is one
+whose Samba is set up for something else.
+
+The prerequisites, checked again with "Check again" after each fix:
+
+- **Samba configuration**: no `smb.conf`, or Debian's own of a standalone
+  server, with no shares of its own; no leftovers of an earlier
+  provisioning;
+- **static address** on the interface of the default route: the domain's
+  DNS registers it, and an address from DHCP is refused. The page does not
+  change the network (it would drop the browser's session): set it in
+  Cockpit's "Networking" page (package `cockpit-networkmanager`) or in
+  `/etc/network/interfaces`;
+- **host name**: not `localhost`, at most 15 characters (a NetBIOS name),
+  letters, digits and hyphens; the DC becomes `<host>.<domain>`;
+- **network ports** free: 53 (DNS), 88 and 464 (Kerberos), 135 (RPC),
+  137–139 (NetBIOS), 389 and 636 (LDAP), 445 (SMB), 3268 and 3269 (global
+  catalog). `smbd`, `nmbd` and `systemd-resolved` are stopped by the
+  provisioning; anything else (`dnsmasq`, `bind9`) must be stopped first;
+- **time** synchronized (a warning: Kerberos refuses clocks more than 5
+  minutes apart), and chrony installed to give the time to the domain's
+  Windows computers;
+- **disk space** under `/var/lib/samba`.
+
+The form asks for the domain's DNS name (also its Kerberos realm, e.g.
+`school.example.org`), its NetBIOS name (proposed from the first part), the
+password of the domain's `Administrator` and the DNS forwarder, the server
+that answers for the names outside the domain (the router's, the
+provider's). A confirmation lists what changes on the host, from `addcctl
+domain provision --check`; the provisioning takes less than a minute:
+
+- `smbd`, `nmbd` and `winbind` stopped and masked (`samba-ad-dc` runs
+  everything), Debian's `smb.conf` kept as `/etc/samba/smb.conf.dist`;
+- the domain provisioned by Samba's own code (what `samba-tool domain
+  provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL`
+  runs), the password passed on standard input, never on a command line;
+  `smb.conf` written with `registry shares = yes` and the forwarder; Samba's
+  messages in `/var/log/samba/addcctl-provision.log`;
+- `/etc/hosts` with the DC's full name on its address (Debian's `127.0.1.1`
+  line removed), `/etc/krb5.conf` a link to Samba's (an earlier one kept as
+  `krb5.conf.dist`), winbind in the `passwd` and `group` lines of
+  `/etc/nsswitch.conf`; with chrony, `/etc/chrony/conf.d/samba-dc.conf`
+  (signed time through `ntp_signd`, served to the DC's subnet);
+- `systemd-resolved` disabled when it runs, `samba-ad-dc` enabled and
+  started, and, once its DNS answers, `/etc/resolv.conf` pointed at the DC
+  itself.
+
+A failure before the directory is written puts the host back as it was. A
+later one says what is left to remove or to finish by hand: nothing is
+removed automatically. The firewall is not changed: open the ports above to
+the domain's computers. The same from a shell:
+
+```bash
+echo '{"realm": "school.example.org", "netbios_domain": "SCHOOL",
+       "admin_password": "…", "dns_forwarder": "192.168.1.1"}' |
+    sudo addcctl domain provision --check
+```
+
+(`addcctl domain setup-check` reads the prerequisites; drop `--check` to
+provision. Typed this way the password stays in the shell's history: the
+page and `samba_dc_build` pass it on standard input only.)
 
 ## Ansible collection
 

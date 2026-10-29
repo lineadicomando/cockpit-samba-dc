@@ -9,6 +9,9 @@ import {
   Tabs,
   Tab,
   TabTitleText,
+  Alert,
+  Spinner,
+  Bullseye,
 } from "@patternfly/react-core";
 import { UsersPage } from "./components/UsersPage.tsx";
 import { GroupsPage } from "./components/GroupsPage.tsx";
@@ -20,10 +23,78 @@ import { DnsPage } from "./components/DnsPage.tsx";
 import { GpoPage } from "./components/GpoPage.tsx";
 import { UserDetailPage } from "./components/UserDetailPage.tsx";
 import { ComputerDetailPage } from "./components/ComputerDetailPage.tsx";
+import { SetupPage } from "./components/SetupPage.tsx";
+import { getSetupStatus } from "./lib/domain.ts";
+import type { SetupStatus } from "./lib/types.ts";
 import { useCockpitLocation } from "./lib/hooks.ts";
 import { VERSION } from "./lib/version.ts";
 
+function Header() {
+  const { t } = useTranslation();
+  return (
+    <PageSection>
+      <Flex alignItems={{ default: "alignItemsBaseline" }}>
+        <FlexItem>
+          <Title headingLevel="h1" size="2xl">
+            Samba DC
+          </Title>
+        </FlexItem>
+        <FlexItem
+          className="pf-v6-u-font-size-sm pf-v6-u-text-color-subtle"
+          title={t("Module version")}
+        >
+          {VERSION}
+        </FlexItem>
+      </Flex>
+    </PageSection>
+  );
+}
+
+// The setup check first: on a host with no domain (Samba installed, nothing
+// provisioned) the tabs give way to the setup page.
 export function App() {
+  const { t } = useTranslation();
+  const [status, setStatus] = useState<SetupStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [checking, setChecking] = useState(true);
+
+  async function check() {
+    setChecking(true);
+    try {
+      setStatus(await getSetupStatus());
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  useEffect(() => {
+    void check();
+  }, []);
+
+  if (status?.provisioned) return <DomainApp />;
+  return (
+    <Page sidebar={null}>
+      <Header />
+      {error && (
+        <PageSection>
+          <Alert variant="danger" isInline title={t("Cannot check this host")}>{error}</Alert>
+        </PageSection>
+      )}
+      {!status && !error && (
+        <Bullseye><Spinner size="lg" aria-label={t("Checking this host")} /></Bullseye>
+      )}
+      {status && (
+        <SetupPage status={status} checking={checking} onRecheck={() => void check()}
+          onProvisioned={() => void check()} />
+      )}
+    </Page>
+  );
+}
+
+function DomainApp() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<string | number>("users");
   const location = useCockpitLocation();
@@ -51,21 +122,7 @@ export function App() {
     <Page sidebar={null}>
       {/* Main layout — always in DOM to preserve UsersPage filter/sort state */}
       <div hidden={detail !== null}>
-        <PageSection>
-          <Flex alignItems={{ default: "alignItemsBaseline" }}>
-            <FlexItem>
-              <Title headingLevel="h1" size="2xl">
-                Samba DC
-              </Title>
-            </FlexItem>
-            <FlexItem
-              className="pf-v6-u-font-size-sm pf-v6-u-text-color-subtle"
-              title={t("Module version")}
-            >
-              {VERSION}
-            </FlexItem>
-          </Flex>
-        </PageSection>
+        <Header />
         <PageSection type="tabs" padding={{ default: "noPadding" }}>
           <Tabs
             activeKey={activeTab}

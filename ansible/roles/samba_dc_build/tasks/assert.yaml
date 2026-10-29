@@ -43,8 +43,11 @@
     that:
       - samba_dc_build_fqdn.split('.') | length > 1
       - samba_dc_build_fqdn.endswith('.' ~ samba_dc_build_search_domain)
+      - samba_dc_build_fqdn | lower == (samba_dc_build_fqdn.split('.') | first ~ '.' ~ samba_dc_build_realm) | lower
     fail_msg: >-
       samba_dc_build_fqdn ('{{ samba_dc_build_fqdn }}') must be a fully qualified
       name inside samba_dc_build_search_domain ('{{ samba_dc_build_search_domain }}'),
-      e.g. dc01.{{ samba_dc_build_search_domain }}.
+      and the host name followed by the realm ('{{ samba_dc_build_realm }}'), which is
+      the name addcctl domain provision gives the DC: e.g.
+      dc01.{{ samba_dc_build_realm | lower }}.
     quiet: true

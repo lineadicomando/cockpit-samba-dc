@@ -227,3 +227,38 @@ export interface Gpo {
     driveMapping: boolean;
     links: GpoLink[];
 }
+
+// -- a new domain (SetupPage)
+
+export type SetupCheckName = "smb_conf" | "address" | "host_name" | "ports" | "time" | "disk";
+
+export interface SetupCheck {
+    name: SetupCheckName;
+    state: "ok" | "warning" | "error";
+    message: string;
+    fix?: string;
+}
+
+export interface SetupStatus {
+    provisioned: boolean;
+    ready: boolean;
+    checks: SetupCheck[];
+    host: { name: string; address: string | null; prefixLength: number | null; interface: string | null } | null;
+    defaults: { realm: string | null; netbiosDomain: string | null; dnsForwarder: string | null } | null;
+}
+
+export interface NewDomain {
+    realm: string;
+    netbiosDomain: string;
+    adminPassword: string;
+    dnsForwarder: string;
+}
+
+export interface ProvisionedDomain {
+    realm: string;
+    dnsDomain: string;
+    netbiosDomain: string;
+    server: string;
+    address: string;
+    commands: string[];
+}

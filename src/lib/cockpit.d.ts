@@ -18,6 +18,8 @@ declare module "cockpit" {
     interface Cockpit {
         location: CockpitLocation;
         spawn(args: string[], options?: CockpitSpawnOptions): SpawnProcess;
+        // Another page of the shell, e.g. "/network"
+        jump(path: string, host?: string): void;
         addEventListener(event: "locationchanged", handler: () => void): void;
         removeEventListener(event: "locationchanged", handler: () => void): void;
     }

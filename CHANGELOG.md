@@ -8,6 +8,31 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Added
+
+- A new domain from the page: on a host with Samba and no domain, a setup
+  page checks the prerequisites (static address, host name, free ports,
+  time synchronization, disk space) and provisions a new domain with this
+  host as its domain controller, after a confirmation that lists what
+  changes on the host (README, "Setting up a new domain").
+- addcctl: `domain setup-check` and `domain provision`, which runs Samba's
+  provisioning in its own process, the administrator's password on standard
+  input; `domain provision` is not served by `addcctl mcp`.
+
+### Changed
+
+- Ansible: `samba_dc_build` provisions through `addcctl domain provision`
+  (addcctl is installed before it), so the administrator's password is no
+  longer on a command line; the static address is applied before the
+  provisioning, which refuses a DHCP address. On a new DC `/etc/resolv.conf`
+  points at the DC itself, and a forced re-provisioning also clears the old
+  sysvol.
+
+### Fixed
+
+- addcctl on a host with no domain answers with an error that says so,
+  instead of a Python traceback.
+
 ## [0.16.0] - 2026-10-29
 
 ### Breaking

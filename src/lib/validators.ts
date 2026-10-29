@@ -350,3 +350,79 @@ export function dnsValueViolationMessage(t: (key: string) => string, violation: 
         case "text":  return t("Text of at most 4096 bytes, on one line.");
     }
 }
+
+// A new domain, checked as addcctl domain provision does (core/addcctl/setup.py)
+const DOMAIN_LABEL = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+export type RealmViolation = "empty" | "invalid" | "numeric" | "hostName";
+
+export function validateRealm(realm: string, hostName: string): RealmViolation | null {
+    const value = realm.trim().replace(/\.$/, "").toLowerCase();
+    if (!value) return "empty";
+    const labels = value.split(".");
+    if (value.length > 253 || labels.length < 2 || !labels.every(l => DOMAIN_LABEL.test(l))) return "invalid";
+    if (/^[0-9]+$/.test(labels[labels.length - 1])) return "numeric";
+    if (value === hostName.toLowerCase()) return "hostName";
+    return null;
+}
+
+export function realmViolationMessage(t: (key: string) => string, violation: RealmViolation): string {
+    switch (violation) {
+        case "empty":    return t("Domain name is required.");
+        case "invalid":  return t("Give a DNS name of two or more parts, such as school.example.org: letters, digits and hyphens.");
+        case "numeric":  return t("The domain name cannot end with a number.");
+        case "hostName": return t("The domain name cannot be the host name.");
+    }
+}
+
+export type NetbiosDomainViolation = "empty" | "tooLong" | "invalidChars" | "dash" | "onlyDigits" | "hostName";
+
+export function validateNetbiosDomain(name: string, hostName: string): NetbiosDomainViolation | null {
+    const value = name.trim().toUpperCase();
+    if (!value) return "empty";
+    if (value.length > 15) return "tooLong";
+    if (!/^[A-Z0-9-]+$/.test(value)) return "invalidChars";
+    if (value.startsWith("-") || value.endsWith("-")) return "dash";
+    if (/^[0-9]+$/.test(value)) return "onlyDigits";
+    if (value === hostName.toUpperCase()) return "hostName";
+    return null;
+}
+
+export function netbiosDomainViolationMessage(t: (key: string) => string, violation: NetbiosDomainViolation): string {
+    switch (violation) {
+        case "empty":        return t("NetBIOS name is required.");
+        case "tooLong":      return t("NetBIOS name cannot exceed 15 characters.");
+        case "invalidChars": return t("NetBIOS name can contain only letters, digits and hyphens.");
+        case "dash":         return t("NetBIOS name cannot start or end with a hyphen.");
+        case "onlyDigits":   return t("NetBIOS name cannot be made of digits only.");
+        case "hostName":     return t("NetBIOS name cannot be the host name.");
+    }
+}
+
+export type ForwarderViolation = "empty" | "invalid" | "local";
+
+export function validateForwarder(address: string, own: string | null): ForwarderViolation | null {
+    const value = address.trim();
+    if (!value) return "empty";
+    const v4 = IPV4.test(value);
+    if (!v4 && !isIpv6(value)) return "invalid";
+    if (value === own || value === "::1" || value === "::" || /^(127\.|0\.0\.0\.0$)/.test(value)) return "local";
+    if (v4 && Number(value.split(".")[0]) >= 224) return "invalid";
+    return null;
+}
+
+export function forwarderViolationMessage(t: (key: string) => string, violation: ForwarderViolation): string {
+    switch (violation) {
+        case "empty":   return t("DNS forwarder is required.");
+        case "invalid": return t("Give the IP address of a DNS server, such as 192.168.1.1.");
+        case "local":   return t("Give another DNS server (the router's, the provider's), not this host.");
+    }
+}
+
+// The administrator's password at provisioning: Samba's default policy, and
+// not the account name (the core checks it again with Samba's own check)
+export const ADMIN_PASSWORD_POLICY = { complexityRequired: true, minLength: 7 };
+
+export function adminPasswordContainsName(password: string): boolean {
+    return password.toLowerCase().includes("administrator");
+}
