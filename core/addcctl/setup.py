@@ -130,6 +130,17 @@ class Host:
         """Whether the DNS server at server resolves name (an A record)."""
         return dns_query(name, server)
 
+    def private_dir(self, p, group, mode):
+        """A directory of root and group (when it exists), with mode."""
+        import grp
+        path = self.path(p)
+        os.makedirs(path, exist_ok=True)
+        try:
+            os.chown(path, 0, grp.getgrnam(group).gr_gid)
+        except KeyError:
+            pass
+        os.chmod(path, mode)
+
 
 # -- the check
 
@@ -441,14 +452,7 @@ class Setup:
             self.runner.write_file(self.host.path(CHRONY_CONF), content)
         self.runner.record("mkdir -m 0750 %s, group _chrony" % NTP_SIGND)
         if not self.runner.check:
-            import grp
-            path = self.host.path(NTP_SIGND)
-            os.makedirs(path, exist_ok=True)
-            try:
-                os.chown(path, 0, grp.getgrnam("_chrony").gr_gid)
-            except KeyError:
-                pass
-            os.chmod(path, 0o750)
+            self.host.private_dir(NTP_SIGND, "_chrony", 0o750)
         self.runner.change(["systemctl", "restart", "chrony"])
 
     def _start(self):

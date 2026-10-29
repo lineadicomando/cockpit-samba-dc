@@ -40,11 +40,9 @@ on the test DC (skill `vm-lab`) before the commit.
 
 ## Where things stand
 
-Updated on 2026-10-29: v0.16.0 released (section 9: the `samba_tool`
-role reads through `samba_directory_info`, a breaking change of the
-collection). Section 10, the domain provisioning from the page, done and
-tried on the test DC, not released: it is v0.17.0, alone (`[Unreleased]`
-in `CHANGELOG.md`). A6 done (the
+Updated on 2026-10-29: v0.17.0 released (section 10, the domain
+provisioning from the page); nothing planned yet: `[Unreleased]` in
+`CHANGELOG.md` is empty. A6 done (the
 repository keeps its name), the old collection repository archived; the
 test VMs built from scratch by scripts.
 
@@ -87,7 +85,8 @@ test VMs built from scratch by scripts.
   policy edited, fine-grained policies), `v0.12.0` (organizational units),
   `v0.13.0` (richer create and edit forms, a page for each computer),
   `v0.14.0` (DNS records, GPO links), `v0.15.0` (the follow-ups of
-  section 0), `v0.16.0` (section 9, breaking for the collection).
+  section 0), `v0.16.0` (section 9, breaking for the collection), `v0.17.0`
+  (section 10, a new domain from the page).
   Release only when the user asks (run the integration suite first, then
   `make release` and `git push origin main vX.Y.Z`; then check that the
   `Release` workflow passed and the release has its assets: `gh run list`,
@@ -156,8 +155,7 @@ To resume:
    suite; `ansible` for the collection); `deploy` needs podman or docker for
    `make deb` (the build image is made on first use).
 4. Next steps, in order:
-   - release v0.17.0 (section 10) when the user asks;
-   - then plan the next release with the user.
+   - plan the next release with the user.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 

@@ -66,6 +66,7 @@ class FakeHost(Host):
         self.free = 20 * 1024 ** 3
         self.dns_after = 0  # queries before the DNS answers; None: never
         self.dns_queries = 0
+        self.groups = {}
         self.write("/proc/net/route", "Iface\tDestination\tGateway\nenp1s0\t00000000\t0101A8C0\n")
         self.write("/etc/samba/smb.conf", DEBIAN_SMB_CONF)
         self.write("/etc/hosts", HOSTS)
@@ -98,6 +99,11 @@ class FakeHost(Host):
 
     def free_bytes(self, p):
         return self.free
+
+    def private_dir(self, p, group, mode):
+        os.makedirs(self.path(p), exist_ok=True)
+        os.chmod(self.path(p), mode)
+        self.groups[p] = group
 
     def dns_answers(self, name, server="127.0.0.1"):
         self.dns_queries += 1
@@ -282,6 +288,7 @@ class TestProvision(SetupTest):
                       self.host.read("/etc/nsswitch.conf"))
         self.assertEqual(self.host.read("/etc/chrony/conf.d/samba-dc.conf").splitlines()[1:],
                          ["ntpsigndsocket /var/lib/samba/ntp_signd", "allow 192.168.1.0/24"])
+        self.assertEqual(self.host.groups, {"/var/lib/samba/ntp_signd": "_chrony"})
         self.assertEqual(self.host.read("/etc/resolv.conf"), "search school.example.org\nnameserver 127.0.0.1\n")
         self.assertEqual(self.host.dns_queries, 3)
 
