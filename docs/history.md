@@ -9,7 +9,7 @@ it; `[?]` items left there are listed again, open, in `TODO.md` ("Left out").
 
 Order of the work: A1–A6 (one project around a shared core,
 `docs/architecture.md`), then sections 8, 4, 5, 6, 7 (v0.10.0–v0.14.0), 0
-(v0.15.0), 9 (v0.16.0), 10 (v0.17.0); sections 1–3 predate the core.
+(v0.15.0), 9 (v0.16.0), 10 (v0.17.0), 11 (v0.17.1); sections 1–3 predate the core.
 
 ## A1. Windows roles and lab defaults out of the collection (done)
 
@@ -602,3 +602,35 @@ browser would drop the session; the static address is set in Cockpit's
       up a new domain" with the ports, "MCP server on the DC"),
       `CHANGELOG.md`
 
+## 11. Follow-ups of section 10 — v0.17.1
+
+Fixes only (`Fixed` in `CHANGELOG.md`), found while section 10 was tried.
+Tried on the test DC on 2026-10-31 (inspiron27, from `baseline` with the
+packages and a minimal Cockpit, no `cockpit-networkmanager`).
+
+- [x] **Prerequisites in the user's language.** Each check of
+      `Setup.check()` carries a `code` (`address.dhcp`, `ports.busy`, …) and
+      its `params` next to the English `message` and `fix` (kept for the
+      CLI and `samba_dc_build`'s assert); `src/lib/setupText.ts` writes the
+      text with `t()`, the core's text for an unknown code
+- [x] **Read again when administrative access is granted.**
+      `src/lib/superuser.ts` follows `cockpit.Superuser` on the internal bus
+      (as Cockpit's `pkg/lib/superuser.js`); on a change `app.tsx` checks
+      again and mounts a new `DomainApp`. Tried: "Not permitted", then
+      "Accesso limitato", then the prerequisites with no reload
+- [x] **The "Networking" link only where that page exists.** `index.html`
+      loads `../manifests.js`, as Cockpit's pages do; the button shows when
+      `cockpit.manifests.network` exists (absent without NetworkManager),
+      otherwise the fix names `/etc/network/interfaces`
+- [x] **Accessible password fields.** `TextInputGroupMain` put `id` and
+      `required` on its `<div>` and named the input "Type to filter":
+      `PasswordField` takes `label` and passes `inputId`, `aria-label`,
+      `aria-required`
+- [x] **A failure halfway, tried on the test DC.** Before `sam.ldb`
+      (`chattr +i /var/lib/samba/private`): `smb.conf` and `smbd`, `nmbd`,
+      `winbind` back. After (port 53 taken once `sam.ldb` appears): the
+      error names what is left. Fixed: the error now in
+      `addcctl-provision.log`, "left to do" as actions, the program on port
+      53 named (Samba's processes recognised by their executable, since `ss`
+      shows `dns[master]`); README "Setting up a new domain"
+- [x] `CHANGELOG.md` (`Fixed`), the integration suite (passed 2026-10-31)

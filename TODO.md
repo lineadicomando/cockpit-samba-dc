@@ -9,19 +9,19 @@ Legend: `[ ]` planned · `[x]` done · `[?]` left out, to be decided
 
 ## The plan
 
-Approved by the user on 2026-10-29: section 11 (v0.17.1, fixes only), then
-12 (v0.18.0), then 13 (v1.0.0).
+Approved by the user on 2026-10-29: section 12 (v0.18.0), then 13
+(v1.0.0); section 11 went into v0.17.1.
 
 - Only the next release is planned: the headings of its sections end with
-  its version (`— v0.17.1`). `make next-version` computes the version from
+  its version (`— v0.18.0`). `make next-version` computes the version from
   the kinds of change under `[Unreleased]` in `CHANGELOG.md` and checks it
   against this plan (`scripts/plan.mjs`, `scripts/todo.mjs`): they must
   agree, the planned sections may have no open `[ ]` item, and only one
   version may be planned. Rule: README, "Versions and releases".
 - After a release: move its sections to the end of `docs/history.md`
   (keeping the version in the heading), write the next version at the end
-  of the next section's heading (`— v0.18.0` on 12 after v0.17.1, `—
-  v1.0.0` on 13 after v0.18.0), and update "Where things stand".
+  of the next section's heading (`— v1.0.0` on 13 after v0.18.0), and
+  update "Where things stand".
 - A feature item also needs what `CLAUDE.md` lists under "Adding things"
   and a check on the test DC (skill `vm-lab`) before the commit. The core
   first (an operation of `addcctl`), then the page and the collection; the
@@ -32,10 +32,9 @@ Approved by the user on 2026-10-29: section 11 (v0.17.1, fixes only), then
 
 ## Where things stand
 
-Updated on 2026-10-31. Last release v0.17.0 (a new domain from the page).
-Section 11 is done and tried on the test DC, the integration suite passed:
-next comes the release of v0.17.1, then section 12, whose first item is a
-set of decisions to take with the user before any code.
+Updated on 2026-10-31. Last release v0.17.1 (the follow-ups of the setup
+page, section 11 in `docs/history.md`). Next: section 12, whose first item
+is a set of decisions to take with the user before any code.
 
 To resume:
 
@@ -50,42 +49,9 @@ To resume:
    `vm-lab` (`reset`, `start dc`, `deploy`, the integration suite).
 4. Release only when the user asks: CLAUDE.md, "Commands".
 
-## 11. Follow-ups of section 10 — v0.17.1
+## 12. Import users from a CSV file — v0.18.0
 
-Fixes only (`Fixed` in `CHANGELOG.md`), found while section 10 was tried.
-Tried on the test DC on 2026-10-31 (inspiron27, from `baseline` with the
-packages and a minimal Cockpit, no `cockpit-networkmanager`).
-
-- [x] **Prerequisites in the user's language.** Each check of
-      `Setup.check()` carries a `code` (`address.dhcp`, `ports.busy`, …) and
-      its `params` next to the English `message` and `fix` (kept for the
-      CLI and `samba_dc_build`'s assert); `src/lib/setupText.ts` writes the
-      text with `t()`, the core's text for an unknown code
-- [x] **Read again when administrative access is granted.**
-      `src/lib/superuser.ts` follows `cockpit.Superuser` on the internal bus
-      (as Cockpit's `pkg/lib/superuser.js`); on a change `app.tsx` checks
-      again and mounts a new `DomainApp`. Tried: "Not permitted", then
-      "Accesso limitato", then the prerequisites with no reload
-- [x] **The "Networking" link only where that page exists.** `index.html`
-      loads `../manifests.js`, as Cockpit's pages do; the button shows when
-      `cockpit.manifests.network` exists (absent without NetworkManager),
-      otherwise the fix names `/etc/network/interfaces`
-- [x] **Accessible password fields.** `TextInputGroupMain` put `id` and
-      `required` on its `<div>` and named the input "Type to filter":
-      `PasswordField` takes `label` and passes `inputId`, `aria-label`,
-      `aria-required`
-- [x] **A failure halfway, tried on the test DC.** Before `sam.ldb`
-      (`chattr +i /var/lib/samba/private`): `smb.conf` and `smbd`, `nmbd`,
-      `winbind` back. After (port 53 taken once `sam.ldb` appears): the
-      error names what is left. Fixed: the error now in
-      `addcctl-provision.log`, "left to do" as actions, the program on port
-      53 named (Samba's processes recognised by their executable, since `ss`
-      shows `dns[master]`); README "Setting up a new domain"
-- [x] `CHANGELOG.md` (`Fixed`), the integration suite (passed 2026-10-31)
-
-## 12. Import users from a CSV file
-
-Planned for v0.18.0 (write it in the heading once v0.17.1 is out). Not a
+Not a
 `samba-tool` command, but the most frequent job at the start of a school
 year: dozens or hundreds of accounts, with their groups and OU, and their
 passwords handed out on paper.
