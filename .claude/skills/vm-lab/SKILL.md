@@ -105,9 +105,16 @@ in it. Revert both VMs (`reset`) when done.
    the GUI (skill `win-gui`). Mapped drives and `homeDrive` apply only at an
    interactive logon, not over SSH.
 5. The integration suite: `test/vm/run-lib.sh test/vm/integration.ts`
-   (optionally `core`, `page`, `ansible`, `mcp`), about 30 s; it removes
-   its `t-x-`, `t-p-`, `t-a-`, `t-m-` data. Before a release, and after a
-   change to `core/`.
+   (optionally `core`, `page`, `ansible`, `mcp`), a few minutes (the domain
+   steps run `dbcheck` and an offline backup); it removes its `t-x-`,
+   `t-p-`, `t-a-`, `t-m-` data. Before a release, and after a change to
+   `core/`. It drives `addcctl mcp` over SSH with `sudo -S` as
+   `DC_ADMIN_USER`, and expects the domain of `lab.conf`, the test accounts
+   of the baseline and `smbclient` on the DC: a DC made by the page or by
+   `samba_dc_build` needs them added first, as `provision-dc.sh` does.
+   The snapshot `baseline` has no Samba and no Cockpit web server: after
+   `deploy`, `apt-get install --no-install-recommends cockpit-ws
+   cockpit-system` gives the setup page on a minimal Cockpit.
 6. Check what the module wrote: `net conf list`, `getfacl -R`, `ldbsearch -H
    /var/lib/samba/private/sam.ldb …`, `samba-tool ntacl sysvolcheck`.
 7. Stop the VMs (or `reset`), and report what was tested and what was not.
@@ -140,8 +147,23 @@ A session opened this way has no stored password, so Cockpit cannot switch
 to administrative access by itself. For the test only, drop in
 `/etc/sudoers.d/t-cockpit-test` with `DC_ADMIN_USER ALL=(ALL) NOPASSWD: ALL`
 (mode 440, `visudo -cf`), click "Accesso limitato", and remove the file
-afterwards (`reset` removes it too). At the end: log out ("Sessione" →
-"Esci"), close the page, delete `/tmp/cockpit-cookie.js`.
+afterwards (`reset` removes it too). The page reads again by itself when
+the access changes. At the end: log out ("Sessione" → "Esci"), close the
+page, delete `/tmp/cockpit-cookie.js`.
+
+- The module's page is the iframe's `contentDocument`
+  (`[...document.querySelectorAll("iframe")].find(f =>
+  f.src.includes("samba-dc"))`). The hidden tabs' tables are in the DOM
+  too: pick the visible one by its `aria-label`, or keep elements with an
+  `offsetParent`. Lists show 10 rows a page: filter by name before looking
+  for a test row.
+- A password goes into a field through a script written to a private file
+  from `.env`, run with `evaluate_script`'s `sourcePath`, then deleted.
+  `PasswordField`'s id is on its `<input>` (`#setup-password`).
+- When the chrome-devtools MCP is held by another session ("browser is
+  already running"): a headless `google-chrome --remote-debugging-port`
+  with a profile of its own, driven through CDP by a short Node script,
+  the cookie set with `Network.setCookie`.
 
 ## Notes
 

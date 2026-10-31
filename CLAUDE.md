@@ -31,13 +31,16 @@ Documents, each with one job; do not repeat one in another:
   under `[Unreleased]` with every change that goes into the README, under the
   heading of its kind (`Added`, `Changed`, `Fixed`, `Breaking`, …): the
   kinds decide the next version.
-- `TODO.md`: the roadmap of `samba-tool` features and the plan of the next
-  release (`— vX.Y.Z` at the end of the headings of its sections). Tick
-  items as they are completed and keep it short.
-- `docs/architecture.md`: how the project is built, the target of the
-  unification with `ansible-collection-samba_dc` (one core on the DC, with
-  Cockpit, Ansible and MCP on top) and how far it has got. Update its
-  migration table when a step of `TODO.md` A1–A6 is done.
+- `TODO.md`: the open work: the plan of the next releases (`— vX.Y.Z` at
+  the end of the headings of the next one's sections), where things stand
+  and how to resume, the `samba-tool` features left out. Tick items as they
+  are completed and keep it short: a released section moves to
+  `docs/history.md`.
+- `docs/history.md`: the done sections of `TODO.md`, as a record
+  (decisions with their dates, measures, what was tried). Not read to
+  resume work.
+- `docs/architecture.md`: how the project is built: one core on the DC
+  (addcctl), with Cockpit, Ansible and MCP on top, and how it got there.
 - This file: how to work on the project.
 
 `CLAUDE.local.md` and `Makefile.local`, when present, are not tracked: they
@@ -48,17 +51,20 @@ clones the repository.
 Layout: `src/app.tsx` the tabs (or `SetupPage` on a host with no domain), `src/components/` pages and
 `src/components/modals/`, `src/lib/` everything that talks to the system
 (`exec.ts` spawn wrappers; `addcctl.ts` the call to the core; `samba.ts`
-users, groups, computers, home directories, password policy, `shares.ts`
-shared folders and drive mapping, `domain.ts` the "Domain" tab (overview,
-health checks, backups), all through it, translating and caching;
-`validators.ts`, `passwordUtils.ts`, `cache.ts`, `hooks.ts`,
-`concurrency.ts`; `addcctl-schema.ts` is generated),
+users, groups, computers, OUs, home directories, password policy and PSOs,
+`shares.ts` shared folders and drive mapping, `domain.ts` the "Domain" tab
+(overview, health checks, backups) and a new domain, `dns.ts`, `gpos.ts`,
+all through it, translating and caching; `setupText.ts` the setup checks'
+text, `superuser.ts` Cockpit's administrative access; `validators.ts`,
+`passwordUtils.ts`, `cache.ts`, `hooks.ts`, `concurrency.ts`;
+`addcctl-schema.ts` is generated),
 `core/` the core (`addcctl/`: `cli.py` the command, `operations.py` the
 operations and their JSON Schemas, `dc.py` everything that reads or writes
-the DC, `accounts.py` users groups computers, `ous.py` organizational units, `homes.py`, `domain.py`
-(policy, overview, health checks), `setup.py` (a new domain: setup check and
-provisioning), `backups.py`,
-`shares.py`, `drivemaps.py`, `acl.py`, `smbconf.py`, `ad.py`; `tests/`,
+the DC, `accounts.py` users groups computers, `ous.py` organizational units,
+`psos.py` fine-grained password policies, `homes.py`, `domain.py` (policy,
+overview, health checks), `setup.py` (a new domain: setup check and
+provisioning), `backups.py`, `dns.py`, `gpos.py`, `shares.py`,
+`drivemaps.py`, `acl.py`, `smbconf.py`, `ad.py`, `mcp.py` (`addcctl mcp`); `tests/`,
 `bin/addcctl`, `addcctl.1`), `test/` unit tests with a cockpit
 mock, `test/vm/` scripts for the test VMs, `.claude/skills/` agent skills,
 `po/` and `src/locales/` translations, `scripts/` build and release
@@ -187,7 +193,12 @@ make release            # commit and tag it (README, "Versions and releases")
 (cd ansible && ansible-lint)  # the collection's gate
 ```
 
-Releases are made only when the user asks; pushing the tag publishes them.
+Releases are made only when the user asks: the integration suite first
+(skill `vm-lab`), then `make release`, `git push origin main vX.Y.Z`, then
+check that the `Release` workflow passed and the release has its assets
+(`gh run list`, `gh release view vX.Y.Z`: the page's tarball, the `.deb` of
+`cockpit-samba-dc` and of `addcctl`, the collection's tarball); then the
+steps of `TODO.md`, "The plan".
 
 ## Tests
 

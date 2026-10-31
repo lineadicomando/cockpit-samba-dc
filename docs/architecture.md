@@ -1,8 +1,8 @@
 # Architecture
 
-How the project is built, and where it is going. The work that leads from the
-first part to the second is planned in `TODO.md`, sections A1–A6; the table
-at the end says how far it has got.
+How the project is built, and how it got there. The work that led from the
+first part to the second is recorded in `docs/history.md`, sections A1–A6;
+the table at the end sums it up.
 
 ## Where it started
 
@@ -132,7 +132,7 @@ collection may import the core.
 
 ## Migration
 
-| Step | `TODO.md` | State |
+| Step | `docs/history.md` | State |
 |---|---|---|
 | Windows roles and lab defaults out of the collection | A1 | done: win_workman v0.3.0, collection v0.7.0 |
 | The collection in this repository, one version | A2 | done: v0.8.0; win_edulab takes the collection from here |
