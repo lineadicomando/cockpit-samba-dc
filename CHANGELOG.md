@@ -8,6 +8,8 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+## [0.17.1] - 2026-10-31
+
 ### Fixed
 
 - The setup page shows the prerequisites in the user's language: addcctl's
