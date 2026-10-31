@@ -235,6 +235,10 @@ export type SetupCheckName = "smb_conf" | "address" | "host_name" | "ports" | "t
 export interface SetupCheck {
     name: SetupCheckName;
     state: "ok" | "warning" | "error";
+    // What the page writes in the user's language (setupText.ts); message
+    // and fix are the core's English text, for a code it does not know
+    code?: string;
+    params?: Record<string, unknown>;
     message: string;
     fix?: string;
 }

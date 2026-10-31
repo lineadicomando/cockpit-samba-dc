@@ -607,6 +607,7 @@ function AuthenticationSection({ username }: { username: string }) {
                     <FormGroup label={t("New password")} fieldId="ud-password">
                         <PasswordField
                             id="ud-password"
+                            label={t("New password")}
                             value={password}
                             onChange={v => { setPassword(v); setSuccess(false); }}
                             isDisabled={saving}
@@ -619,6 +620,7 @@ function AuthenticationSection({ username }: { username: string }) {
                     <FormGroup label={t("Confirm password")} fieldId="ud-password-confirm">
                         <PasswordField
                             id="ud-password-confirm"
+                            label={t("Confirm password")}
                             value={passwordConfirm}
                             onChange={v => { setPasswordConfirm(v); setSuccess(false); }}
                             isDisabled={saving}

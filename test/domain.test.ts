@@ -2,11 +2,13 @@
 // to addcctl, how it reads the answers, and the cache.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
+import cockpit, { setSpawnHandler, calls, type SpawnCall } from "./mocks/cockpit.ts";
 import {
     getDomainInfo, runHealthChecks, resetSysvolAcls, listBackups, createBackup, getSetupStatus, previewProvision,
     provisionDomain,
 } from "../src/lib/domain.ts";
+import { networkingPageAvailable, setupCheckText } from "../src/lib/setupText.ts";
+import type { SetupCheck } from "../src/lib/types.ts";
 
 const BACKUP = { name: "samba-backup-samba.test-2026-10-24T10-00-00.000000.tar.bz2",
     path: "/var/backups/samba-dc/samba-backup-samba.test-2026-10-24T10-00-00.000000.tar.bz2",
@@ -158,6 +160,50 @@ describe("a new domain", () => {
         await assert.rejects(provisionDomain(NEW_DOMAIN), /domain controller already/);
         await getDomainInfo();
         assert.equal(sent("domain info").length, 1);
+    });
+});
+
+// A t() that marks what it translated and fills the {{params}}
+function t(key: string, options?: Record<string, unknown>): string {
+    return "T:" + key.replace(/\{\{(\w+)\}\}/g, (_m, k: string) => String(options?.[k]));
+}
+
+describe("the text of a prerequisite", () => {
+    it("is written from the code and its params", () => {
+        const dhcp: SetupCheck = { name: "address", state: "error", code: "address.dhcp",
+            params: { address: "192.168.1.20", prefix_length: 24, interface: "enp1s0" },
+            message: "192.168.1.20/24 on enp1s0 comes from DHCP", fix: "Set a static address" };
+        assert.deepEqual(setupCheckText(t, dhcp, true), {
+            message: "T:192.168.1.20/24 on enp1s0 comes from DHCP: a domain controller needs a static address.",
+            fix: "T:Set a static address in the Networking page, then check again." });
+        assert.equal(setupCheckText(t, dhcp, false).fix,
+            "T:Set a static address in /etc/network/interfaces, then check again.");
+        const ports: SetupCheck = { name: "ports", state: "error", code: "ports.busy",
+            params: { busy: [{ program: "dnsmasq", ports: [{ port: 53, service: "DNS" }, { port: 88, service: "Kerberos" }] }] },
+            message: "in use" };
+        assert.equal(setupCheckText(t, ports, true).message,
+            "T:Ports a domain controller needs are in use: T:dnsmasq on 53 (DNS), 88 (Kerberos).");
+        const stopped: SetupCheck = { name: "ports", state: "ok", code: "ports.stopped",
+            params: { stopped: ["nmbd", "smbd"] }, message: "free" };
+        assert.match(setupCheckText(t, stopped, true).message, /once nmbd, smbd are stopped/);
+    });
+
+    it("falls back to the core's English text for an unknown code", () => {
+        const check: SetupCheck = { name: "disk", state: "warning", code: "disk.quota", params: {},
+            message: "Quota almost reached", fix: "Raise it" };
+        assert.deepEqual(setupCheckText(t, check, true), { message: "Quota almost reached", fix: "Raise it" });
+        assert.deepEqual(setupCheckText(t, { name: "disk", state: "ok", message: "Fine" }, true),
+            { message: "Fine", fix: undefined });
+    });
+
+    it("offers the Networking page only when the shell lists it", () => {
+        assert.equal(networkingPageAvailable(), false);
+        cockpit.manifests.network = { name: "network" };
+        try {
+            assert.equal(networkingPageAvailable(), true);
+        } finally {
+            delete cockpit.manifests.network;
+        }
     });
 });
 

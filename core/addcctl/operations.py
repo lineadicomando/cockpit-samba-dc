@@ -511,7 +511,8 @@ OPERATIONS = {
     ("domain", "setup-check"): {
         "description": ("Whether this host is a domain controller already and, when it is not, the prerequisites "
                         "of a new domain (static address, host name, free ports, time, disk), each with its "
-                        "state (ok, warning, error) and what to do, and the values proposed for it"),
+                        "state (ok, warning, error), a code with its params, a message and what to do, and the "
+                        "values proposed for it"),
         "mutates": False, "input": _NONE,
         "run": lambda ctx, req: Setup(ctx.runner).check(),
     },

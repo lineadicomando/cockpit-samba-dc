@@ -27,6 +27,7 @@ import { SetupPage } from "./components/SetupPage.tsx";
 import { getSetupStatus } from "./lib/domain.ts";
 import type { SetupStatus } from "./lib/types.ts";
 import { useCockpitLocation } from "./lib/hooks.ts";
+import { useSuperuserAllowed } from "./lib/superuser.ts";
 import { VERSION } from "./lib/version.ts";
 
 function Header() {
@@ -74,7 +75,21 @@ export function App() {
     void check();
   }, []);
 
-  if (status?.provisioned) return <DomainApp />;
+  // With limited access every call fails ("Not permitted"): when the access
+  // changes, check again and read the lists again (a new DomainApp)
+  const allowed = useSuperuserAllowed();
+  const prevAllowedRef = useRef<boolean | null>(null);
+  const [generation, setGeneration] = useState(0);
+  useEffect(() => {
+    if (allowed === null) return;
+    const prev = prevAllowedRef.current;
+    prevAllowedRef.current = allowed;
+    if (prev === null || prev === allowed) return;
+    setGeneration((n) => n + 1);
+    void check();
+  }, [allowed]);
+
+  if (status?.provisioned) return <DomainApp key={generation} />;
   return (
     <Page sidebar={null}>
       <Header />

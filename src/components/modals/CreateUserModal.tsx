@@ -130,6 +130,7 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
                     <FormGroup label={t("Password")} isRequired fieldId="cu-password">
                         <PasswordField
                             id="cu-password"
+                            label={t("Password")}
                             value={password}
                             onChange={setPassword}
                             isRequired
@@ -143,6 +144,7 @@ export function CreateUserModal({ onClose, onSuccess }: Props) {
                     <FormGroup label={t("Confirm password")} isRequired fieldId="cu-password-confirm">
                         <PasswordField
                             id="cu-password-confirm"
+                            label={t("Confirm password")}
                             value={passwordConfirm}
                             onChange={setPasswordConfirm}
                             isRequired

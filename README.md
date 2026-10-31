@@ -196,7 +196,8 @@ The prerequisites, checked again with "Check again" after each fix:
 - **static address** on the interface of the default route: the domain's
   DNS registers it, and an address from DHCP is refused. The page does not
   change the network (it would drop the browser's session): set it in
-  Cockpit's "Networking" page (package `cockpit-networkmanager`) or in
+  Cockpit's "Networking" page (package `cockpit-networkmanager`, offered
+  only where NetworkManager manages the network) or in
   `/etc/network/interfaces`;
 - **host name**: not `localhost`, at most 15 characters (a NetBIOS name),
   letters, digits and hyphens; the DC becomes `<host>.<domain>`;
@@ -222,7 +223,8 @@ domain provision --check`; the provisioning takes less than a minute:
   provision --server-role=dc --use-rfc2307 --dns-backend=SAMBA_INTERNAL`
   runs), the password passed on standard input, never on a command line;
   `smb.conf` written with `registry shares = yes` and the forwarder; Samba's
-  messages in `/var/log/samba/addcctl-provision.log`;
+  messages, and the error of a failed provisioning, in
+  `/var/log/samba/addcctl-provision.log`;
 - `/etc/hosts` with the DC's full name on its address (Debian's `127.0.1.1`
   line removed), `/etc/krb5.conf` a link to Samba's (an earlier one kept as
   `krb5.conf.dist`), winbind in the `passwd` and `group` lines of
@@ -234,7 +236,9 @@ domain provision --check`; the provisioning takes less than a minute:
 
 A failure before the directory is written puts the host back as it was. A
 later one says what is left to remove or to finish by hand: nothing is
-removed automatically. The firewall is not changed: open the ports above to
+removed automatically. If the domain's DNS never answers, the error names
+the program that holds port 53 (one started after the check): stop it, run
+`systemctl restart samba-ad-dc`, then finish what the error lists. The firewall is not changed: open the ports above to
 the domain's computers. The same from a shell:
 
 ```bash
@@ -462,7 +466,8 @@ logon or `gpupdate`.
 
 Commands run through `cockpit.spawn` with `superuser: "require"`: the
 Cockpit user needs administrative access (Cockpit's "Administrative access"
-switch, through sudo or polkit). There is no `sudo` and no shell in the
+switch, through sudo or polkit); the page reads again when it is switched
+on, with no need to reload it. There is no `sudo` and no shell in the
 command arguments, and passwords reach `samba-tool` on standard input, not
 on its command line.
 

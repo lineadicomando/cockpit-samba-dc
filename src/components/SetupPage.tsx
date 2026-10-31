@@ -8,6 +8,7 @@ import {
 import { CheckCircleIcon, ExclamationTriangleIcon, ExclamationCircleIcon } from "@patternfly/react-icons";
 import type { NewDomain, SetupCheck, SetupStatus } from "../lib/types.ts";
 import { previewProvision } from "../lib/domain.ts";
+import { networkingPageAvailable, setupCheckText } from "../lib/setupText.ts";
 import {
     validateRealm, realmViolationMessage, validateNetbiosDomain, netbiosDomainViolationMessage,
     validateForwarder, forwarderViolationMessage, ADMIN_PASSWORD_POLICY, adminPasswordContainsName,
@@ -99,6 +100,7 @@ export function SetupPage({ status, checking, onRecheck, onProvisioned }: Props)
         </FormHelperText>
     );
 
+    const networkingPage = networkingPageAvailable();
     const addressFailed = status.checks.some(c => c.name === "address" && c.state === "error");
 
     return (
@@ -114,14 +116,17 @@ export function SetupPage({ status, checking, onRecheck, onProvisioned }: Props)
                     <CardTitle>{t("Prerequisites")}</CardTitle>
                     <CardBody>
                         <List isPlain>
-                            {status.checks.map(c => (
-                                <ListItem key={c.name} icon={<StateIcon state={c.state} />}>
-                                    <strong>{titles[c.name] ?? c.name}</strong>: {c.message}
-                                    {c.fix && c.state !== "ok" && (
-                                        <div className="pf-v6-u-font-size-sm pf-v6-u-text-color-subtle">{c.fix}</div>
-                                    )}
-                                </ListItem>
-                            ))}
+                            {status.checks.map(c => {
+                                const text = setupCheckText(t, c, networkingPage);
+                                return (
+                                    <ListItem key={c.name} icon={<StateIcon state={c.state} />}>
+                                        <strong>{titles[c.name] ?? c.name}</strong>: {text.message}
+                                        {text.fix && c.state !== "ok" && (
+                                            <div className="pf-v6-u-font-size-sm pf-v6-u-text-color-subtle">{text.fix}</div>
+                                        )}
+                                    </ListItem>
+                                );
+                            })}
                         </List>
                         <Flex style={{ marginTop: "1rem" }}>
                             <FlexItem>
@@ -129,7 +134,7 @@ export function SetupPage({ status, checking, onRecheck, onProvisioned }: Props)
                                     {t("Check again")}
                                 </Button>
                             </FlexItem>
-                            {addressFailed && (
+                            {addressFailed && networkingPage && (
                                 <FlexItem>
                                     <Button variant="link" onClick={() => cockpit.jump("/network")}>
                                         {t("Open the Networking page")}
@@ -171,12 +176,12 @@ export function SetupPage({ status, checking, onRecheck, onProvisioned }: Props)
                                 {fieldError(netbiosViolation && netbiosDomainViolationMessage(t, netbiosViolation))}
                             </FormGroup>
                             <FormGroup label={t("Administrator password")} isRequired fieldId="setup-password">
-                                <PasswordField id="setup-password" value={password} onChange={setPassword}
+                                <PasswordField id="setup-password" label={t("Administrator password")} value={password} onChange={setPassword}
                                     isDisabled={!status.ready} isRequired />
                                 {fieldError(passwordMessage())}
                             </FormGroup>
                             <FormGroup label={t("Confirm password")} isRequired fieldId="setup-password-confirm">
-                                <PasswordField id="setup-password-confirm" value={passwordConfirm}
+                                <PasswordField id="setup-password-confirm" label={t("Confirm password")} value={passwordConfirm}
                                     onChange={setPasswordConfirm} isDisabled={!status.ready} isRequired />
                             </FormGroup>
                             <FormGroup label={t("DNS forwarder")} isRequired fieldId="setup-forwarder">

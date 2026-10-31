@@ -98,7 +98,9 @@ class Host:
                 if a.get("family") == "inet" and a.get("scope") == "global"]
 
     def listeners(self):
-        """[(port, [program])] of the listening TCP and UDP sockets (ss)."""
+        """[(port, [program])] of the listening TCP and UDP sockets (ss).
+        Samba's processes name themselves after their task (dns[master]):
+        they are "samba"."""
         out = self.runner.query(["ss", "-H", "-l", "-n", "-t", "-u", "-p"])
         found = []
         for line in out.splitlines():
@@ -107,8 +109,17 @@ class Host:
                 continue
             port = fields[4].rsplit(":", 1)[-1]
             if port.isdigit():
-                found.append((int(port), re.findall(r'\("([^"]+)"', line)))
+                found.append((int(port), [self._program(name, int(pid)) for name, pid in
+                                          re.findall(r'\("([^"]+)",pid=(\d+)', line)]))
         return found
+
+    def _program(self, name, pid):
+        try:
+            if os.path.basename(os.readlink("/proc/%d/exe" % pid)) == "samba":
+                return "samba"
+        except OSError:
+            pass
+        return name
 
     def active(self, unit):
         code, _ = self.runner.diagnose(["systemctl", "is-active", "--quiet", unit])
@@ -144,8 +155,10 @@ class Host:
 
 # -- the check
 
-def _check(name, state, message, fix=None):
-    found = {"name": name, "state": state, "message": message}
+def _check(name, state, code, params, message, fix=None):
+    """A prerequisite: code and params let the page write it in the user's
+    language; message and fix are the English text of the CLI and Ansible."""
+    found = {"name": name, "state": state, "code": code, "params": params, "message": message}
     if fix:
         found["fix"] = fix
     return found
@@ -211,53 +224,56 @@ class Setup:
     def _smb_conf(self):
         if self.host.listdir("/var/lib/samba/sysvol") or any(
                 n.endswith(".ldb") for n in self.host.listdir("/var/lib/samba/private")):
-            return _check("smb_conf", "error",
+            return _check("smb_conf", "error", "smb_conf.leftovers", {},
                           "A provisioning left files behind (/var/lib/samba/private/*.ldb, sysvol) with no sam.ldb",
                           "Remove them by hand if they are not needed, then check again")
         text = self.host.read(SMB_CONF)
         if text is None:
-            return _check("smb_conf", "ok", "No smb.conf: the provisioning writes it")
+            return _check("smb_conf", "ok", "smb_conf.missing", {}, "No smb.conf: the provisioning writes it")
         sections = smb_conf_sections(text)
         role = sections.get("global", {}).get("server role", "standalone server").lower()
         if role not in ("standalone", "standalone server", "auto"):
-            return _check("smb_conf", "error",
+            return _check("smb_conf", "error", "smb_conf.role", {"role": role},
                           'smb.conf sets "server role = %s": Samba is set up for something else on this host' % role,
                           "Move /etc/samba/smb.conf aside by hand if it is not needed, then check again")
         own = sorted(set(sections) - DEBIAN_SECTIONS)
         if own:
-            return _check("smb_conf", "error",
+            return _check("smb_conf", "error", "smb_conf.shares", {"shares": own},
                           "smb.conf has shares of its own (%s): they would stop being served" % ", ".join(own),
                           "Move /etc/samba/smb.conf aside by hand if they are not needed, then check again")
-        return _check("smb_conf", "ok",
+        return _check("smb_conf", "ok", "smb_conf.debian", {},
                       "Debian's smb.conf of a standalone server: kept as smb.conf.dist, smbd and nmbd stopped")
 
     def _address(self, host):
         interface = self.host.default_interface()
         if interface is None:
-            return _check("address", "error", "No default route: the host has no network",
-                          "Set a static address and a gateway in Cockpit's Networking page")
+            return _check("address", "error", "address.no_route", {}, "No default route: the host has no network",
+                          "Set a static address and a gateway in Cockpit's Networking page "
+                          "(or /etc/network/interfaces)")
         host["interface"] = interface
         addresses = self.host.ipv4_addresses(interface)
         if not addresses:
-            return _check("address", "error", "No IPv4 address on %s, the interface of the default route" % interface,
-                          "Set a static address in Cockpit's Networking page")
+            return _check("address", "error", "address.none", {"interface": interface},
+                          "No IPv4 address on %s, the interface of the default route" % interface,
+                          "Set a static address in Cockpit's Networking page (or /etc/network/interfaces)")
         a = addresses[0]
         host["address"], host["prefix_length"] = a.get("local"), a.get("prefixlen")
+        params = {"address": host["address"], "prefix_length": host["prefix_length"], "interface": interface}
         if a.get("dynamic") or a.get("valid_life_time", 0xFFFFFFFF) != 0xFFFFFFFF:
-            return _check("address", "error",
+            return _check("address", "error", "address.dhcp", params,
                           "%s/%s on %s comes from DHCP: a domain controller needs a static address"
                           % (host["address"], host["prefix_length"], interface),
                           "Set a static address in Cockpit's Networking page (or /etc/network/interfaces), "
                           "then check again")
-        return _check("address", "ok", "Static address %s/%s on %s" % (host["address"], host["prefix_length"],
+        return _check("address", "ok", "address.static", params, "Static address %s/%s on %s" % (host["address"], host["prefix_length"],
                                                                         interface))
 
     def _host_name(self, name):
-        problem = host_name_violation(name)
+        problem = host_name_problem(name)
         if problem:
-            return _check("host_name", "error", problem,
+            return _check("host_name", "error", "host_name." + problem[0], {"name": name}, problem[1],
                           "Change it (hostnamectl set-hostname NAME, or Cockpit's Overview page), then check again")
-        return _check("host_name", "ok", 'Host name "%s"' % name)
+        return _check("host_name", "ok", "host_name.ok", {"name": name}, 'Host name "%s"' % name)
 
     def _ports(self):
         busy, stopped = {}, set()
@@ -272,35 +288,42 @@ class Setup:
         if busy:
             listed = "; ".join("%s on %s" % (p, ", ".join("%d (%s)" % (n, PORTS[n]) for n in sorted(ports)))
                                for p, ports in sorted(busy.items()))
-            return _check("ports", "error", "Ports a domain controller needs are in use: %s" % listed,
+            params = {"busy": [{"program": p, "ports": [{"port": n, "service": PORTS[n]} for n in sorted(ports)]}
+                               for p, ports in sorted(busy.items())]}
+            return _check("ports", "error", "ports.busy", params,
+                          "Ports a domain controller needs are in use: %s" % listed,
                           "Stop and disable those services (for example: systemctl disable --now dnsmasq), "
                           "then check again")
         if stopped:
-            return _check("ports", "ok", "The ports a domain controller needs are free once %s are stopped, "
+            return _check("ports", "ok", "ports.stopped", {"stopped": sorted(stopped)},
+                          "The ports a domain controller needs are free once %s are stopped, "
                           "which the provisioning does" % ", ".join(sorted(stopped)))
-        return _check("ports", "ok", "The ports a domain controller needs are free")
+        return _check("ports", "ok", "ports.free", {}, "The ports a domain controller needs are free")
 
     def _time(self):
         synchronized = self.host.time_synchronized()
         chrony = self.host.exists("/usr/sbin/chronyd")
         if not synchronized:
-            return _check("time", "warning", "The clock is not synchronized: Kerberos refuses clients whose clock "
+            return _check("time", "warning", "time.unsynchronized", {}, "The clock is not synchronized: Kerberos refuses clients whose clock "
                           "differs by more than 5 minutes", "Install chrony, or enable systemd-timesyncd")
         if not chrony:
-            return _check("time", "warning", "The clock is synchronized, but without chrony the domain controller "
+            return _check("time", "warning", "time.no_chrony", {}, "The clock is synchronized, but without chrony the domain controller "
                           "gives no time to the domain's Windows computers",
                           "Install chrony (apt install chrony) before the provisioning, which sets it up")
-        return _check("time", "ok", "The clock is synchronized by chrony, which the provisioning sets up to serve "
+        return _check("time", "ok", "time.chrony", {}, "The clock is synchronized by chrony, which the provisioning sets up to serve "
                       "the domain's computers")
 
     def _disk(self):
         free = self.host.free_bytes("/var/lib/samba")
-        shown = "%.1f GiB free under /var/lib/samba" % (free / 1024 ** 3)
+        gib = round(free / 1024 ** 3, 1)
+        shown = "%.1f GiB free under /var/lib/samba" % gib
+        params = {"free_gib": gib}
         if free < MIN_FREE:
-            return _check("disk", "error", shown, "Free some space, then check again")
+            return _check("disk", "error", "disk.full", params, shown, "Free some space, then check again")
         if free < LOW_FREE:
-            return _check("disk", "warning", shown + ": the directory and the shared folders will need more")
-        return _check("disk", "ok", shown)
+            return _check("disk", "warning", "disk.low", params,
+                          shown + ": the directory and the shared folders will need more")
+        return _check("disk", "ok", "disk.ok", params, shown)
 
     def _defaults(self, host):
         fqdn = self.host.fqdn()
@@ -364,20 +387,26 @@ class Setup:
                 raise AddcError("The provisioning failed, the host is as it was: %s (details in %s)"
                                 % (message, PROVISION_LOG)) from None
 
+        # (what, what is left to do by hand when it or an earlier step fails, the step)
         steps = [
-            ("/etc/hosts", lambda: self._hosts(host["address"], fqdn, host["name"].lower())),
-            ("/etc/krb5.conf", self._krb5),
-            ("winbind in /etc/nsswitch.conf", self._nsswitch),
-            ("chrony", lambda: self._chrony(host)),
-            ("the start of samba-ad-dc", self._start),
-            ("the DNS of the domain", lambda: self._wait_dns(fqdn)),
-            ("/etc/resolv.conf", lambda: self._resolv(realm)),
+            ("/etc/hosts", '"%s\t%s %s" in /etc/hosts' % (host["address"], fqdn, host["name"].lower()),
+             lambda: self._hosts(host["address"], fqdn, host["name"].lower())),
+            ("/etc/krb5.conf", "/etc/krb5.conf a link to %s" % SAMBA_KRB5, self._krb5),
+            ("winbind in /etc/nsswitch.conf", "winbind in the passwd and group lines of /etc/nsswitch.conf",
+             self._nsswitch),
+            ("chrony", "chrony set up to sign the time through %s (%s)" % (NTP_SIGND, CHRONY_CONF),
+             lambda: self._chrony(host)),
+            ("the start of samba-ad-dc", "systemctl enable --now samba-ad-dc", self._start),
+            ("the DNS of the domain", "a DNS answer for %s from 127.0.0.1 (host %s 127.0.0.1)" % (fqdn, fqdn),
+             lambda: self._wait_dns(fqdn)),
+            ("/etc/resolv.conf", '/etc/resolv.conf with "search %s" and "nameserver 127.0.0.1"' % realm,
+             lambda: self._resolv(realm)),
         ]
-        for i, (what, step) in enumerate(steps):
+        for i, (what, _, step) in enumerate(steps):
             try:
                 step()
             except AddcError as e:
-                left = ", ".join(w for w, _ in steps[i:])
+                left = "; ".join(todo for _, todo, _ in steps[i:])
                 raise AddcError("The domain is provisioned, but %s failed: %s. Left to do by hand: %s"
                                 % (what, e, left)) from None
         return {"changed": True, "domain": {"realm": realm.upper(), "dns_domain": realm, "netbios_domain": netbios,
@@ -469,8 +498,13 @@ class Setup:
         deadline = self.clock() + DNS_WAIT_SECONDS
         while not self.host.dns_answers(fqdn):
             if self.clock() > deadline:
-                raise AddcError("no answer for %s from 127.0.0.1 after %d s (journalctl -u samba-ad-dc)"
-                                % (fqdn, DNS_WAIT_SECONDS))
+                # A program started after the check may hold the port Samba's DNS needs
+                others = sorted({p for port, programs in self.host.listeners() if port == 53
+                                 for p in programs if p != "samba"})
+                held = "; port 53 is held by %s: stop it, then systemctl restart samba-ad-dc" % ", ".join(
+                    others) if others else ""
+                raise AddcError("no answer for %s from 127.0.0.1 after %d s (journalctl -u samba-ad-dc)%s"
+                                % (fqdn, DNS_WAIT_SECONDS, held))
             self.sleep(2)
 
     def _resolv(self, realm):
@@ -487,15 +521,21 @@ class Setup:
 
 # -- the values of the form (the page checks them too: validators.ts)
 
-def host_name_violation(name):
+def host_name_problem(name):
+    """(code, message) of what is wrong with a host name, or None."""
     if not name or name.lower() == "localhost":
-        return 'The host name is "%s": a domain controller needs a name of its own' % name
+        return "localhost", 'The host name is "%s": a domain controller needs a name of its own' % name
     if len(name) > 15:
-        return 'The host name "%s" is longer than 15 characters, the limit of a NetBIOS name' % name
+        return "too_long", 'The host name "%s" is longer than 15 characters, the limit of a NetBIOS name' % name
     if not _LABEL.match(name.lower()) or name.isdigit():
-        return ('The host name "%s" must be letters, digits and hyphens, not only digits, '
-                'and must not start or end with a hyphen' % name)
+        return "characters", ('The host name "%s" must be letters, digits and hyphens, not only digits, '
+                              'and must not start or end with a hyphen' % name)
     return None
+
+
+def host_name_violation(name):
+    problem = host_name_problem(name)
+    return problem[1] if problem else None
 
 
 def realm_violation(realm, host_name):
@@ -604,6 +644,10 @@ def samba_provision(realm, domain, hostname, hostip, dns_forwarder, adminpass):
                       useeadb=False, next_rid=1000, lp=lp, use_ntvfs=False, use_rfc2307=True,
                       skip_sysvolacl=False, base_schema="2019", adprep_level=DS_DOMAIN_FUNCTION_2016,
                       plaintext_secrets=False, backend_store=get_default_backend_store(), backend_store_size=None)
+        except Exception:
+            # The error's message names this log for the details
+            logger.exception("The provisioning failed")
+            raise
         finally:
             logger.removeHandler(handler)
             handler.close()

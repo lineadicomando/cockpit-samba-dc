@@ -123,7 +123,7 @@ export type DomainSetPasswordPolicyInput = {
     min_length?: number;
 };
 
-/** domain setup-check: Whether this host is a domain controller already and, when it is not, the prerequisites of a new domain (static address, host name, free ports, time, disk), each with its state (ok, warning, error) and what to do, and the values proposed for it */
+/** domain setup-check: Whether this host is a domain controller already and, when it is not, the prerequisites of a new domain (static address, host name, free ports, time, disk), each with its state (ok, warning, error), a code with its params, a message and what to do, and the values proposed for it */
 export type DomainSetupCheckInput = Record<string, never>;
 
 /** domain sysvol-reset: Reset the ACLs of sysvol (samba-tool ntacl sysvolreset), when sysvolcheck reports a mismatch */

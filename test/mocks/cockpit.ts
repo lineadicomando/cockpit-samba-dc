@@ -32,6 +32,21 @@ const cockpit = {
     location: { path: [] as string[], options: {}, go() { /* no-op */ } },
     addEventListener() { /* no-op */ },
     removeEventListener() { /* no-op */ },
+    manifests: {} as Record<string, unknown>,
+    // No superuser state to follow: a proxy that never becomes valid
+    dbus() {
+        return {
+            proxy() {
+                return {
+                    valid: false,
+                    wait() { return Promise.resolve(); },
+                    addEventListener() { /* no-op */ },
+                    removeEventListener() { /* no-op */ },
+                };
+            },
+            close() { /* no-op */ },
+        };
+    },
 };
 
 export default cockpit;

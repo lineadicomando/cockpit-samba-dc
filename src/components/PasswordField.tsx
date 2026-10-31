@@ -11,6 +11,8 @@ import type { CopyState } from "../lib/hooks.ts";
 
 interface PasswordFieldProps {
     id: string;
+    // The label of its form group: the input's accessible name
+    label: string;
     value: string;
     onChange: (v: string) => void;
     isDisabled?: boolean;
@@ -20,7 +22,7 @@ interface PasswordFieldProps {
     copyState?: CopyState;
 }
 
-export function PasswordField({ id, value, onChange, isDisabled, isRequired, forceReveal, onGenerate, copyState }: PasswordFieldProps) {
+export function PasswordField({ id, label, value, onChange, isDisabled, isRequired, forceReveal, onGenerate, copyState }: PasswordFieldProps) {
     const { t } = useTranslation();
     const [visible, setVisible] = useState(false);
 
@@ -36,12 +38,15 @@ export function PasswordField({ id, value, onChange, isDisabled, isRequired, for
     return (
         <>
             <TextInputGroup isDisabled={isDisabled}>
+                {/* TextInputGroupMain puts id on its <div> and names the input
+                    "Type to filter": the id and the name go on the input */}
                 <TextInputGroupMain
-                    id={id}
+                    inputId={id}
+                    aria-label={label}
                     type={visible ? "text" : "password"}
                     value={value}
                     onChange={(_e, v) => onChange(v)}
-                    required={isRequired}
+                    inputProps={isRequired ? { "aria-required": true } : undefined}
                 />
                 <TextInputGroupUtilities>
                     {onGenerate && (

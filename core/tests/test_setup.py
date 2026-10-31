@@ -158,6 +158,43 @@ class TestCheck(SetupTest):
         ports = [c for c in report["checks"] if c["name"] == "ports"][0]
         self.assertIn("nmbd, smbd", ports["message"])
 
+    def test_codes_and_params(self):
+        report = self.setup().check()
+        found = {c["name"]: (c["code"], c["params"]) for c in report["checks"]}
+        self.assertEqual(found["smb_conf"], ("smb_conf.debian", {}))
+        self.assertEqual(found["address"], ("address.static", {"address": "192.168.1.20", "prefix_length": 24,
+                                                               "interface": "enp1s0"}))
+        self.assertEqual(found["host_name"], ("host_name.ok", {"name": "dc"}))
+        self.assertEqual(found["ports"], ("ports.stopped", {"stopped": ["nmbd", "smbd"]}))
+        self.assertEqual(found["time"], ("time.no_chrony", {}))
+        self.assertEqual(found["disk"], ("disk.ok", {"free_gib": 20.0}))
+        for c in report["checks"]:
+            self.assertTrue(c["message"])
+
+    def test_error_codes(self):
+        self.host.addresses = [DHCP]
+        self.host.ports.append((53, ["dnsmasq"]))
+        self.host.ports.append((88, ["dnsmasq"]))
+        self.host.name = "a-very-long-host-name"
+        self.host.synchronized = False
+        self.host.free = 100 * 1024 ** 2
+        self.host.write("/etc/samba/smb.conf", DEBIAN_SMB_CONF + "[data]\n   path = /srv/data\n")
+        found = {c["name"]: c for c in self.setup().check()["checks"]}
+        self.assertEqual(found["address"]["code"], "address.dhcp")
+        self.assertIn("fix", found["address"])
+        self.assertEqual(found["ports"]["code"], "ports.busy")
+        self.assertEqual(found["ports"]["params"], {"busy": [{"program": "dnsmasq", "ports": [
+            {"port": 53, "service": "DNS"}, {"port": 88, "service": "Kerberos"}]}]})
+        self.assertEqual(found["host_name"]["code"], "host_name.too_long")
+        self.assertEqual(found["time"]["code"], "time.unsynchronized")
+        self.assertEqual(found["disk"]["code"], "disk.full")
+        self.assertEqual(found["smb_conf"]["params"], {"shares": ["data"]})
+        self.host.write("/proc/net/route", "Iface\tDestination\tGateway\n")
+        self.host.name = "localhost"
+        found = {c["name"]: c for c in self.setup().check()["checks"]}
+        self.assertEqual(found["address"]["code"], "address.no_route")
+        self.assertEqual(found["host_name"]["code"], "host_name.localhost")
+
     def test_provisioned(self):
         self.host.write("/var/lib/samba/private/sam.ldb", "")
         report = self.setup().check()
@@ -353,9 +390,18 @@ class TestProvision(SetupTest):
     def test_dns_that_never_answers(self):
         self.host.dns_after = None
         with self.assertRaisesRegex(AddcError, "provisioned, but the DNS of the domain failed: .*"
-                                               "Left to do by hand: the DNS of the domain, /etc/resolv.conf"):
+                                               "Left to do by hand: a DNS answer for dc.school.example.org from "
+                                               "127.0.0.1 .*; /etc/resolv.conf with \"search school.example.org\""):
             self.setup().provision(dict(REQUEST))
         self.assertEqual(self.host.read("/etc/resolv.conf"), "search example.lan\nnameserver 192.168.1.1\n")
+
+    def test_dns_port_taken_after_the_check(self):
+        self.host.dns_after = None
+        listeners = iter([self.host.ports, self.host.ports + [(53, ["dnsmasq"]), (53, ["samba"])]])
+        self.host.listeners = lambda: next(listeners)
+        with self.assertRaisesRegex(AddcError, "port 53 is held by dnsmasq: stop it, then systemctl restart "
+                                               "samba-ad-dc"):
+            self.setup().provision(dict(REQUEST))
 
     def test_a_second_smb_conf_dist(self):
         self.host.write("/etc/samba/smb.conf.dist", "older\n")

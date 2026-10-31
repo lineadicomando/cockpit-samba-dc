@@ -8,6 +8,24 @@ the README ("Versions and releases"). New entries go under
 
 ## [Unreleased]
 
+### Fixed
+
+- The setup page shows the prerequisites in the user's language: addcctl's
+  `domain setup-check` gives each one a `code` and its `params` next to the
+  English `message` and `fix`.
+- The page reads again when administrative access is granted (or dropped)
+  through Cockpit's "Limited access" button, instead of showing "Not
+  permitted to perform this action" until reloaded.
+- The setup page offers the "Networking" page only where Cockpit has it
+  (`cockpit-networkmanager`, with NetworkManager managing the network); otherwise it
+  names `/etc/network/interfaces`.
+- Password fields are read by screen readers with their label, instead of
+  "Type to filter".
+- A provisioning that fails halfway says what is left to do by hand in
+  terms of what to do, names the program that holds port 53 when the
+  domain's DNS never answers, and writes the error to
+  `/var/log/samba/addcctl-provision.log`.
+
 ## [0.17.0] - 2026-10-29
 
 ### Added

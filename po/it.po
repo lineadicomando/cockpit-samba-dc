@@ -1849,6 +1849,108 @@ msgstr "Controlla di nuovo"
 msgid "Open the Networking page"
 msgstr "Apri la pagina Rete"
 
+msgid "A provisioning left files behind (/var/lib/samba/private/*.ldb, sysvol) with no sam.ldb."
+msgstr "Un provisioning precedente ha lasciato dei file (/var/lib/samba/private/*.ldb, sysvol) senza sam.ldb."
+
+msgid "Remove them by hand if they are not needed, then check again."
+msgstr "Se non servono, rimuovili a mano, poi controlla di nuovo."
+
+msgid "No smb.conf: the provisioning writes it."
+msgstr "Nessun smb.conf: lo scrive il provisioning."
+
+msgid "smb.conf sets \"server role = {{role}}\": Samba is set up for something else on this host."
+msgstr "smb.conf imposta \"server role = {{role}}\": su questo host Samba è configurato per altro."
+
+msgid "Move /etc/samba/smb.conf aside by hand if it is not needed, then check again."
+msgstr "Se non serve, sposta a mano /etc/samba/smb.conf, poi controlla di nuovo."
+
+msgid "smb.conf has shares of its own ({{shares}}): they would stop being served."
+msgstr "smb.conf ha condivisioni proprie ({{shares}}): smetterebbero di essere servite."
+
+msgid "Move /etc/samba/smb.conf aside by hand if they are not needed, then check again."
+msgstr "Se non servono, sposta a mano /etc/samba/smb.conf, poi controlla di nuovo."
+
+msgid "Debian's smb.conf of a standalone server: kept as smb.conf.dist, smbd and nmbd stopped."
+msgstr "smb.conf di Debian per un server standalone: viene conservato come smb.conf.dist, smbd e nmbd vengono fermati."
+
+msgid "No default route: the host has no network."
+msgstr "Nessuna route predefinita: l'host non ha rete."
+
+msgid "Set a static address and a gateway in the Networking page, then check again."
+msgstr "Imposta un indirizzo statico e un gateway nella pagina Rete, poi controlla di nuovo."
+
+msgid "Set a static address and a gateway in /etc/network/interfaces, then check again."
+msgstr "Imposta un indirizzo statico e un gateway in /etc/network/interfaces, poi controlla di nuovo."
+
+msgid "No IPv4 address on {{interface}}, the interface of the default route."
+msgstr "Nessun indirizzo IPv4 su {{interface}}, l'interfaccia della route predefinita."
+
+msgid "Set a static address in the Networking page, then check again."
+msgstr "Imposta un indirizzo statico nella pagina Rete, poi controlla di nuovo."
+
+msgid "Set a static address in /etc/network/interfaces, then check again."
+msgstr "Imposta un indirizzo statico in /etc/network/interfaces, poi controlla di nuovo."
+
+msgid "{{address}}/{{prefix}} on {{interface}} comes from DHCP: a domain controller needs a static address."
+msgstr "{{address}}/{{prefix}} su {{interface}} viene dal DHCP: un domain controller ha bisogno di un indirizzo statico."
+
+msgid "Static address {{address}}/{{prefix}} on {{interface}}."
+msgstr "Indirizzo statico {{address}}/{{prefix}} su {{interface}}."
+
+msgid "The host name is \"{{name}}\": a domain controller needs a name of its own."
+msgstr "Il nome host è \"{{name}}\": un domain controller ha bisogno di un nome suo."
+
+msgid "The host name \"{{name}}\" is longer than 15 characters, the limit of a NetBIOS name."
+msgstr "Il nome host \"{{name}}\" supera i 15 caratteri, il limite di un nome NetBIOS."
+
+msgid "The host name \"{{name}}\" must be letters, digits and hyphens, not only digits, and must not start or end with a hyphen."
+msgstr "Il nome host \"{{name}}\" deve contenere lettere, cifre e trattini, non solo cifre, e non può iniziare o finire con un trattino."
+
+msgid "Change it (hostnamectl set-hostname NAME, or Cockpit's Overview page), then check again."
+msgstr "Cambialo (hostnamectl set-hostname NOME, oppure dalla pagina Panoramica di Cockpit), poi controlla di nuovo."
+
+msgid "Host name \"{{name}}\"."
+msgstr "Nome host \"{{name}}\"."
+
+msgid "{{program}} on {{ports}}"
+msgstr "{{program}} su {{ports}}"
+
+msgid "Ports a domain controller needs are in use: {{list}}."
+msgstr "Alcune porte che servono a un domain controller sono occupate: {{list}}."
+
+msgid "Stop and disable those services (for example: systemctl disable --now dnsmasq), then check again."
+msgstr "Ferma e disabilita quei servizi (per esempio: systemctl disable --now dnsmasq), poi controlla di nuovo."
+
+msgid "The ports a domain controller needs are free once {{programs}} are stopped, which the provisioning does."
+msgstr "Le porte che servono a un domain controller si liberano fermando {{programs}}, cosa che fa il provisioning."
+
+msgid "The ports a domain controller needs are free."
+msgstr "Le porte che servono a un domain controller sono libere."
+
+msgid "The clock is not synchronized: Kerberos refuses clients whose clock differs by more than 5 minutes."
+msgstr "L'orologio non è sincronizzato: Kerberos rifiuta i client il cui orologio differisce di più di 5 minuti."
+
+msgid "Install chrony, or enable systemd-timesyncd."
+msgstr "Installa chrony, oppure abilita systemd-timesyncd."
+
+msgid "The clock is synchronized, but without chrony the domain controller gives no time to the domain's Windows computers."
+msgstr "L'orologio è sincronizzato, ma senza chrony il domain controller non fornisce l'ora ai computer Windows del dominio."
+
+msgid "Install chrony (apt install chrony) before the provisioning, which sets it up."
+msgstr "Installa chrony (apt install chrony) prima del provisioning, che lo configura."
+
+msgid "The clock is synchronized by chrony, which the provisioning sets up to serve the domain's computers."
+msgstr "L'orologio è sincronizzato da chrony, che il provisioning configura per servire i computer del dominio."
+
+msgid "{{free}} GiB free under /var/lib/samba."
+msgstr "{{free}} GiB liberi in /var/lib/samba."
+
+msgid "Free some space, then check again."
+msgstr "Libera spazio, poi controlla di nuovo."
+
+msgid "{{free}} GiB free under /var/lib/samba: the directory and the shared folders will need more."
+msgstr "{{free}} GiB liberi in /var/lib/samba: la directory e le cartelle condivise ne richiederanno di più."
+
 msgid "New domain"
 msgstr "Nuovo dominio"
 
