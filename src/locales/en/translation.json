@@ -225,7 +225,7 @@
   "FSMO roles": "FSMO roles",
   "Full name": "Full name",
   "Generate password": "Generate password",
-  "Give a DNS name of two or more parts, such as school.example.org: letters, digits and hyphens.": "Give a DNS name of two or more parts, such as school.example.org: letters, digits and hyphens.",
+  "Give a DNS name of two or more parts, such as corp.example.org: letters, digits and hyphens.": "Give a DNS name of two or more parts, such as corp.example.org: letters, digits and hyphens.",
   "Give a host name, such as server.example.com.": "Give a host name, such as server.example.com.",
   "Give an IPv4 address, such as 192.168.1.10.": "Give an IPv4 address, such as 192.168.1.10.",
   "Give an IPv6 address, such as 2001:db8::10.": "Give an IPv6 address, such as 2001:db8::10.",

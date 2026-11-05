@@ -13,7 +13,7 @@ const CORE_GPO = {
     guid: GUID, name: "Lab settings", path: "\\\\samba.test\\sysvol\\samba.test\\Policies\\" + GUID,
     version: { user: 2, computer: 3 }, user_enabled: false, computer_enabled: true, builtin: false,
     drive_mapping: false,
-    links: [{ container: "OU=School", enforced: true, disabled: false, order: 1, protected: false }],
+    links: [{ container: "OU=Office", enforced: true, disabled: false, order: 1, protected: false }],
 };
 // Verbatim shape of addcctl's answers
 const ANSWERS: Record<string, unknown> = {
@@ -52,12 +52,12 @@ describe("Group Policy objects", () => {
         calls.length = 0;
         const linked = await linkGpo(GUID, "");
         assert.equal(linked.links.length, 1);
-        await linkGpo(GUID, "OU=School", { disabled: true });
-        const unlinked = await unlinkGpo(GUID, "OU=School");
+        await linkGpo(GUID, "OU=Office", { disabled: true });
+        const unlinked = await unlinkGpo(GUID, "OU=Office");
         assert.deepEqual(unlinked.links, []);
         assert.deepEqual(sent("gpo link"), [{ gpo: GUID, container: "" },
-            { gpo: GUID, container: "OU=School", disabled: true }]);
-        assert.deepEqual(sent("gpo unlink"), [{ gpo: GUID, container: "OU=School" }]);
+            { gpo: GUID, container: "OU=Office", disabled: true }]);
+        assert.deepEqual(sent("gpo unlink"), [{ gpo: GUID, container: "OU=Office" }]);
         await listGpos();
         assert.equal(sent("gpo list").length, 1);
     });
@@ -75,10 +75,10 @@ describe("Group Policy objects", () => {
         core();
         await listGpos();
         calls.length = 0;
-        await deleteOu("OU=School", false);
+        await deleteOu("OU=Office", false);
         await listGpos();
         assert.equal(sent("gpo list").length, 1);
-        await updateShare("data", { comment: "", browseable: true, access: [{ name: "Teachers", kind: "group", level: "write" }],
+        await updateShare("data", { comment: "", browseable: true, access: [{ name: "Managers", kind: "group", level: "write" }],
             automount: { letter: "S", label: "Data" } });
         await listGpos();
         assert.equal(sent("gpo list").length, 2);

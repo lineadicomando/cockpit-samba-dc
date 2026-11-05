@@ -73,7 +73,7 @@ options:
     type: str
   ou:
     description:
-      - "Container of the user, relative to the domain (e.g. C(OU=Students,OU=School)): an OU or a
+      - "Container of the user, relative to the domain (e.g. C(OU=Employees,OU=Office)): an OU or a
         default container such as C(CN=Users). The user is created in it, or moved to it. Default
         for a new user: C(CN=Users)."
     type: str
@@ -165,7 +165,7 @@ options:
     type: str
   ou:
     description:
-      - "Container of the group, relative to the domain (e.g. C(OU=School)): an OU or a default
+      - "Container of the group, relative to the domain (e.g. C(OU=Office)): an OU or a default
         container such as C(CN=Users). The group is created in it, or moved to it. Default for a new
         group: C(CN=Users)."
     type: str
@@ -206,7 +206,7 @@ options:
     required: true
   parent:
     description:
-      - "The OU it is in, relative to the domain (e.g. C(OU=School)); empty: the domain itself."
+      - "The OU it is in, relative to the domain (e.g. C(OU=Office)); empty: the domain itself."
     type: str
     default: ""
   state:
@@ -286,8 +286,8 @@ options:
     required: true
   container:
     description:
-      - "Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), or empty for
-        the domain itself."
+      - "Where the link is: an OU, relative to the domain (e.g. OU=Employees,OU=Office), or empty
+        for the domain itself."
     type: str
     default: ""
   state:

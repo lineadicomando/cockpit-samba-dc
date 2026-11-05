@@ -51,10 +51,9 @@ To resume:
 
 ## 12. Import users from a CSV file — v0.18.0
 
-Not a
-`samba-tool` command, but the most frequent job at the start of a school
-year: dozens or hundreds of accounts, with their groups and OU, and their
-passwords handed out on paper.
+Not a `samba-tool` command, but a frequent job whenever many people arrive
+at once: dozens or hundreds of accounts, with their groups and OU, and
+their passwords handed out on paper.
 
 - [ ] **Decide with the user**, before writing code:
   - the format: UTF-8, separator `,` or `;` (what a spreadsheet in Italian

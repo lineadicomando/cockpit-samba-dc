@@ -424,7 +424,7 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
     const pso = `${p}pso`, ou = `${p}ou`, ou2 = `${p}ou2`, inner = `${p}inner`, computer = `${p}pc`.slice(0, 15);
     const access: Access[] = [
         { name: group, kind: "group", level: "write" },
-        { name: "student1", kind: "user", level: "read" },
+        { name: "employee1", kind: "user", level: "read" },
     ];
     console.log(`${driver.name}:`);
     try {
@@ -453,22 +453,22 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
                 assert.ok(!names.includes(share), `listed: ${names}`);
             });
         }
-        await step(`share ${share}: ${group} write, student1 read, mapped as ${letter}:`, async () => {
+        await step(`share ${share}: ${group} write, employee1 read, mapped as ${letter}:`, async () => {
             await driver.createShare(share, access, letter);
-            assert.deepEqual(await shareAccess(share), [`group:${group}:write`, "user:student1:read"]);
+            assert.deepEqual(await shareAccess(share), [`group:${group}:write`, "user:employee1:read"]);
             const xml = await drivesXml();
             assert.ok(xml.includes(`letter="${letter}"`) && xml.includes(`name="${netbios}\\${group}"`), xml);
         });
-        await step("smbd: the user writes, student1 reads, student2 is refused", async () => {
+        await step("smbd: the user writes, employee1 reads, employee2 is refused", async () => {
             await smb(share, user, "put /etc/hostname from-user.txt");
-            assert.match(await smb(share, "student1", "ls"), /from-user\.txt/);
-            await assert.rejects(smb(share, "student1", "put /etc/hostname from-student.txt"), /ACCESS_DENIED/);
-            await assert.rejects(smb(share, "student2", "ls"), /ACCESS_DENIED/);
+            assert.match(await smb(share, "employee1", "ls"), /from-user\.txt/);
+            await assert.rejects(smb(share, "employee1", "put /etc/hostname from-employee.txt"), /ACCESS_DENIED/);
+            await assert.rejects(smb(share, "employee2", "ls"), /ACCESS_DENIED/);
         });
         await step(`rename ${user} → ${user2}, ${group} → ${group2}: the share follows`, async () => {
             await driver.renameUser(user, user2);
             await driver.renameGroup(group, group2);
-            assert.deepEqual(await shareAccess(share), [`group:${group2}:write`, "user:student1:read"]);
+            assert.deepEqual(await shareAccess(share), [`group:${group2}:write`, "user:employee1:read"]);
             const xml = await drivesXml();
             assert.ok(xml.includes(`name="${netbios}\\${group2}"`) && !xml.includes(`${netbios}\\${group}"`), xml);
             await smb(share, user2, "put /etc/hostname from-user2.txt");
@@ -484,9 +484,9 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
                     /Minimum password length: 14/);
                 await assert.rejects(core("user password", { name: user2, password: "Abcdef-12345", must_change: false }),
                     /too short/);
-                await driver.appendToPso(pso, "student1");
+                await driver.appendToPso(pso, "employee1");
                 const listed = ((await core("pso get", { name: pso })).pso as { applies_to: string[] }).applies_to;
-                assert.deepEqual(listed, ["student1", group2]);
+                assert.deepEqual(listed, ["employee1", group2]);
                 await driver.deletePso(pso);
                 const after = (await core("user get", { name: user2 })).password_policy as { pso: string | null };
                 assert.equal(after.pso, null);
@@ -543,8 +543,8 @@ async function scenario(driver: Driver, letter: string): Promise<void> {
         const info = `${p}info`, list = `${p}list`, pc = `${p}pc2`;
         try {
             const details: UserDetails = {
-                email: `${info}@example.org`, description: "Integration", title: "Teacher", department: "Science",
-                company: "School", must_change_password: true,
+                email: `${info}@example.org`, description: "Integration", title: "Manager", department: "Science",
+                company: "Office", must_change_password: true,
             };
             await driver.createUserWith(info, details);
             const u = (await core("user get", { name: info })).user as Record<string, unknown>;
@@ -713,15 +713,15 @@ async function coreChecks(): Promise<void> {
     try {
         await step("members are account names, not CNs (a user made by samba-tool, CN \"Mario Rossi\")", async () => {
             await run(["samba-tool", "user", "create", "t-x-mrossi", "--random-password", "--given-name", "Mario", "--surname", "Rossi"]);
-            await core("group create", { name: "t-x-group", members: ["t-x-mrossi", "student1"] });
+            await core("group create", { name: "t-x-group", members: ["t-x-mrossi", "employee1"] });
             const u = (await core("user get", { name: "t-x-mrossi" })).user as { cn: string; groups: string[] };
             assert.equal(u.cn, "Mario Rossi");
             assert.ok(u.groups.includes("t-x-group"), `groups: ${u.groups}`);
             const g = (await core("group get", { name: "t-x-group" })).group as { members: string[] };
-            assert.deepEqual(g.members.sort(), ["student1", "t-x-mrossi"]);
+            assert.deepEqual(g.members.sort(), ["employee1", "t-x-mrossi"]);
         });
         await step("an unlinked drive-mapping GPO is linked again on the next write", async () => {
-            await core("share set", { name: "t-x-docs", access: [{ name: "student1" }], drive: { letter: "S" } });
+            await core("share set", { name: "t-x-docs", access: [{ name: "employee1" }], drive: { letter: "S" } });
             const link = await gpLink();
             const ours = /\[LDAP:\/\/CN=\{[^}]+\},CN=Policies[^\]]*;0\]$/.exec(link)?.[0];
             assert.ok(ours, `our link is the last one: ${link}`);
@@ -795,20 +795,20 @@ async function coreChecks(): Promise<void> {
         });
         await step("a deleted user stays in its share: named by the delete, marked unknown, kept, removed", async () => {
             await run(["samba-tool", "user", "create", "t-x-gone", "--random-password"]);
-            await core("share set", { name: "t-x-stale", access: [{ name: "student1" }, { name: "t-x-gone" }],
+            await core("share set", { name: "t-x-stale", access: [{ name: "employee1" }, { name: "t-x-gone" }],
                 drive: { letter: "T" } });
             const deleted = await core("user delete", { name: "t-x-gone" });
             assert.deepEqual(deleted.shares, ["t-x-stale"]);
             const get = async () => (await core("share get", { name: "t-x-stale" })).share as
                 { access: (Access & { unknown?: boolean })[] };
             assert.deepEqual((await get()).access.map(a => [a.name, a.unknown ?? false]),
-                [["student1", false], ["t-x-gone", true]]);
+                [["employee1", false], ["t-x-gone", true]]);
             const kept = await core("share set", { name: "t-x-stale", comment: "kept" });
             assert.ok(!("error" in kept), JSON.stringify(kept));
             assert.ok((await get()).access.some(a => a.name === "t-x-gone"));
             assert.ok(!(await drivesXml()).includes("t-x-gone"), "not a target of the mapping");
             await core("share set", { name: "t-x-stale", access: [{ name: "t-x-gone" }], access_mode: "remove" });
-            assert.deepEqual(await shareAccess("t-x-stale"), ["user:student1:read"]);
+            assert.deepEqual(await shareAccess("t-x-stale"), ["user:employee1:read"]);
         });
         await step("a renamed user keeps its home; a deleted user's folder is not handed to, or deleted by, a namesake", async () => {
             await run(["samba-tool", "user", "create", "t-x-home", "--random-password"]);

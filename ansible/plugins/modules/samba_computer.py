@@ -37,7 +37,7 @@ EXAMPLES = r"""
   lineadicomando.samba_dc.samba_computer:
     name: LAB-PC02
     ou: OU=Classroom,OU=Lab
-    description: Teacher's desk
+    description: Manager's desk
 
 - name: Delete a computer account
   lineadicomando.samba_dc.samba_computer:

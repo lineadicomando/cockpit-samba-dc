@@ -6,7 +6,7 @@ import type { PasswordPolicy } from "../src/lib/types.ts";
 describe("validateUsername", () => {
     it("accepts typical usernames", () => {
         assert.equal(validateUsername("mario.rossi"), null);
-        assert.equal(validateUsername("Studente01"), null);
+        assert.equal(validateUsername("Dipendente01"), null);
         assert.equal(validateUsername("a"), null);
         assert.equal(validateUsername("user_name-x"), null);
         assert.equal(validateUsername("nome cognome"), null);
@@ -48,7 +48,7 @@ describe("validateUsername", () => {
 describe("validateGroupName", () => {
     it("accepts typical group names, including ones longer than 20 characters", () => {
         assert.equal(validateGroupName("2C"), null);
-        assert.equal(validateGroupName("Docenti scuola primaria plesso nord"), null);
+        assert.equal(validateGroupName("Responsabili ufficio acquisti sede nord"), null);
     });
 
     it("rejects the empty string and names longer than 256 characters", () => {
@@ -70,9 +70,9 @@ describe("validateGroupName", () => {
 
 describe("validateMemberName", () => {
     it("accepts users, computer accounts and nested groups", () => {
-        assert.equal(validateMemberName("student-alice"), null);
+        assert.equal(validateMemberName("employee-alice"), null);
         assert.equal(validateMemberName("PC00$"), null);
-        assert.equal(validateMemberName("Docenti scuola primaria plesso nord"), null);
+        assert.equal(validateMemberName("Responsabili ufficio acquisti sede nord"), null);
     });
 
     it("rejects option-like names", () => {
@@ -82,7 +82,7 @@ describe("validateMemberName", () => {
 
 describe("validateShareName", () => {
     it("accepts typical share names", () => {
-        assert.equal(validateShareName("Docenti"), null);
+        assert.equal(validateShareName("Responsabili"), null);
         assert.equal(validateShareName("progetti 2026"), null);
         assert.equal(validateShareName("a".repeat(80)), null);
     });
@@ -187,7 +187,7 @@ describe("PSOs", () => {
 
 describe("validateOuName", () => {
     it("refuses what addcctl refuses", () => {
-        assert.equal(validateOuName("Classe 1A, sez. B"), null);
+        assert.equal(validateOuName("Reparto 1A, sez. B"), null);
         assert.equal(validateOuName(""), "empty");
         assert.equal(validateOuName(" x"), "surroundingSpaces");
         assert.equal(validateOuName("x".repeat(65)), "tooLong");
@@ -213,7 +213,7 @@ describe("validateComputerName", () => {
 describe("validateEmail", () => {
     it("allows an empty address and catches typos", () => {
         assert.equal(validateEmail(""), null);
-        assert.equal(validateEmail("m.rossi@school.example"), null);
+        assert.equal(validateEmail("m.rossi@corp.example"), null);
         assert.equal(validateEmail("m.rossi"), "invalid");
         assert.equal(validateEmail("m rossi@x"), "invalid");
         assert.equal(validateEmail("a@b@c"), "invalid");
@@ -252,20 +252,20 @@ describe("DNS names and values", () => {
 
 describe("a new domain", () => {
     it("checks the realm as addcctl does", () => {
-        assert.equal(validateRealm("school.example.org", "dc"), null);
-        assert.equal(validateRealm("School.Example.Org.", "dc"), null);
+        assert.equal(validateRealm("corp.example.org", "dc"), null);
+        assert.equal(validateRealm("Corp.Example.Org.", "dc"), null);
         assert.equal(validateRealm("", "dc"), "empty");
-        for (const bad of ["school", "-a.org", "a..org", "a.b_c.org", "a.org;x"])
+        for (const bad of ["corp", "-a.org", "a..org", "a.b_c.org", "a.org;x"])
             assert.equal(validateRealm(bad, "dc"), "invalid", bad);
-        assert.equal(validateRealm("school.123", "dc"), "numeric");
+        assert.equal(validateRealm("corp.123", "dc"), "numeric");
     });
 
     it("checks the NetBIOS name", () => {
-        assert.equal(validateNetbiosDomain("school", "dc"), null);
+        assert.equal(validateNetbiosDomain("corp", "dc"), null);
         assert.equal(validateNetbiosDomain("dc", "dc"), "hostName");
         assert.equal(validateNetbiosDomain("SIXTEEN-LETTERS1", "dc"), "tooLong");
         assert.equal(validateNetbiosDomain("SCH.OOL", "dc"), "invalidChars");
-        assert.equal(validateNetbiosDomain("-SCHOOL", "dc"), "dash");
+        assert.equal(validateNetbiosDomain("-CORP", "dc"), "dash");
         assert.equal(validateNetbiosDomain("123", "dc"), "onlyDigits");
     });
 

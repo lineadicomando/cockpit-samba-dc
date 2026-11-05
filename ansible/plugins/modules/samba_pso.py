@@ -38,7 +38,7 @@ EXAMPLES = r"""
   lineadicomando.samba_dc.samba_pso:
     name: Staff
     precedence: 10
-    applies_to: [Teachers, Office]
+    applies_to: [Managers, Office]
     min_length: 14
     lockout_threshold: 5
     lockout_duration_minutes: 0

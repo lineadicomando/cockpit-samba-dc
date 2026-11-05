@@ -23,8 +23,8 @@ def test_zero_means_never_for_ages_and_intervals():
 
 
 def test_applies_to_and_its_mode():
-    params = dict(PARAMS, applies_to=["Teachers"], applies_to_mode="append")
-    assert build_request(params, create=False) == {"name": "Staff", "applies_to": ["Teachers"],
+    params = dict(PARAMS, applies_to=["Managers"], applies_to_mode="append")
+    assert build_request(params, create=False) == {"name": "Staff", "applies_to": ["Managers"],
                                                    "applies_to_mode": "append"}
-    assert build_request(params, create=True) == {"name": "Staff", "applies_to": ["Teachers"]}
+    assert build_request(params, create=True) == {"name": "Staff", "applies_to": ["Managers"]}
     assert build_request(dict(params, applies_to_mode="remove"), create=True) == {"name": "Staff"}

@@ -64,7 +64,7 @@ _USER_FIELDS = {
     "company": dict(_TEXT, description="Company; empty removes it"),
 }
 _OU = {"type": "string", "minLength": 1, "maxLength": 1024,
-       "description": "DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School)"}
+       "description": "DN of an OU or a default container, relative to the domain (e.g. OU=Employees,OU=Office)"}
 _MOVE_TO = dict(_OU, description=("Container to move it to: an OU or a default container (CN=Users, "
                                   "CN=Computers), relative to the domain"))
 _NAME_ONLY = lambda d, desc: {"type": "object", "properties": {"name": dict(d, description=desc)},
@@ -83,7 +83,7 @@ _DNS_VALUE = {"type": "string", "minLength": 1, "maxLength": 4096,
 _GPO = {"type": "string", "minLength": 1, "maxLength": 256,
         "description": "The GPO: its GUID ({31B2F340-...}) or its display name"}
 _GPO_CONTAINER = {"type": "string", "maxLength": 1024, "default": "",
-                  "description": ("Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), "
+                  "description": ("Where the link is: an OU, relative to the domain (e.g. OU=Employees,OU=Office), "
                                   "or empty for the domain itself")}
 
 
@@ -163,7 +163,7 @@ OPERATIONS = {
                 "password": _PASSWORD,
                 "must_change_password": {"type": "boolean", "default": False,
                                          "description": "Change it at the next logon"},
-                "ou": dict(_OU, description="Container to create it in, relative to the domain (e.g. OU=Students); default CN=Users"),
+                "ou": dict(_OU, description="Container to create it in, relative to the domain (e.g. OU=Employees); default CN=Users"),
                 "groups": {"type": "array", "items": _GROUP, "description": "Groups to add it to"},
             }),
             "required": ["name", "password"], "additionalProperties": False,
@@ -527,9 +527,9 @@ OPERATIONS = {
         "mcp": False,
         "input": {"type": "object", "properties": {
             "realm": {"type": "string", "minLength": 1, "maxLength": 253,
-                      "description": "DNS name of the domain, e.g. school.example.org; also the Kerberos realm"},
+                      "description": "DNS name of the domain, e.g. corp.example.org; also the Kerberos realm"},
             "netbios_domain": {"type": "string", "minLength": 1, "maxLength": 15,
-                               "description": "NetBIOS name of the domain (pre-Windows 2000), e.g. SCHOOL"},
+                               "description": "NetBIOS name of the domain (pre-Windows 2000), e.g. CORP"},
             "admin_password": dict(_PASSWORD, description=("Password of the domain's Administrator: at least 7 "
                                                            "characters, three of lower-case, upper-case, digits "
                                                            "and other characters; a secret, never returned")),

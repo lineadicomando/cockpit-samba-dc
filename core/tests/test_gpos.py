@@ -22,7 +22,7 @@ def gpo_dn(guid, lower=False):
 
 def gpo(guid, name, version="0", flags="0"):
     return {"dn": [gpo_dn(guid)], "cn": [guid], "displayName": [name], "versionNumber": [version],
-            "flags": [flags], "gPCFileSysPath": ["\\\\school.internal\\sysvol\\school.internal\\Policies\\" + guid]}
+            "flags": [flags], "gPCFileSysPath": ["\\\\corp.internal\\sysvol\\corp.internal\\Policies\\" + guid]}
 
 
 class FakeGpoDc(FakeDirDc):
@@ -35,7 +35,7 @@ class FakeGpoDc(FakeDirDc):
         self.gplink = {
             BASE.lower(): "[LDAP://%s;0][LDAP://%s;0]" % (gpo_dn(DEFAULT_DOMAIN_POLICY), gpo_dn(MAPS)),
             ("OU=Domain Controllers," + BASE).lower(): "[LDAP://%s;0]" % gpo_dn(DEFAULT_DC_POLICY, lower=True),
-            ("OU=School," + BASE).lower(): "[LDAP://%s;2]" % gpo_dn(CUSTOM),
+            ("OU=Office," + BASE).lower(): "[LDAP://%s;2]" % gpo_dn(CUSTOM),
         }
 
     def search(self, expression, attrs, base=None, scope="sub"):
@@ -100,10 +100,10 @@ class TestRead(Base):
         by = {g["guid"]: g for g in gpos}
         self.assertEqual(by[CUSTOM], {
             "guid": CUSTOM, "name": "Lab settings",
-            "path": "\\\\school.internal\\sysvol\\school.internal\\Policies\\" + CUSTOM,
+            "path": "\\\\corp.internal\\sysvol\\corp.internal\\Policies\\" + CUSTOM,
             "version": {"user": 2, "computer": 3}, "user_enabled": False, "computer_enabled": True,
             "builtin": False, "drive_mapping": False,
-            "links": [{"container": "OU=School", "enforced": True, "disabled": False, "order": 1,
+            "links": [{"container": "OU=Office", "enforced": True, "disabled": False, "order": 1,
                        "protected": False}]})
         # Link order 1 is the last item of gPLink, as in the GPMC
         self.assertEqual(by[MAPS]["links"], [{"container": "", "enforced": False, "disabled": False, "order": 1,
@@ -133,22 +133,22 @@ class TestLink(Base):
                                                    "order": 3, "protected": False})
         self.assertEqual(parse_gplink(self.dc.gplink[BASE.lower()])[0]["dn"], gpo_dn(CUSTOM))
         self.assertEqual(len(parse_gplink(self.dc.gplink[BASE.lower()])), 3)
-        self.assertEqual([l["container"] for l in result["gpo"]["links"]], ["", "OU=School"])
+        self.assertEqual([l["container"] for l in result["gpo"]["links"]], ["", "OU=Office"])
 
     def test_container_without_links(self):
-        self.gpos().link({"gpo": CUSTOM, "container": "OU=Students,OU=School", "disabled": True})
-        self.assertEqual(self.dc.gplink[("OU=Students,OU=School," + BASE).lower()],
+        self.gpos().link({"gpo": CUSTOM, "container": "OU=Employees,OU=Office", "disabled": True})
+        self.assertEqual(self.dc.gplink[("OU=Employees,OU=Office," + BASE).lower()],
                          "[LDAP://%s;1]" % gpo_dn(CUSTOM))
 
     def test_flags_change_and_idempotence(self):
-        result = self.gpos().link({"gpo": CUSTOM, "container": "OU=School", "disabled": True})
+        result = self.gpos().link({"gpo": CUSTOM, "container": "OU=Office", "disabled": True})
         self.assertTrue(result["changed"])
         self.assertEqual(result["diff"]["before"]["disabled"], False)
-        self.assertEqual(result["diff"]["after"], {"container": "OU=School", "enforced": True, "disabled": True,
+        self.assertEqual(result["diff"]["after"], {"container": "OU=Office", "enforced": True, "disabled": True,
                                                    "order": 1, "protected": False})
-        self.assertFalse(self.gpos().link({"gpo": CUSTOM, "container": "OU=School"})["changed"])
-        self.gpos().link({"gpo": CUSTOM, "container": "OU=School", "enforced": False, "disabled": False})
-        self.assertEqual(self.dc.gplink[("OU=School," + BASE).lower()], "[LDAP://%s;0]" % gpo_dn(CUSTOM))
+        self.assertFalse(self.gpos().link({"gpo": CUSTOM, "container": "OU=Office"})["changed"])
+        self.gpos().link({"gpo": CUSTOM, "container": "OU=Office", "enforced": False, "disabled": False})
+        self.assertEqual(self.dc.gplink[("OU=Office," + BASE).lower()], "[LDAP://%s;0]" % gpo_dn(CUSTOM))
         self.assertEqual(len(self.dc.modified), 2)
 
     def test_keeps_the_dn_of_other_links_as_written(self):
@@ -172,7 +172,7 @@ class TestLink(Base):
                 self.gpos().link({"gpo": name, "container": container, "disabled": True})
         self.assertTrue(self.gpos().link({"gpo": "Default Domain Policy", "enforced": True})["changed"])
         # Linked elsewhere, a default GPO is like any other
-        self.gpos().link({"gpo": "Default Domain Policy", "container": "OU=School", "disabled": True})
+        self.gpos().link({"gpo": "Default Domain Policy", "container": "OU=Office", "disabled": True})
 
     def test_check_mode_changes_nothing(self):
         self.runner.check = True
@@ -186,14 +186,14 @@ class TestLink(Base):
 
 class TestUnlink(Base):
     def test_unlink(self):
-        result = self.gpos().unlink({"gpo": CUSTOM, "container": "OU=School"})
+        result = self.gpos().unlink({"gpo": CUSTOM, "container": "OU=Office"})
         self.assertTrue(result["changed"])
-        self.assertEqual(result["diff"], {"before": {"container": "OU=School", "enforced": True, "disabled": False,
+        self.assertEqual(result["diff"], {"before": {"container": "OU=Office", "enforced": True, "disabled": False,
                                                      "order": 1, "protected": False}, "after": None})
         self.assertEqual(result["gpo"]["links"], [])
-        self.assertNotIn(("OU=School," + BASE).lower(), self.dc.gplink)
-        self.assertEqual(self.dc.modified[-1], ("OU=School," + BASE, {"gPLink": None}))
-        self.assertFalse(self.gpos().unlink({"gpo": CUSTOM, "container": "OU=School"})["changed"])
+        self.assertNotIn(("OU=Office," + BASE).lower(), self.dc.gplink)
+        self.assertEqual(self.dc.modified[-1], ("OU=Office," + BASE, {"gPLink": None}))
+        self.assertFalse(self.gpos().unlink({"gpo": CUSTOM, "container": "OU=Office"})["changed"])
 
     def test_keeps_the_order_of_the_others(self):
         self.gpos().link({"gpo": CUSTOM})

@@ -369,7 +369,7 @@ export function validateRealm(realm: string, hostName: string): RealmViolation |
 export function realmViolationMessage(t: (key: string) => string, violation: RealmViolation): string {
     switch (violation) {
         case "empty":    return t("Domain name is required.");
-        case "invalid":  return t("Give a DNS name of two or more parts, such as school.example.org: letters, digits and hyphens.");
+        case "invalid":  return t("Give a DNS name of two or more parts, such as corp.example.org: letters, digits and hyphens.");
         case "numeric":  return t("The domain name cannot end with a number.");
         case "hostName": return t("The domain name cannot be the host name.");
     }

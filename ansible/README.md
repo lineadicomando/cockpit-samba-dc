@@ -139,7 +139,7 @@ the `samba_win_status` playbook and MCP tool. They are the `domain` role of
 | fact `samba_win_status` | fact `win_workman_domain_status` |
 
 The DNS servers to set before joining are `win_workman_domain_dns_servers`.
-The MCP server no longer assumes an inventory called `school`: set
+The MCP server no longer assumes a default inventory: set
 `ANSIBLE_MCP_DEFAULT_INVENTORY` in its environment, or pass `inventory`.
 
 ### Coming from `lineadicomando.samba_ad_dc`

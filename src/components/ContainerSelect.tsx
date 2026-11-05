@@ -22,7 +22,7 @@ export function ouParents(ous: Ou[], moving?: string): Ou[] {
     return ous.filter(o => o.isOu && o.defaultFor !== "domain_controllers" && !(moving && isUnder(o.dn, moving)));
 }
 
-// The container's path for a column, "School/Students"
+// The container's path for a column, "Office/Employees"
 export function ContainerLabel({ dn }: { dn: string }) {
     const { t } = useTranslation();
     return <span title={dn} style={{ whiteSpace: "nowrap" }}>{dn ? containerPath(dn) : t("Domain")}</span>;

@@ -9,11 +9,11 @@ import { listShares, createShare, updateShare, deleteShare, effectiveShareAccess
 // Verbatim shape of "addcctl share list"
 const LIST = JSON.stringify({ shares: [{
     name: "docs", path: "/srv/samba/shares/docs", comment: "Documents", browseable: true,
-    access: [{ name: "Teachers", kind: "group", level: "write" }, { name: "mrossi", kind: "user", level: "read" }],
+    access: [{ name: "Managers", kind: "group", level: "write" }, { name: "mrossi", kind: "user", level: "read" }],
     drive: { letter: "P", label: "Docs" },
 }, {
     name: "lab", path: "/srv/samba/shares/lab", comment: "", browseable: false,
-    access: [{ name: "Students", kind: "group", level: "read" }], drive: null,
+    access: [{ name: "Employees", kind: "group", level: "read" }], drive: null,
 }] });
 
 const isCore = (call: SpawnCall, action: string) => call.args.join(" ") === `addcctl share ${action}`;
@@ -46,7 +46,7 @@ describe("listShares", () => {
         await listShares();
         assert.equal(calls.filter(c => isCore(c, "list")).length, 1);
         await updateShare("docs", { comment: "", browseable: true, automount: null,
-            access: [{ name: "Teachers", kind: "group", level: "write" }] });
+            access: [{ name: "Managers", kind: "group", level: "write" }] });
         await listShares();
         assert.equal(calls.filter(c => isCore(c, "list")).length, 2);
     });
@@ -72,8 +72,8 @@ describe("entries of deleted accounts", () => {
         await deleteShare("none", false);
         const shares = await listShares();
         assert.deepEqual(sharesListing(shares, "user", "MROSSI"), ["docs"]);
-        assert.deepEqual(sharesListing(shares, "group", "students"), ["lab"]);
-        assert.deepEqual(sharesListing(shares, "user", "Students"), []);
+        assert.deepEqual(sharesListing(shares, "group", "employees"), ["lab"]);
+        assert.deepEqual(sharesListing(shares, "user", "Employees"), []);
     });
 });
 
@@ -122,7 +122,7 @@ describe("updateShare and deleteShare", () => {
     it("removes the mapping with drive null, deletes with the data flag", async () => {
         core();
         await updateShare("docs", { comment: "", browseable: false, automount: null,
-            access: [{ name: "Teachers", kind: "group", level: "write" }] });
+            access: [{ name: "Managers", kind: "group", level: "write" }] });
         assert.equal(input("set").drive, null);
         assert.equal(input("set").browseable, false);
         await deleteShare("docs", true);
@@ -134,20 +134,20 @@ describe("effectiveShareAccess", () => {
     const share = {
         name: "docs", path: "/srv/samba/shares/docs", comment: "", browseable: true, automount: null,
         access: [
-            { name: "Teachers", kind: "group" as const, level: "write" as const },
-            { name: "Students", kind: "group" as const, level: "read" as const },
+            { name: "Managers", kind: "group" as const, level: "write" as const },
+            { name: "Employees", kind: "group" as const, level: "read" as const },
             { name: "mrossi", kind: "user" as const, level: "write" as const },
         ],
     };
 
     it("grants access through the user or its groups, case-insensitively", () => {
         assert.deepEqual(effectiveShareAccess(share, "MRossi", []), { level: "write", via: [share.access[2]] });
-        assert.deepEqual(effectiveShareAccess(share, "carol", ["teachers", "Domain Users"]), { level: "write", via: [share.access[0]] });
+        assert.deepEqual(effectiveShareAccess(share, "carol", ["managers", "Domain Users"]), { level: "write", via: [share.access[0]] });
         assert.equal(effectiveShareAccess(share, "bob", ["Domain Users"]), null);
     });
 
     it("is read-only when any matching entry is read-only (smbd read list)", () => {
-        const r = effectiveShareAccess(share, "mrossi", ["Students"]);
+        const r = effectiveShareAccess(share, "mrossi", ["Employees"]);
         assert.equal(r?.level, "read");
         assert.equal(r?.via.length, 2);
     });
@@ -155,17 +155,17 @@ describe("effectiveShareAccess", () => {
 
 describe("expandNestedGroups", () => {
     const groups = [
-        { name: "Staff", members: ["Teachers", "secretary"] },
-        { name: "Teachers", members: ["mrossi"] },
-        { name: "All", members: ["staff", "Students"] },
+        { name: "Staff", members: ["Managers", "secretary"] },
+        { name: "Managers", members: ["mrossi"] },
+        { name: "All", members: ["staff", "Employees"] },
         // A cycle, which AD allows
         { name: "LoopA", members: ["LoopB"] },
         { name: "LoopB", members: ["LoopA"] },
     ];
 
     it("adds the groups that contain the user's groups, at any depth", () => {
-        assert.deepEqual(expandNestedGroups(["Teachers", "Domain Users"], groups).sort(),
-            ["All", "Domain Users", "Staff", "Teachers"]);
+        assert.deepEqual(expandNestedGroups(["Managers", "Domain Users"], groups).sort(),
+            ["All", "Domain Users", "Managers", "Staff"]);
     });
 
     it("stops on cycles", () => {
@@ -175,7 +175,7 @@ describe("expandNestedGroups", () => {
     it("gives the access a nested group grants", () => {
         const share = { name: "docs", path: "/srv/samba/shares/docs", comment: "", browseable: true, automount: null,
             access: [{ name: "Staff", kind: "group" as const, level: "write" as const }] };
-        assert.equal(effectiveShareAccess(share, "mrossi", ["Teachers"]), null);
-        assert.deepEqual(effectiveShareAccess(share, "mrossi", expandNestedGroups(["Teachers"], groups))?.via, share.access);
+        assert.equal(effectiveShareAccess(share, "mrossi", ["Managers"]), null);
+        assert.deepEqual(effectiveShareAccess(share, "mrossi", expandNestedGroups(["Managers"], groups))?.via, share.access);
     });
 });

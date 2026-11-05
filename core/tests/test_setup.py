@@ -40,7 +40,7 @@ hosts:          files dns
 STATIC = {"family": "inet", "local": "192.168.1.20", "prefixlen": 24, "scope": "global",
           "valid_life_time": 4294967295}
 DHCP = dict(STATIC, dynamic=True, valid_life_time=3540)
-REQUEST = {"realm": "School.Example.Org", "netbios_domain": "school", "admin_password": "Secret-Pass1",
+REQUEST = {"realm": "Corp.Example.Org", "netbios_domain": "corp", "admin_password": "Secret-Pass1",
            "dns_forwarder": "192.168.1.1"}
 
 
@@ -273,13 +273,13 @@ class TestValues(unittest.TestCase):
             self.assertIsNotNone(host_name_violation(bad), bad)
 
     def test_realm(self):
-        self.assertIsNone(realm_violation("school.example.org", "dc"))
-        for bad in ("school", "-a.org", "a..org", "a.b_c.org", "school.123", "dc.", "a.org;x"):
+        self.assertIsNone(realm_violation("corp.example.org", "dc"))
+        for bad in ("corp", "-a.org", "a..org", "a.b_c.org", "corp.123", "dc.", "a.org;x"):
             self.assertIsNotNone(realm_violation(bad, "dc"), bad)
 
     def test_netbios(self):
-        self.assertIsNone(netbios_violation("SCHOOL", "dc"))
-        for bad in ("DC", "", "SIXTEEN-LETTERS1", "-SCHOOL", "123", "SCH.OOL", "SCH OOL"):
+        self.assertIsNone(netbios_violation("CORP", "dc"))
+        for bad in ("DC", "", "SIXTEEN-LETTERS1", "-CORP", "123", "SCH.OOL", "SCH OOL"):
             self.assertIsNotNone(netbios_violation(bad, "dc"), bad)
 
     def test_forwarder(self):
@@ -301,10 +301,10 @@ class TestProvision(SetupTest):
         self.host.dns_after = 2
         result = self.setup().provision(dict(REQUEST))
         self.assertEqual(self.provisioned_with, [{
-            "realm": "SCHOOL.EXAMPLE.ORG", "domain": "SCHOOL", "hostname": "dc", "hostip": "192.168.1.20",
+            "realm": "CORP.EXAMPLE.ORG", "domain": "CORP", "hostname": "dc", "hostip": "192.168.1.20",
             "dns_forwarder": "192.168.1.1", "adminpass": "Secret-Pass1"}])
-        self.assertEqual(result["domain"], {"realm": "SCHOOL.EXAMPLE.ORG", "dns_domain": "school.example.org",
-                                            "netbios_domain": "SCHOOL", "server": "dc.school.example.org",
+        self.assertEqual(result["domain"], {"realm": "CORP.EXAMPLE.ORG", "dns_domain": "corp.example.org",
+                                            "netbios_domain": "CORP", "server": "dc.corp.example.org",
                                             "address": "192.168.1.20", "dns_forwarder": "192.168.1.1"})
         self.assertEqual(result["smb_conf_dist"], "/etc/samba/smb.conf.dist")
         commands = self.runner.commands
@@ -319,14 +319,14 @@ class TestProvision(SetupTest):
         hosts = self.host.read("/etc/hosts")
         self.assertNotIn("127.0.1.1", hosts)
         self.assertTrue(hosts.endswith("::1     localhost ip6-localhost ip6-loopback\n"
-                                       "192.168.1.20\tdc.school.example.org dc\n"))
+                                       "192.168.1.20\tdc.corp.example.org dc\n"))
         self.assertEqual(os.readlink(self.host.path("/etc/krb5.conf")), "/var/lib/samba/private/krb5.conf")
         self.assertIn("passwd:         files systemd winbind\ngroup:          files systemd winbind\n",
                       self.host.read("/etc/nsswitch.conf"))
         self.assertEqual(self.host.read("/etc/chrony/conf.d/samba-dc.conf").splitlines()[1:],
                          ["ntpsigndsocket /var/lib/samba/ntp_signd", "allow 192.168.1.0/24"])
         self.assertEqual(self.host.groups, {"/var/lib/samba/ntp_signd": "_chrony"})
-        self.assertEqual(self.host.read("/etc/resolv.conf"), "search school.example.org\nnameserver 127.0.0.1\n")
+        self.assertEqual(self.host.read("/etc/resolv.conf"), "search corp.example.org\nnameserver 127.0.0.1\n")
         self.assertEqual(self.host.dns_queries, 3)
 
     def test_existing_krb5_conf_and_resolv_link(self):
@@ -347,7 +347,7 @@ class TestProvision(SetupTest):
         self.assertEqual(self.host.read("/etc/samba/smb.conf"), DEBIAN_SMB_CONF)
         self.assertEqual(self.host.read("/etc/hosts"), HOSTS)
         self.assertFalse(self.host.exists("/etc/krb5.conf"))
-        self.assertIn("provision: realm SCHOOL.EXAMPLE.ORG, domain SCHOOL, DC dc.school.example.org at "
+        self.assertIn("provision: realm CORP.EXAMPLE.ORG, domain CORP, DC dc.corp.example.org at "
                       "192.168.1.20, DNS forwarder 192.168.1.1 (samba.provision)", runner.commands)
         self.assertIn("write %s" % self.host.path("/etc/hosts"), runner.commands)
 
@@ -364,7 +364,7 @@ class TestProvision(SetupTest):
         self.assertEqual(self.runner.commands, [])
 
     def test_refused_values(self):
-        for key, value, message in (("realm", "school", "two or more parts"),
+        for key, value, message in (("realm", "corp", "two or more parts"),
                                     ("netbios_domain", "dc", "must not be the host name"),
                                     ("dns_forwarder", "127.0.0.1", "another DNS server"),
                                     ("admin_password", "short", "at least 7")):
@@ -390,8 +390,8 @@ class TestProvision(SetupTest):
     def test_dns_that_never_answers(self):
         self.host.dns_after = None
         with self.assertRaisesRegex(AddcError, "provisioned, but the DNS of the domain failed: .*"
-                                               "Left to do by hand: a DNS answer for dc.school.example.org from "
-                                               "127.0.0.1 .*; /etc/resolv.conf with \"search school.example.org\""):
+                                               "Left to do by hand: a DNS answer for dc.corp.example.org from "
+                                               "127.0.0.1 .*; /etc/resolv.conf with \"search corp.example.org\""):
             self.setup().provision(dict(REQUEST))
         self.assertEqual(self.host.read("/etc/resolv.conf"), "search example.lan\nnameserver 192.168.1.1\n")
 

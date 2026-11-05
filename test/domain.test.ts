@@ -110,10 +110,10 @@ const SETUP = { provisioned: false, ready: true,
     host: { name: "dc", address: "192.168.1.20", prefix_length: 24, interface: "enp1s0" },
     defaults: { realm: "EXAMPLE.LAN", netbios_domain: "EXAMPLE", dns_forwarder: "192.168.1.1" } };
 const PROVISIONED = { changed: true, check: false, commands: ["systemctl stop smbd nmbd winbind"],
-    domain: { realm: "SCHOOL.EXAMPLE.ORG", dns_domain: "school.example.org", netbios_domain: "SCHOOL",
-        server: "dc.school.example.org", address: "192.168.1.20", dns_forwarder: "192.168.1.1" },
+    domain: { realm: "CORP.EXAMPLE.ORG", dns_domain: "corp.example.org", netbios_domain: "CORP",
+        server: "dc.corp.example.org", address: "192.168.1.20", dns_forwarder: "192.168.1.1" },
     smb_conf_dist: "/etc/samba/smb.conf.dist" };
-const NEW_DOMAIN = { realm: "school.example.org", netbiosDomain: "SCHOOL", adminPassword: "Secret-Pass1",
+const NEW_DOMAIN = { realm: "corp.example.org", netbiosDomain: "CORP", adminPassword: "Secret-Pass1",
     dnsForwarder: "192.168.1.1" };
 
 describe("a new domain", () => {
@@ -137,7 +137,7 @@ describe("a new domain", () => {
         setSpawnHandler(() => JSON.stringify(dict(PROVISIONED, { check: true })));
         assert.deepEqual(await previewProvision(NEW_DOMAIN), ["systemctl stop smbd nmbd winbind"]);
         assert.deepEqual(calls[0].args, ["addcctl", "domain", "provision", "--check"]);
-        assert.deepEqual(JSON.parse(calls[0].input!), { realm: "school.example.org", netbios_domain: "SCHOOL",
+        assert.deepEqual(JSON.parse(calls[0].input!), { realm: "corp.example.org", netbios_domain: "CORP",
             admin_password: "Secret-Pass1", dns_forwarder: "192.168.1.1" });
         assert.ok(!calls[0].args.some(a => a.includes("Secret")));
     });
@@ -148,7 +148,7 @@ describe("a new domain", () => {
         calls.length = 0;
         setSpawnHandler(call => JSON.stringify(op(call) === "domain provision" ? PROVISIONED : ANSWERS[op(call)]));
         const done = await provisionDomain(NEW_DOMAIN);
-        assert.equal(done.server, "dc.school.example.org");
+        assert.equal(done.server, "dc.corp.example.org");
         assert.deepEqual(calls[0].args, ["addcctl", "domain", "provision"]);
         await getDomainInfo();
         assert.equal(sent("domain info").length, 1);

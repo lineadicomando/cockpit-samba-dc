@@ -97,9 +97,9 @@ export type DomainProvisionInput = {
     admin_password: string;
     /** IP address of the DNS server that answers for the names outside the domain (the router's, the provider's) */
     dns_forwarder: string;
-    /** NetBIOS name of the domain (pre-Windows 2000), e.g. SCHOOL */
+    /** NetBIOS name of the domain (pre-Windows 2000), e.g. CORP */
     netbios_domain: string;
-    /** DNS name of the domain, e.g. school.example.org; also the Kerberos realm */
+    /** DNS name of the domain, e.g. corp.example.org; also the Kerberos realm */
     realm: string;
 };
 
@@ -137,7 +137,7 @@ export type GpoGetInput = {
 
 /** gpo link: Link a GPO to the domain or an OU, or change the flags of its link there; flags left out keep their value (false for a new link). A new link has the lowest precedence */
 export type GpoLinkInput = {
-    /** Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), or empty for the domain itself */
+    /** Where the link is: an OU, relative to the domain (e.g. OU=Employees,OU=Office), or empty for the domain itself */
     container?: string;
     /** Disabled: the link stays but does not apply */
     disabled?: boolean;
@@ -152,7 +152,7 @@ export type GpoListInput = Record<string, never>;
 
 /** gpo unlink: Remove the link of a GPO from the domain or an OU; the default GPOs and the drive-mapping GPO stay linked where they are */
 export type GpoUnlinkInput = {
-    /** Where the link is: an OU, relative to the domain (e.g. OU=Students,OU=School), or empty for the domain itself */
+    /** Where the link is: an OU, relative to the domain (e.g. OU=Employees,OU=Office), or empty for the domain itself */
     container?: string;
     /** The GPO: its GUID ({31B2F340-...}) or its display name */
     gpo: string;
@@ -237,7 +237,7 @@ export type OuCreateInput = {
 
 /** ou delete: Delete an organizational unit (not a default container). One with objects in it only with recursive, which deletes them too: their home directories and their entries in shared folders stay */
 export type OuDeleteInput = {
-    /** DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School) */
+    /** DN of an OU or a default container, relative to the domain (e.g. OU=Employees,OU=Office) */
     dn: string;
     /** Also delete everything in it (never built-in objects or domain controllers) */
     recursive?: boolean;
@@ -245,7 +245,7 @@ export type OuDeleteInput = {
 
 /** ou get: One organizational unit or default container */
 export type OuGetInput = {
-    /** DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School) */
+    /** DN of an OU or a default container, relative to the domain (e.g. OU=Employees,OU=Office) */
     dn: string;
 };
 
@@ -256,7 +256,7 @@ export type OuListInput = Record<string, never>;
 export type OuSetInput = {
     /** Description; empty removes it */
     description?: string;
-    /** DN of an OU or a default container, relative to the domain (e.g. OU=Students,OU=School) */
+    /** DN of an OU or a default container, relative to the domain (e.g. OU=Employees,OU=Office) */
     dn: string;
     /** New name */
     new_name?: string;
@@ -403,7 +403,7 @@ export type UserCreateInput = {
     must_change_password?: boolean;
     /** sAMAccountName of the user */
     name: string;
-    /** Container to create it in, relative to the domain (e.g. OU=Students); default CN=Users */
+    /** Container to create it in, relative to the domain (e.g. OU=Employees); default CN=Users */
     ou?: string;
     /** The password; a secret, never returned */
     password: string;

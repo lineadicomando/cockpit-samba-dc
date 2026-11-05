@@ -34,7 +34,7 @@ In `ansible-collection-win_workman`, `ansible-collection-samba_dc` and
 - [x] **The collection**: remove the two roles,
       `playbooks/samba_win_status.yaml`, the `samba_win_status` MCP tool and
       the dependencies `microsoft.ad` and `ansible.windows`; the MCP
-      `inventory` no longer defaults to `school` (named by the call, or by
+      `inventory` no longer has a built-in default (named by the call, or by
       `ANSIBLE_MCP_DEFAULT_INVENTORY` or `ANSIBLE_MCP_INVENTORY` in the
       server's environment); no `lab_win` fallback; examples with
       neutral group names; README and `galaxy.yml` describe what the
@@ -114,7 +114,7 @@ The most duplicated part (`src/lib/shares.ts`, `src/lib/drivemaps.ts`;
       installs it, also with `none`
 - [x] On the test DC: the times below; a share made by `samba_tool` and by
       the page; `sysvolcheck` clean; the mapped drive at a Windows logon
-      (`student1` sees "Classe (S:)")
+      (`employee1` sees the share as drive S:)
 - [x] **Go/no-go**, with the measures: go, decided on 2026-10-23 (one
       implementation, saves about twice as fast, concurrent writers
       serialized, the chain to a Windows logon works)

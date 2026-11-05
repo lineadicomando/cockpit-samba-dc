@@ -8,7 +8,7 @@ from addcctl.operations import OPERATIONS
 
 from test_shares import FakeRunner
 
-ZONE_DN = "DC=school.internal,CN=MicrosoftDNS,DC=DomainDnsZones,DC=school,DC=internal"
+ZONE_DN = "DC=corp.internal,CN=MicrosoftDNS,DC=DomainDnsZones,DC=corp,DC=internal"
 
 
 def rec(rtype, value, ttl=900, timestamp=0):
@@ -16,32 +16,32 @@ def rec(rtype, value, ttl=900, timestamp=0):
 
 
 class FakeDnsDc:
-    dns_domain = "school.internal"
+    dns_domain = "corp.internal"
 
     def __init__(self, runner):
         self.runner = runner
         self.zones = [
-            {"name": "school.internal", "partition": "domain", "dn": ZONE_DN},
-            {"name": "_msdcs.school.internal", "partition": "forest", "dn": "DC=_msdcs..."},
+            {"name": "corp.internal", "partition": "domain", "dn": ZONE_DN},
+            {"name": "_msdcs.corp.internal", "partition": "forest", "dn": "DC=_msdcs..."},
             {"name": "RootDNSServers", "partition": "domain", "dn": "DC=RootDNSServers..."},
         ]
         self.nodes = {
-            "school.internal": {
-                "@": [rec("SOA", "dc.school.internal hostmaster 5 900 600 86400 3600", 3600),
-                      rec("NS", "dc.school.internal"), rec("A", "10.0.0.1"), rec("MX", "mail.school.internal 10")],
+            "corp.internal": {
+                "@": [rec("SOA", "dc.corp.internal hostmaster 5 900 600 86400 3600", 3600),
+                      rec("NS", "dc.corp.internal"), rec("A", "10.0.0.1"), rec("MX", "mail.corp.internal 10")],
                 "dc": [rec("A", "10.0.0.1")],
-                "_ldap._tcp": [rec("SRV", "dc.school.internal 389 0 100")],
+                "_ldap._tcp": [rec("SRV", "dc.corp.internal 389 0 100")],
                 "DomainDnsZones": [rec("A", "10.0.0.1")],
                 "pc01": [rec("A", "10.0.0.50", 1200, timestamp=3600000)],
                 "www": [rec("A", "10.0.0.80"), rec("TXT", "hello")],
                 "old": [],
             },
         }
-        self.tombstoned = {("school.internal", "old")}
+        self.tombstoned = {("corp.internal", "old")}
         self.writes = []
 
     def dns_dc_hosts(self):
-        return ["dc.school.internal"]
+        return ["dc.corp.internal"]
 
     def dns_zones(self):
         return [dict(z) for z in self.zones]
@@ -102,11 +102,11 @@ class TestValues(unittest.TestCase):
 class TestRead(Base):
     def test_zones_hide_root_hints(self):
         self.assertEqual(self.dns().zones(), [
-            {"name": "_msdcs.school.internal", "partition": "forest", "read_only": True},
-            {"name": "school.internal", "partition": "domain", "read_only": False}])
+            {"name": "_msdcs.corp.internal", "partition": "forest", "read_only": True},
+            {"name": "corp.internal", "partition": "domain", "read_only": False}])
 
     def test_records_with_protection(self):
-        records = self.dns().records("School.Internal.")
+        records = self.dns().records("Corp.Internal.")
         by = {(r["name"], r["type"]): r for r in records}
         self.assertEqual(records[0]["name"], "@")
         self.assertNotIn(("old", "A"), by)
@@ -120,17 +120,17 @@ class TestRead(Base):
                                             "dynamic": False, "protected": False})
 
     def test_records_of_one_name(self):
-        self.assertEqual([r["type"] for r in self.dns().records("school.internal", "www.school.internal")],
+        self.assertEqual([r["type"] for r in self.dns().records("corp.internal", "www.corp.internal")],
                          ["A", "TXT"])
         with self.assertRaisesRegex(AddcError, "not in the zone"):
-            self.dns().records("school.internal", "www.other.org.")
+            self.dns().records("corp.internal", "www.other.org.")
         with self.assertRaisesRegex(AddcError, "not found"):
             self.dns().records("RootDNSServers")
 
 
 class TestSet(Base):
     def test_new_name(self):
-        result = self.dns().set({"zone": "school.internal", "name": "nas", "type": "A",
+        result = self.dns().set({"zone": "corp.internal", "name": "nas", "type": "A",
                                  "values": ["10.0.0.9", "10.0.0.9", "10.0.0.10"]})
         self.assertTrue(result["changed"])
         self.assertEqual(result["diff"]["before"], [])
@@ -138,7 +138,7 @@ class TestSet(Base):
         self.assertEqual(self.dc.writes[0][:2], ("nas", True))
 
     def test_replaces_one_type_only_and_is_idempotent(self):
-        request = {"zone": "school.internal", "name": "WWW", "type": "A", "values": ["10.0.0.81"], "ttl": 300}
+        request = {"zone": "corp.internal", "name": "WWW", "type": "A", "values": ["10.0.0.81"], "ttl": 300}
         result = self.dns().set(request)
         self.assertEqual([(r["type"], r["value"], r["ttl"]) for r in result["records"]],
                          [("A", "10.0.0.81", 300), ("TXT", "hello", 900)])
@@ -146,63 +146,63 @@ class TestSet(Base):
         self.assertEqual(len(self.dc.writes), 1)
 
     def test_dynamic_record_becomes_static(self):
-        result = self.dns().set({"zone": "school.internal", "name": "pc01", "type": "A", "values": ["10.0.0.50"]})
+        result = self.dns().set({"zone": "corp.internal", "name": "pc01", "type": "A", "values": ["10.0.0.50"]})
         self.assertTrue(result["changed"])
         self.assertEqual(result["records"][0]["ttl"], 1200)
         self.assertFalse(result["records"][0]["dynamic"])
 
     def test_tombstoned_name_is_reused(self):
-        self.dns().set({"zone": "school.internal", "name": "old", "type": "CNAME", "values": ["www.school.internal."]})
+        self.dns().set({"zone": "corp.internal", "name": "old", "type": "CNAME", "values": ["www.corp.internal."]})
         self.assertEqual(self.dc.writes[0][:2], ("old", False))
-        self.assertEqual(self.dns().records("school.internal", "old")[0]["value"], "www.school.internal")
+        self.assertEqual(self.dns().records("corp.internal", "old")[0]["value"], "www.corp.internal")
 
     def test_cname_rules(self):
         with self.assertRaisesRegex(AddcError, "other records"):
-            self.dns().set({"zone": "school.internal", "name": "www", "type": "CNAME", "values": ["x.org"]})
+            self.dns().set({"zone": "corp.internal", "name": "www", "type": "CNAME", "values": ["x.org"]})
         with self.assertRaisesRegex(AddcError, "at most one CNAME"):
-            self.dns().set({"zone": "school.internal", "name": "n", "type": "CNAME", "values": ["a.org", "b.org"]})
-        self.dns().set({"zone": "school.internal", "name": "alias", "type": "CNAME", "values": ["www.school.internal"]})
+            self.dns().set({"zone": "corp.internal", "name": "n", "type": "CNAME", "values": ["a.org", "b.org"]})
+        self.dns().set({"zone": "corp.internal", "name": "alias", "type": "CNAME", "values": ["www.corp.internal"]})
         with self.assertRaisesRegex(AddcError, "is an alias"):
-            self.dns().set({"zone": "school.internal", "name": "alias", "type": "TXT", "values": ["x"]})
+            self.dns().set({"zone": "corp.internal", "name": "alias", "type": "TXT", "values": ["x"]})
 
     def test_protected(self):
-        for name, rtype in (("@", "A"), ("dc", "A"), ("dc.school.internal.", "TXT"), ("_ldap._tcp", "SRV"),
+        for name, rtype in (("@", "A"), ("dc", "A"), ("dc.corp.internal.", "TXT"), ("_ldap._tcp", "SRV"),
                             ("_kerberos._udp", "SRV"), ("x.DomainDnsZones", "A")):
             with self.assertRaisesRegex(AddcError, "belong to the domain", msg=(name, rtype)):
-                self.dns().set({"zone": "school.internal", "name": name, "type": rtype, "values": ["10.0.0.2"]
+                self.dns().set({"zone": "corp.internal", "name": name, "type": rtype, "values": ["10.0.0.2"]
                                 if rtype == "A" else ["x 1 2 3"] if rtype == "SRV" else ["x"]})
         with self.assertRaisesRegex(AddcError, "cannot be changed"):
-            self.dns().set({"zone": "_msdcs.school.internal", "name": "x", "type": "A", "values": ["10.0.0.2"]})
+            self.dns().set({"zone": "_msdcs.corp.internal", "name": "x", "type": "A", "values": ["10.0.0.2"]})
         with self.assertRaisesRegex(AddcError, "cannot be changed here"):
-            self.dns().set({"zone": "school.internal", "name": "x", "type": "NS", "values": ["a.org"]})
+            self.dns().set({"zone": "corp.internal", "name": "x", "type": "NS", "values": ["a.org"]})
         # A service of one's own, and mail for the domain
-        self.dns().set({"zone": "school.internal", "name": "_sip._tcp", "type": "SRV",
-                        "values": ["sip.school.internal 5060 0 100"]})
-        self.dns().set({"zone": "school.internal", "name": "@", "type": "TXT", "values": ["v=spf1 mx -all"]})
+        self.dns().set({"zone": "corp.internal", "name": "_sip._tcp", "type": "SRV",
+                        "values": ["sip.corp.internal 5060 0 100"]})
+        self.dns().set({"zone": "corp.internal", "name": "@", "type": "TXT", "values": ["v=spf1 mx -all"]})
         self.assertEqual(self.dc.writes[-1][2][-1]["value"], "v=spf1 mx -all")
         self.assertEqual([r["type"] for r in self.dc.writes[-1][2]], ["SOA", "NS", "A", "MX", "TXT"])
 
     def test_check_mode_writes_nothing(self):
         self.runner.check = True
-        result = self.dns().set({"zone": "school.internal", "name": "nas", "type": "A", "values": ["10.0.0.9"]})
+        result = self.dns().set({"zone": "corp.internal", "name": "nas", "type": "A", "values": ["10.0.0.9"]})
         self.assertTrue(result["changed"])
-        self.assertNotIn("nas", self.dc.nodes["school.internal"])
+        self.assertNotIn("nas", self.dc.nodes["corp.internal"])
 
 
 class TestDelete(Base):
     def test_values_or_all(self):
-        self.dns().set({"zone": "school.internal", "name": "www", "type": "A", "values": ["10.0.0.80", "10.0.0.81"]})
-        result = self.dns().delete({"zone": "school.internal", "name": "www", "type": "A", "values": ["10.0.0.81"]})
+        self.dns().set({"zone": "corp.internal", "name": "www", "type": "A", "values": ["10.0.0.80", "10.0.0.81"]})
+        result = self.dns().delete({"zone": "corp.internal", "name": "www", "type": "A", "values": ["10.0.0.81"]})
         self.assertEqual([r["value"] for r in result["records"]], ["10.0.0.80", "hello"])
-        self.dns().delete({"zone": "school.internal", "name": "www", "type": "TXT"})
-        result = self.dns().delete({"zone": "school.internal", "name": "www", "type": "A"})
+        self.dns().delete({"zone": "corp.internal", "name": "www", "type": "TXT"})
+        result = self.dns().delete({"zone": "corp.internal", "name": "www", "type": "A"})
         self.assertEqual(result["records"], [])
-        self.assertIn(("school.internal", "www"), self.dc.tombstoned)
-        self.assertFalse(self.dns().delete({"zone": "school.internal", "name": "www", "type": "A"})["changed"])
+        self.assertIn(("corp.internal", "www"), self.dc.tombstoned)
+        self.assertFalse(self.dns().delete({"zone": "corp.internal", "name": "www", "type": "A"})["changed"])
 
     def test_protected(self):
         with self.assertRaisesRegex(AddcError, "belong to the domain"):
-            self.dns().delete({"zone": "school.internal", "name": "dc", "type": "A"})
+            self.dns().delete({"zone": "corp.internal", "name": "dc", "type": "A"})
 
 
 class TestOperations(Base):

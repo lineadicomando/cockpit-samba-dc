@@ -38,7 +38,7 @@ seealso:
 EXAMPLES = r"""
 - name: A web server with two addresses
   lineadicomando.samba_dc.samba_dns_record:
-    zone: school.internal
+    zone: corp.internal
     name: www
     type: A
     values: [192.168.1.80, 192.168.1.81]
@@ -46,17 +46,17 @@ EXAMPLES = r"""
 
 - name: Mail for the domain, and its SPF policy
   lineadicomando.samba_dc.samba_dns_record:
-    zone: school.internal
+    zone: corp.internal
     name: "@"
     type: "{{ item.type }}"
     values: "{{ item.values }}"
   loop:
-    - {type: MX, values: ["mail.school.internal 10"]}
+    - {type: MX, values: ["mail.corp.internal 10"]}
     - {type: TXT, values: ["v=spf1 mx -all"]}
 
 - name: Drop one address
   lineadicomando.samba_dc.samba_dns_record:
-    zone: school.internal
+    zone: corp.internal
     name: www
     type: A
     values: [192.168.1.81]

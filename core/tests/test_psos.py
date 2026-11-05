@@ -10,7 +10,7 @@ from addcctl.psos import Psos
 
 from test_shares import FakeRunner
 
-BASE = "DC=school,DC=internal"
+BASE = "DC=corp,DC=internal"
 CONTAINER = "CN=Password Settings Container,CN=System," + BASE
 DAY = -864000000000
 MINUTE = -600000000
@@ -30,7 +30,7 @@ class FakePsoDc:
         self.level = level
         self.accounts = {
             "mrossi": {"dn": [dn("Mario Rossi")], "sAMAccountName": ["mrossi"], "objectClass": ["user"]},
-            "Teachers": {"dn": [dn("Teachers")], "sAMAccountName": ["Teachers"], "objectClass": ["group"]},
+            "Managers": {"dn": [dn("Managers")], "sAMAccountName": ["Managers"], "objectClass": ["group"]},
             "Staff": {"dn": [dn("Staff")], "sAMAccountName": ["Staff"], "objectClass": ["group"]},
             "PC01$": {"dn": ["CN=PC01,CN=Computers," + BASE], "sAMAccountName": ["PC01$"],
                       "objectClass": ["user", "computer"]},
@@ -109,18 +109,18 @@ class TestPsos(unittest.TestCase):
         return self.psos.create(dict({"name": "Staff long", "precedence": 10}, **request))
 
     def test_create_takes_the_domain_settings_left_out(self):
-        result = self.create(min_length=12, max_age_days=None, applies_to=["teachers", "mrossi"])
+        result = self.create(min_length=12, max_age_days=None, applies_to=["managers", "mrossi"])
         pso = result["pso"]
         self.assertEqual(pso["min_length"], 12)
         self.assertEqual(pso["history_length"], 24)
         self.assertEqual(pso["min_age_days"], 1)
         self.assertIsNone(pso["max_age_days"])
-        self.assertEqual(pso["applies_to"], ["mrossi", "Teachers"])
+        self.assertEqual(pso["applies_to"], ["Managers", "mrossi"])
         record = self.dc.psos["staff long"]
         self.assertEqual(record["msDS-PasswordReversibleEncryptionEnabled"], ["FALSE"])
         self.assertEqual(record["msDS-PasswordComplexityEnabled"], ["TRUE"])
         self.assertEqual(record["msDS-MaximumPasswordAge"], [str(NEVER_INTERVAL)])
-        self.assertEqual(record["msDS-PSOAppliesTo"], [dn("Teachers"), dn("Mario Rossi")])
+        self.assertEqual(record["msDS-PSOAppliesTo"], [dn("Managers"), dn("Mario Rossi")])
 
     def test_create_refuses_what_it_should(self):
         self.create()
@@ -147,7 +147,7 @@ class TestPsos(unittest.TestCase):
         self.assertEqual(runner.commands, ["sam.ldb: add CN=x,%s" % CONTAINER])
 
     def test_set_changes_only_what_differs(self):
-        self.create(applies_to=["Teachers"])
+        self.create(applies_to=["Managers"])
         self.runner.commands.clear()
         result = self.psos.set({"name": "Staff long", "precedence": 10, "complexity": False,
                                 "lockout_duration_minutes": None})
@@ -159,10 +159,10 @@ class TestPsos(unittest.TestCase):
         self.assertFalse(self.psos.set({"name": "Staff long", "complexity": False})["changed"])
 
     def test_applies_to_modes(self):
-        self.create(applies_to=["Teachers"])
+        self.create(applies_to=["Managers"])
         self.psos.set({"name": "Staff long", "applies_to": ["mrossi", "Staff"], "applies_to_mode": "append"})
-        self.assertEqual(self.psos.get("Staff long")["applies_to"], ["mrossi", "Staff", "Teachers"])
-        self.psos.set({"name": "Staff long", "applies_to": ["teachers"], "applies_to_mode": "remove"})
+        self.assertEqual(self.psos.get("Staff long")["applies_to"], ["Managers", "mrossi", "Staff"])
+        self.psos.set({"name": "Staff long", "applies_to": ["managers"], "applies_to_mode": "remove"})
         self.assertEqual(self.psos.get("Staff long")["applies_to"], ["mrossi", "Staff"])
         self.runner.commands.clear()
         self.assertFalse(self.psos.set({"name": "Staff long", "applies_to": ["Staff", "mrossi"]})["changed"])

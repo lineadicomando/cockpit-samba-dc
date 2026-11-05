@@ -2008,8 +2008,8 @@ msgstr "La password non deve contenere il nome dell'account."
 msgid "Domain name is required."
 msgstr "Il nome del dominio è obbligatorio."
 
-msgid "Give a DNS name of two or more parts, such as school.example.org: letters, digits and hyphens."
-msgstr "Indica un nome DNS di due o più parti, per esempio scuola.esempio.it: lettere, cifre e trattini."
+msgid "Give a DNS name of two or more parts, such as corp.example.org: letters, digits and hyphens."
+msgstr "Indica un nome DNS di due o più parti, per esempio azienda.esempio.it: lettere, cifre e trattini."
 
 msgid "The domain name cannot end with a number."
 msgstr "Il nome del dominio non può finire con un numero."

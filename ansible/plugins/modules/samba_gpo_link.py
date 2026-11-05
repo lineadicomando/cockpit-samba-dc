@@ -38,10 +38,10 @@ seealso:
 """
 
 EXAMPLES = r"""
-- name: Apply a GPO to the students' OU
+- name: Apply a GPO to the employees' OU
   lineadicomando.samba_dc.samba_gpo_link:
-    gpo: Students lockdown
-    container: OU=Students,OU=School
+    gpo: Employees lockdown
+    container: OU=Employees,OU=Office
 
 - name: Enforce a GPO on the whole domain
   lineadicomando.samba_dc.samba_gpo_link:
@@ -51,14 +51,14 @@ EXAMPLES = r"""
 
 - name: Keep the link but stop applying the GPO there
   lineadicomando.samba_dc.samba_gpo_link:
-    gpo: Students lockdown
-    container: OU=Students,OU=School
+    gpo: Employees lockdown
+    container: OU=Employees,OU=Office
     disabled: true
 
 - name: Remove the link
   lineadicomando.samba_dc.samba_gpo_link:
-    gpo: Students lockdown
-    container: OU=Students,OU=School
+    gpo: Employees lockdown
+    container: OU=Employees,OU=Office
     state: absent
 """
 

@@ -40,8 +40,8 @@ EXAMPLES = r"""
 - name: Read one group
   lineadicomando.samba_dc.samba_directory_info:
     kind: group
-    name: Teachers
-  register: teachers
+    name: Managers
+  register: managers
   become: true
 """
 
@@ -57,7 +57,7 @@ objects:
   sample:
     - name: mrossi
       enabled: true
-      groups: [Teachers]
+      groups: [Managers]
       container: CN=Users
 """
 

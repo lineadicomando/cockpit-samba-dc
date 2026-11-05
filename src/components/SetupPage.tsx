@@ -157,7 +157,7 @@ export function SetupPage({ status, checking, onRecheck, onProvisioned }: Props)
                         <Form onSubmit={handleSubmit} style={{ maxWidth: "40rem" }}>
                             <FormGroup label={t("Domain name")} isRequired fieldId="setup-realm">
                                 <TextInput id="setup-realm" value={realm} isDisabled={!status.ready}
-                                    placeholder="school.example.org"
+                                    placeholder="corp.example.org"
                                     onChange={(_e, v) => {
                                         setRealm(v);
                                         if (!netbiosEdited) setNetbios(netbiosFromRealm(v));

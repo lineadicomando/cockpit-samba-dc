@@ -16,7 +16,7 @@ the same tools. What the two created on the server was the same by design
 each side reimplemented it, so a change on one side had to be repeated on
 the other, and the two drifted (the sysvol ACL handling of v0.2.0 is one
 case). The collection also carried roles for Windows clients and the
-defaults of one school lab.
+defaults of one particular deployment.
 
 ## Today
 
@@ -120,7 +120,7 @@ A project that needs a DC and no browser installs `addcctl` alone.
   the Cockpit page, the MCP servers.
 - **Out, in `ansible-collection-win_workman`**: what runs on Windows
   clients, joining the domain and reporting membership included.
-- **Out, in `ansible-win_edulab`**: what belongs to one school lab:
+- **Out, in `ansible-win_edulab`**: what belongs to one particular deployment:
   inventories, group names, test VMs of the lab, acceptance tests.
 
 ### Licenses

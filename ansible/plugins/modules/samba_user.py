@@ -40,10 +40,10 @@ EXAMPLES = r"""
     groups: [Staff]
     primary_group: Staff
 
-- name: Move the user to its class's OU
+- name: Move the user to its team's OU
   lineadicomando.samba_dc.samba_user:
     name: mrossi
-    ou: OU=Class 1A,OU=Students
+    ou: OU=Team 1A,OU=Employees
 
 - name: Expire an account at the end of June
   lineadicomando.samba_dc.samba_user:

@@ -47,9 +47,9 @@ printf '%s\n%s\n' "$admin_pw" "$admin_pw" | samba-tool user setpassword Administ
 samba-tool domain passwordsettings set --max-pwd-age=0 >/dev/null
 
 # Fixtures of the baseline: two groups and three users
-samba-tool group add Teachers >/dev/null
-samba-tool group add Students >/dev/null
-for u in teacher1:Teachers student1:Students student2:Students; do
+samba-tool group add Managers >/dev/null
+samba-tool group add Employees >/dev/null
+for u in manager1:Managers employee1:Employees employee2:Employees; do
     name=${u%%:*} group=${u#*:}
     printf '%s\n%s\n' "$test_pw" "$test_pw" | samba-tool user add "$name" >/dev/null 2>&1
     samba-tool group addmembers "$group" "$name" >/dev/null

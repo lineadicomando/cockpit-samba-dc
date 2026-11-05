@@ -64,7 +64,7 @@ MODULES = {
             "department": field("user set"),
             "company": field("user set"),
             "ou": field("user set", description=[
-                "Container of the user, relative to the domain (e.g. C(OU=Students,OU=School)): an OU or a "
+                "Container of the user, relative to the domain (e.g. C(OU=Employees,OU=Office)): an OU or a "
                 "default container such as C(CN=Users). The user is created in it, or moved to it. "
                 "Default for a new user: C(CN=Users)."]),
             "enabled": field("user set"),
@@ -103,7 +103,7 @@ MODULES = {
             "members_mode": field("group set"),
             "new_name": field("group set", description=["Rename the group; its shared folders follow the new name."]),
             "ou": field("group set", description=[
-                "Container of the group, relative to the domain (e.g. C(OU=School)): an OU or a default "
+                "Container of the group, relative to the domain (e.g. C(OU=Office)): an OU or a default "
                 "container such as C(CN=Users). The group is created in it, or moved to it. "
                 "Default for a new group: C(CN=Users)."]),
         },
@@ -127,7 +127,7 @@ MODULES = {
         "options": {
             "name": field("ou create", required=True),
             "parent": field("ou create", description=[
-                "The OU it is in, relative to the domain (e.g. C(OU=School)); empty: the domain itself."]),
+                "The OU it is in, relative to the domain (e.g. C(OU=Office)); empty: the domain itself."]),
             "state": dict(STATE, own=dict(STATE["own"], description=[
                 "C(present) creates the OU when it is missing and brings it to the given settings; "
                 "C(absent) deletes it."])),

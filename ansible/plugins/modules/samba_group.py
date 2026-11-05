@@ -32,8 +32,8 @@ EXAMPLES = r"""
 - name: A group with two members
   lineadicomando.samba_dc.samba_group:
     name: Staff
-    description: School staff
-    email: staff@school.internal
+    description: Office staff
+    email: staff@corp.internal
     members: [mrossi, bianchi]
 
 - name: Add a member, keeping the others
@@ -43,10 +43,10 @@ EXAMPLES = r"""
     members_mode: append
     create: false
 
-- name: Keep the group in the school's OU
+- name: Keep the group in the office's OU
   lineadicomando.samba_dc.samba_group:
     name: Staff
-    ou: OU=School
+    ou: OU=Office
 """
 
 RETURN = r"""

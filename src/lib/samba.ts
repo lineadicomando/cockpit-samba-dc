@@ -196,7 +196,7 @@ function dnComponents(dn: string): string[] {
     return parts;
 }
 
-// "OU=Students,OU=School" -> "School/Students"; "" (the domain) -> ""
+// "OU=Employees,OU=Office" -> "Office/Employees"; "" (the domain) -> ""
 export function containerPath(dn: string): string {
     return dnComponents(dn)
         .map(c => c.slice(c.indexOf("=") + 1).replace(/\\(.)/g, "$1"))

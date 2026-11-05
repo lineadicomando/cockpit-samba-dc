@@ -4,7 +4,7 @@ live in.
 
 Read from sam.ldb and changed through SamDB as samba-tool ou does (create_ou,
 rename, delete with the tree_delete control). DNs are given relative to the
-domain (OU=Students,OU=School) and built by ldb (rule 3). The domain's
+domain (OU=Employees,OU=Office) and built by ldb (rule 3). The domain's
 default containers (CN=Users, CN=Computers, OU=Domain Controllers, as its
 wellKnownObjects name them) are listed, but never renamed, moved or deleted.
 """

@@ -300,7 +300,7 @@ class Dc:
     # -- DNs, built and checked by ldb (rule 3)
 
     def absolute_dn(self, relative):
-        """The DN of a container given relative to the domain ("OU=Students",
+        """The DN of a container given relative to the domain ("OU=Employees",
         "" for the domain itself) or in full; only OU= and CN= components."""
         import ldb
         domain = ldb.Dn(self.samdb, self.domain_dn)

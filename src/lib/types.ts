@@ -61,12 +61,12 @@ export interface Computer {
 // (CN=Users, CN=Computers, OU=Domain Controllers): those are built in, never
 // renamed, moved or deleted.
 export interface Ou {
-    // Relative to the domain: "OU=Students,OU=School"; "" is the domain itself
+    // Relative to the domain: "OU=Employees,OU=Office"; "" is the domain itself
     dn: string;
     name: string;
     description: string;
     parent: string;
-    // "School/Students", from the domain down
+    // "Office/Employees", from the domain down
     path: string;
     isOu: boolean;
     builtIn: boolean;

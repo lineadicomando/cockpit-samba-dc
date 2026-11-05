@@ -40,9 +40,9 @@ class FakeRunner(Runner):
 
 
 class FakeDc:
-    workgroup = "SCHOOL"
+    workgroup = "CORP"
     netbios_name = "DC"
-    realm = "SCHOOL.INTERNAL"
+    realm = "CORP.INTERNAL"
     registry_shares = True
 
     def __init__(self, runner, sysvol):
@@ -82,7 +82,7 @@ class FakeDc:
 
     def add_gpo(self, guid, name, cse):
         self.runner.record("add gpo %s" % guid)
-        self.gpo = {"guid": guid, "dn": "CN=%s,CN=Policies,CN=System,DC=school,DC=internal" % guid, "version": 0}
+        self.gpo = {"guid": guid, "dn": "CN=%s,CN=Policies,CN=System,DC=corp,DC=internal" % guid, "version": 0}
         return dict(self.gpo)
 
     def ensure_gpo_linked(self, dn):
@@ -109,7 +109,7 @@ class Base(unittest.TestCase):
 
     def drives(self):
         guid = self.dc.gpo["guid"]
-        path = "%s/school.internal/Policies/%s/USER/Preferences/Drives/Drives.xml" % (self.tmp.name, guid)
+        path = "%s/corp.internal/Policies/%s/USER/Preferences/Drives/Drives.xml" % (self.tmp.name, guid)
         with open(path) as f:
             return parse_drives_xml(f.read())
 
@@ -132,7 +132,7 @@ class TestValues(unittest.TestCase):
             self.assertIsNotNone(share_name_violation(name), name)
 
     def test_user_lists(self):
-        self.assertEqual(parse_user_list('@"SCHOOL\\Staff" "SCHOOL\\mrossi", alice'),
+        self.assertEqual(parse_user_list('@"CORP\\Staff" "CORP\\mrossi", alice'),
                          [("Staff", "group"), ("mrossi", "user"), ("alice", "user")])
         self.assertEqual(share_access({"valid users": '@"S\\Staff" "S\\mrossi"', "read list": '"S\\mrossi"',
                                        "read only": "no"}),
@@ -156,8 +156,8 @@ class TestShareSet(Base):
         path = self.share_path("Docs")
         self.assertEqual(self.dc.registry["Docs"], {
             "path": path, "read only": "no", "guest ok": "no", "inherit acls": "yes",
-            "valid users": '@"SCHOOL\\Staff" @"SCHOOL\\Domain Users"',
-            "read list": '@"SCHOOL\\Domain Users"', "comment": "Project files", "browseable": "yes",
+            "valid users": '@"CORP\\Staff" @"CORP\\Domain Users"',
+            "read list": '@"CORP\\Domain Users"', "comment": "Project files", "browseable": "yes",
         })
         self.assertIn("mkdir -p -- %s" % path, self.runner.commands)
         self.assertIn("chmod 2770 -- %s" % path, self.runner.commands)
@@ -214,7 +214,7 @@ class TestShareSet(Base):
                                    "access_mode": "append"})
         self.assertEqual([(a["name"], a["level"]) for a in result["share"]["access"]],
                          [("Staff", "read"), ("Domain Users", "read"), ("mrossi", "write")])
-        self.assertEqual(self.dc.registry["Docs"]["read list"], '@"SCHOOL\\Staff" @"SCHOOL\\Domain Users"')
+        self.assertEqual(self.dc.registry["Docs"]["read list"], '@"CORP\\Staff" @"CORP\\Domain Users"')
         setfacl = [c for c in self.runner.commands if c.startswith("setfacl")][0].split()
         removed, added = setfacl[3].split(","), setfacl[5].split(",")
         # Staff's entry as a user goes, its group entry becomes read-only
@@ -283,8 +283,8 @@ class TestDrives(Base):
         self.addCleanup(PRINCIPALS.pop, "mario.rossi")
         result = self.again().rename_principal({"kind": "user", "old": "MROSSI", "new": "mario.rossi"})
         self.assertEqual(result, {"changed": True, "shares": ["Docs"]})
-        self.assertEqual(self.dc.registry["Docs"]["valid users"], '"SCHOOL\\mario.rossi"')
-        self.assertIn('name="SCHOOL\\mario.rossi"', self.drives()[0]["filters"])
+        self.assertEqual(self.dc.registry["Docs"]["valid users"], '"CORP\\mario.rossi"')
+        self.assertIn('name="CORP\\mario.rossi"', self.drives()[0]["filters"])
 
 
 class TestStaleEntries(Base):
@@ -311,7 +311,7 @@ class TestStaleEntries(Base):
         result = self.again().set({"name": "Docs", "comment": "Files"})
         self.assertEqual(result["share"]["access"][1], {"name": "gbianchi", "kind": "user", "level": "read",
                                                         "unknown": True})
-        self.assertIn('"SCHOOL\\gbianchi"', self.dc.registry["Docs"]["valid users"])
+        self.assertIn('"CORP\\gbianchi"', self.dc.registry["Docs"]["valid users"])
         # The full list sent back, as the page does, with the stale entry in it
         self.again().set({"name": "Docs", "access": [{"name": "Staff", "level": "write"}, {"name": "gbianchi"},
                                                      {"name": "mrossi"}]})
@@ -324,7 +324,7 @@ class TestStaleEntries(Base):
 
     def test_removed(self):
         self.again().set({"name": "Docs", "access": [{"name": "gbianchi"}], "access_mode": "remove"})
-        self.assertEqual(self.dc.registry["Docs"]["valid users"], '@"SCHOOL\\Staff"')
+        self.assertEqual(self.dc.registry["Docs"]["valid users"], '@"CORP\\Staff"')
         self.assertNotIn("read list", self.dc.registry["Docs"])
 
     def test_drive_needs_an_existing_target(self):
@@ -336,7 +336,7 @@ class TestStaleEntries(Base):
         self.assertEqual(self.runner.commands, [])
         self.again().set({"name": "Docs", "access": [{"name": "Staff"}], "access_mode": "remove", "drive": None})
         self.assertEqual(self.drives(), [])
-        self.assertEqual(self.dc.registry["Docs"]["valid users"], '"SCHOOL\\gbianchi"')
+        self.assertEqual(self.dc.registry["Docs"]["valid users"], '"CORP\\gbianchi"')
 
 
 class TestPosixIds(unittest.TestCase):

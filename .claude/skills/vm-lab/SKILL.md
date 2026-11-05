@@ -42,8 +42,8 @@ Start a test from `lab.sh reset`. Revert the two VMs together: the DC holds
 the client's machine account, so a DC reverted alone loses the trust (the
 client's logons fail until it is joined again).
 
-Test accounts in the baseline: groups `Teachers` (`teacher1`) and `Students`
-(`student1`, `student2`), password `DOMAIN_TEST_PASSWORD`; `Administrator`
+Test accounts in the baseline: groups `Managers` (`manager1`) and `Employees`
+(`employee1`, `employee2`), password `DOMAIN_TEST_PASSWORD`; `Administrator`
 with `DOMAIN_ADMIN_PASSWORD`. Passwords do not expire.
 
 ## Rules

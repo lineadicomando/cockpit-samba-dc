@@ -23,12 +23,12 @@ const USER = {
 };
 const KRBTGT = { ...USER, name: "krbtgt", cn: "krbtgt", rid: "502", enabled: false, locked_out: false, expires: null,
     last_logon: null, groups: ["Domain Users"], critical: true };
-const GROUP = { name: "Teachers", description: "", email: "", sid: "S-1-5-21-1-2-3-1108", rid: "1108",
+const GROUP = { name: "Managers", description: "", email: "", sid: "S-1-5-21-1-2-3-1108", rid: "1108",
     members: ["mrossi"], primary_members: ["bianchi", "mrossi"], member_count: 2, scope: "global",
     category: "distribution", critical: false, protected: false, container: "CN=Users" };
 const CORE_POLICY = { complexity: true, min_length: 7, history_length: 24, min_age_days: 1, max_age_days: null,
     lockout_threshold: 0, lockout_duration_minutes: 30, lockout_window_minutes: 30 };
-const PSO = { ...CORE_POLICY, name: "Staff long", precedence: 5, min_length: 14, applies_to: ["Teachers"] };
+const PSO = { ...CORE_POLICY, name: "Staff long", precedence: 5, min_length: 14, applies_to: ["Managers"] };
 const ANSWERS: Record<string, unknown> = {
     "user list": { users: [USER, KRBTGT] },
     "user get": { user: USER, password_policy: { pso: "Staff long", policy: { ...CORE_POLICY, min_length: 14 } } },
@@ -38,8 +38,8 @@ const ANSWERS: Record<string, unknown> = {
     "ou list": { ous: [
         { dn: "CN=Users", name: "Users", description: "", parent: "", kind: "container", builtin: true,
             default_for: "users" },
-        { dn: "OU=School", name: "School", description: "", parent: "", kind: "ou", builtin: false, default_for: null },
-        { dn: "OU=Rossi\\, Mario,OU=School", name: "Rossi, Mario", description: "x", parent: "OU=School", kind: "ou",
+        { dn: "OU=Office", name: "Office", description: "", parent: "", kind: "ou", builtin: false, default_for: null },
+        { dn: "OU=Rossi\\, Mario,OU=Office", name: "Rossi, Mario", description: "x", parent: "OU=Office", kind: "ou",
             builtin: false, default_for: null },
     ] },
     "computer list": { computers: [{ name: "PC01", dn: "CN=PC01,CN=Computers,DC=x", sid: "", rid: "1300", os: "",
@@ -116,11 +116,11 @@ describe("users", () => {
         await enableUser("a");
         await disableUser("a");
         await unlockUser("a");
-        await setPrimaryGroup("a", "Teachers");
+        await setPrimaryGroup("a", "Managers");
         await setAccountExpiry("a", new Date(Date.UTC(2027, 5, 30, 22)));
         await setAccountExpiry("a", null);
         assert.deepEqual(sent("user set"), [
-            { name: "a", enabled: true }, { name: "a", enabled: false }, { name: "a", primary_group: "Teachers" },
+            { name: "a", enabled: true }, { name: "a", enabled: false }, { name: "a", primary_group: "Managers" },
             { name: "a", expires: "2027-06-30T22:00:00.000Z" }, { name: "a", expires: null },
         ]);
         assert.deepEqual(sent("user unlock"), [{ name: "a" }]);
@@ -137,13 +137,13 @@ describe("users", () => {
     it("creates a user with the fields given, leaving out the empty ones", async () => {
         await fresh();
         await createUser("s2", "S3cret!pw", {
-            givenName: "", surname: "Rossi", email: "s2@x", description: "Student", title: "", department: "3A",
-            company: "School", mustChangePassword: true, ou: "",
+            givenName: "", surname: "Rossi", email: "s2@x", description: "Employee", title: "", department: "3A",
+            company: "Office", mustChangePassword: true, ou: "",
         });
         await createUser("s3", "S3cret!pw", { mustChangePassword: false });
         assert.deepEqual(sent("user create"), [
-            { name: "s2", password: "S3cret!pw", surname: "Rossi", email: "s2@x", description: "Student",
-                department: "3A", company: "School", must_change_password: true },
+            { name: "s2", password: "S3cret!pw", surname: "Rossi", email: "s2@x", description: "Employee",
+                department: "3A", company: "Office", must_change_password: true },
             { name: "s3", password: "S3cret!pw" },
         ]);
         await modifyUser("s2", { description: "", title: "Rep", department: "3B", company: "" });
@@ -160,7 +160,7 @@ describe("users", () => {
     it("rejects option-like names before any command runs", async () => {
         await fresh();
         await assert.rejects(deleteUser("--help"), /Invalid account name/);
-        await assert.rejects(addGroupMembers("Teachers", ["alice", "-x"]), /Invalid account name/);
+        await assert.rejects(addGroupMembers("Managers", ["alice", "-x"]), /Invalid account name/);
         await assert.rejects(createGroup("-H"), /Invalid account name/);
         assert.equal(calls.length, 0);
     });
@@ -170,19 +170,19 @@ describe("groups, computers, homes, policy", () => {
     it("reads groups and lists the primary members too", async () => {
         await fresh();
         const [g] = await listGroups();
-        assert.deepEqual([g.name, g.id, g.memberCount, g.groupType], ["Teachers", "1108", 2, "Distribution"]);
-        assert.deepEqual(await listGroupMembers("Teachers"), ["mrossi", "bianchi"]);
+        assert.deepEqual([g.name, g.id, g.memberCount, g.groupType], ["Managers", "1108", 2, "Distribution"]);
+        assert.deepEqual(await listGroupMembers("Managers"), ["mrossi", "bianchi"]);
     });
 
     it("maps members and renames to group set", async () => {
         await fresh();
-        await addGroupMembers("Teachers", ["a", "b"]);
-        await removeGroupMembers("Teachers", ["a"]);
-        await renameGroup("Teachers", "Docenti");
+        await addGroupMembers("Managers", ["a", "b"]);
+        await removeGroupMembers("Managers", ["a"]);
+        await renameGroup("Managers", "Responsabili");
         assert.deepEqual(sent("group set"), [
-            { name: "Teachers", members: ["a", "b"], members_mode: "append" },
-            { name: "Teachers", members: ["a"], members_mode: "remove" },
-            { name: "Teachers", new_name: "Docenti" },
+            { name: "Managers", members: ["a", "b"], members_mode: "append" },
+            { name: "Managers", members: ["a"], members_mode: "remove" },
+            { name: "Managers", new_name: "Responsabili" },
         ]);
     });
 
@@ -223,7 +223,7 @@ describe("fine-grained password policies", () => {
         assert.equal(pso.precedence, 5);
         assert.equal(pso.policy.minLength, 14);
         assert.equal(pso.policy.maxAgeDays, null);
-        assert.deepEqual(pso.appliesTo, ["Teachers"]);
+        assert.deepEqual(pso.appliesTo, ["Managers"]);
         const effective = await getUserPasswordPolicy("nrossi");
         assert.equal(effective.pso, "Staff long");
         assert.equal(effective.policy.minLength, 14);
@@ -234,16 +234,16 @@ describe("fine-grained password policies", () => {
         const [pso] = await listPsos();
         await createPso({ ...pso, name: "New" });
         assert.deepEqual(sent("pso create"), [{
-            name: "New", precedence: 5, applies_to: ["Teachers"], complexity: true, min_length: 14,
+            name: "New", precedence: 5, applies_to: ["Managers"], complexity: true, min_length: 14,
             history_length: 24, min_age_days: 1, max_age_days: null, lockout_threshold: 0,
             lockout_duration_minutes: 30, lockout_window_minutes: 30,
         }]);
-        await updatePso(pso, { ...pso, appliesTo: ["teachers"] });
+        await updatePso(pso, { ...pso, appliesTo: ["managers"] });
         assert.deepEqual(sent("pso set"), [], "same users and groups, case aside: nothing to send");
-        await updatePso(pso, { ...pso, precedence: 1, appliesTo: ["Teachers", "nrossi"],
+        await updatePso(pso, { ...pso, precedence: 1, appliesTo: ["Managers", "nrossi"],
             policy: { ...pso.policy, lockoutThreshold: 5 } });
         assert.deepEqual(sent("pso set"), [{ name: "Staff long", lockout_threshold: 5, precedence: 1,
-            applies_to: ["Teachers", "nrossi"] }]);
+            applies_to: ["Managers", "nrossi"] }]);
         await deletePso("Staff long");
         assert.deepEqual(sent("pso delete"), [{ name: "Staff long" }]);
         calls.length = 0;
@@ -262,43 +262,43 @@ describe("organizational units", () => {
     it("reads the tree and the containers of accounts", async () => {
         await fresh();
         const ous = await listOus();
-        assert.deepEqual(ous.map(o => o.path), ["Users", "School", "School/Rossi, Mario"]);
+        assert.deepEqual(ous.map(o => o.path), ["Users", "Office", "Office/Rossi, Mario"]);
         assert.ok(ous[0].builtIn && !ous[0].isOu && ous[0].defaultFor === "users");
-        assert.equal(containerPath("OU=Students,OU=School"), "School/Students");
+        assert.equal(containerPath("OU=Employees,OU=Office"), "Office/Employees");
         assert.equal(containerPath(""), "");
     });
 
     it("creates, changes only what differs, deletes", async () => {
         await fresh();
-        const [, school, inner] = await listOus();
-        await createOu("1A", "OU=School", "");
-        assert.deepEqual(sent("ou create"), [{ name: "1A", parent: "OU=School" }]);
-        await updateOu(inner, { name: inner.name, parent: "ou=school", description: "x" });
+        const [, office, inner] = await listOus();
+        await createOu("1A", "OU=Office", "");
+        assert.deepEqual(sent("ou create"), [{ name: "1A", parent: "OU=Office" }]);
+        await updateOu(inner, { name: inner.name, parent: "ou=office", description: "x" });
         assert.deepEqual(sent("ou set"), [], "nothing changed, case aside");
         await updateOu(inner, { name: "Bianchi", parent: "", description: "" });
-        await updateOu(school, { name: "School", parent: "", description: "Main" });
+        await updateOu(office, { name: "Office", parent: "", description: "Main" });
         assert.deepEqual(sent("ou set"), [
-            { dn: "OU=Rossi\\, Mario,OU=School", new_name: "Bianchi", parent: "", description: "" },
-            { dn: "OU=School", description: "Main" },
+            { dn: "OU=Rossi\\, Mario,OU=Office", new_name: "Bianchi", parent: "", description: "" },
+            { dn: "OU=Office", description: "Main" },
         ]);
         setSpawnHandler(() => JSON.stringify({ changed: true, deleted_accounts: ["s1"], commands: [], check: false }));
-        assert.deepEqual(await deleteOu("OU=School", true), ["s1"]);
-        assert.deepEqual(JSON.parse(calls[calls.length - 1].input!), { dn: "OU=School", recursive: true });
+        assert.deepEqual(await deleteOu("OU=Office", true), ["s1"]);
+        assert.deepEqual(JSON.parse(calls[calls.length - 1].input!), { dn: "OU=Office", recursive: true });
     });
 
     it("creates accounts in an OU and moves them", async () => {
         await fresh();
-        await createUser("s1", "S3cret!pw", { ou: "OU=School" });
-        await createGroup("g1", { ou: "OU=School" });
+        await createUser("s1", "S3cret!pw", { ou: "OU=Office" });
+        await createGroup("g1", { ou: "OU=Office" });
         await createGroup("g2");
-        assert.deepEqual(sent("user create"), [{ name: "s1", password: "S3cret!pw", ou: "OU=School" }]);
-        assert.deepEqual(sent("group create"), [{ name: "g1", ou: "OU=School" }, { name: "g2" }]);
+        assert.deepEqual(sent("user create"), [{ name: "s1", password: "S3cret!pw", ou: "OU=Office" }]);
+        assert.deepEqual(sent("group create"), [{ name: "g1", ou: "OU=Office" }, { name: "g2" }]);
         await moveUser("s1", "CN=Users");
         await moveGroup("g1", "CN=Users");
-        await moveComputer("PC01", "OU=School");
+        await moveComputer("PC01", "OU=Office");
         assert.deepEqual(sent("user set"), [{ name: "s1", ou: "CN=Users" }]);
         assert.deepEqual(sent("group set"), [{ name: "g1", ou: "CN=Users" }]);
-        assert.deepEqual(sent("computer set"), [{ name: "PC01", ou: "OU=School" }]);
+        assert.deepEqual(sent("computer set"), [{ name: "PC01", ou: "OU=Office" }]);
     });
 
     it("creates and edits groups and computers", async () => {
@@ -316,9 +316,9 @@ describe("organizational units", () => {
         const g = (await listGroups())[0];
         assert.deepEqual([g.scope, g.email, g.groupType], ["global", "", "Distribution"]);
 
-        await createComputer("PC02", { ou: "OU=School", description: "" });
+        await createComputer("PC02", { ou: "OU=Office", description: "" });
         await createComputer("PC03");
-        assert.deepEqual(sent("computer create"), [{ name: "PC02", ou: "OU=School" }, { name: "PC03" }]);
+        assert.deepEqual(sent("computer create"), [{ name: "PC02", ou: "OU=Office" }, { name: "PC03" }]);
         await setComputerDescription("PC02", "Lab");
         assert.deepEqual(sent("computer set"), [{ name: "PC02", description: "Lab" }]);
         await assert.rejects(createComputer("-pc"), /Invalid account name/);
@@ -344,7 +344,7 @@ describe("organizational units", () => {
         await fresh();
         await listUsers();
         await listOus();
-        await moveUser("nrossi", "OU=School");
+        await moveUser("nrossi", "OU=Office");
         calls.length = 0;
         await listUsers();
         await listOus();

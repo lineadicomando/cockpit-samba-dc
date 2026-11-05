@@ -38,24 +38,24 @@ seealso:
 """
 
 EXAMPLES = r"""
-- name: An OU for the school, and one for a class inside it
+- name: An OU for the office, and one for a team inside it
   lineadicomando.samba_dc.samba_ou:
     name: "{{ item.name }}"
     parent: "{{ item.parent }}"
   loop:
-    - {name: School, parent: ""}
-    - {name: Class 1A, parent: OU=School}
+    - {name: Office, parent: ""}
+    - {name: Team 1A, parent: OU=Office}
 
-- name: Rename the class and move it to the domain root, with its users
+- name: Rename the team and move it to the domain root, with its users
   lineadicomando.samba_dc.samba_ou:
-    name: Class 1A
-    parent: OU=School
+    name: Team 1A
+    parent: OU=Office
     new_name: Class 2A
     new_parent: ""
 
 - name: Delete an OU and everything in it
   lineadicomando.samba_dc.samba_ou:
-    name: School
+    name: Office
     state: absent
     recursive: true
 """

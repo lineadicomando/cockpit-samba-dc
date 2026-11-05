@@ -40,17 +40,17 @@ it, e.g. `. test/vm/gui.sh && click 640 400 && sleep 2 && shot after`.
   3 seconds, `shot`. The last local user (`maint`) is offered; for a domain
   account pick "Altro utente" (bottom left, about 133,743 at 1280x800), where
   the user name field has the focus and the default domain is shown
-  ("Accedi a: SAMBATEST"): `typ 'SAMBATEST\student1'`, `key KEY_TAB`, `secret
+  ("Accedi a: SAMBATEST"): `typ 'SAMBATEST\employee1'`, `key KEY_TAB`, `secret
   DOMAIN_TEST_PASSWORD --enter`. The first logon of a user creates the
   profile ("Quasi fatto.") and takes about a minute: wait for the user's
   Explorer over SSH rather than a fixed time:
-  `until lab.sh ssh win '(Get-Process explorer -IncludeUserName -EA 0 | ? UserName -like "*student1").Count' | grep -q '^[1-9]'; do sleep 5; done`.
+  `until lab.sh ssh win '(Get-Process explorer -IncludeUserName -EA 0 | ? UserName -like "*employee1").Count' | grep -q '^[1-9]'; do sleep 5; done`.
   The Start menu may be open on the new desktop: `key KEY_ESC`.
 - **Log off** (needed to see new drive mappings): over SSH, `logoff ID` with
   the session ID listed by `quser`; or `key KEY_LEFTCTRL KEY_LEFTALT
   KEY_DELETE` and the "Disconnetti" item. Remove a test user's profile
   afterwards: `Get-CimInstance Win32_UserProfile | ? LocalPath -like
-  "*student1*" | Remove-CimInstance` (or `lab.sh reset`).
+  "*employee1*" | Remove-CimInstance` (or `lab.sh reset`).
 - **Group Policy.** Over SSH, `gpupdate /force` refreshes policies, but
   drive maps apply at the next logon. `gpresult /r /scope user` (in the
   user's session) lists the applied GPOs.

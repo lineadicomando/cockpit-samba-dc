@@ -10,7 +10,7 @@ from addcctl.errors import AddcError
 from test_shares import FakeRunner
 
 SID = "S-1-5-21-1-2-3-"
-BASE = "DC=school,DC=internal"
+BASE = "DC=corp,DC=internal"
 
 
 def user(name, rid, primary="513", groups=(), uac="512", computed="0", critical=False, **extra):
@@ -43,9 +43,9 @@ def ou(dn, critical=False, cls="organizationalUnit"):
 
 class FakeDirDc:
     """A directory in memory, answering the filters addcctl uses."""
-    workgroup = "SCHOOL"
+    workgroup = "CORP"
     netbios_name = "DC"
-    realm = "SCHOOL.INTERNAL"
+    realm = "CORP.INTERNAL"
     sysvol = "/nonexistent"
     domain_dn = BASE
 
@@ -54,19 +54,19 @@ class FakeDirDc:
         self.users = [
             user("Administrator", "500", groups=["Domain Admins"], critical=True),
             user("krbtgt", "502", uac="514", critical=True),
-            user("mrossi", "1200", groups=["Teachers"], givenName="Mario", sn="Rossi",
+            user("mrossi", "1200", groups=["Managers"], givenName="Mario", sn="Rossi",
                  lastLogonTimestamp="133000000000000000"),
             user("bianchi", "1201", primary="1108"),
         ]
         self.groups = [group("Domain Users", "513", critical=True), group("Domain Admins", "512", ["Administrator"]),
-                       group("Teachers", "1108", ["mrossi"]), group("Staff", "1109", ["Teachers"])]
+                       group("Managers", "1108", ["mrossi"]), group("Staff", "1109", ["Managers"])]
         self.computers = [{"dn": ["CN=PC01,CN=Computers,%s" % BASE], "sAMAccountName": ["PC01$"],
                            "objectSid": [SID + "1300"], "objectClass": ["computer"]},
                           {"dn": ["CN=DC,OU=Domain Controllers,%s" % BASE], "sAMAccountName": ["DC$"],
                            "objectSid": [SID + "1000"], "objectClass": ["computer"]}]
         self.containers = [ou("CN=Users", True, "container"), ou("CN=Computers", True, "container"),
                            ou("CN=System", True, "container"), ou("OU=Domain Controllers", True),
-                           ou("OU=School"), ou("OU=Students,OU=School")]
+                           ou("OU=Office"), ou("OU=Employees,OU=Office")]
         self.modified = []
         self.calls = []
 
@@ -211,20 +211,20 @@ class Base(unittest.TestCase):
 class TestRead(Base):
     def test_users(self):
         users = {u["name"]: u for u in self.users().list()}
-        self.assertEqual(users["mrossi"]["groups"], ["Teachers", "Domain Users"])
+        self.assertEqual(users["mrossi"]["groups"], ["Managers", "Domain Users"])
         self.assertEqual(users["mrossi"]["last_logon"], "2022-06-18T04:26:40Z")
-        self.assertEqual(users["bianchi"]["primary_group"], "Teachers")
+        self.assertEqual(users["bianchi"]["primary_group"], "Managers")
         self.assertFalse(users["krbtgt"]["enabled"])
         self.assertIsNone(users["mrossi"]["expires"])
 
     def test_groups_count_primary_members(self):
         groups = {g["name"]: g for g in Groups(self.dc, self.runner).list()}
         # mrossi by member, bianchi by primary group
-        self.assertEqual(groups["Teachers"]["member_count"], 2)
-        self.assertEqual(groups["Teachers"]["primary_members"], ["bianchi"])
-        self.assertEqual(groups["Staff"]["members"], ["Teachers"])
+        self.assertEqual(groups["Managers"]["member_count"], 2)
+        self.assertEqual(groups["Managers"]["primary_members"], ["bianchi"])
+        self.assertEqual(groups["Staff"]["members"], ["Managers"])
         self.assertTrue(groups["Domain Users"]["protected"])
-        self.assertEqual((groups["Teachers"]["scope"], groups["Teachers"]["category"]), ("global", "security"))
+        self.assertEqual((groups["Managers"]["scope"], groups["Managers"]["category"]), ("global", "security"))
 
     def test_password_policy(self):
         policy = Domain(self.dc, self.runner).password_policy()
@@ -244,7 +244,7 @@ class TestUserSet(Base):
 
     def test_nothing_to_do(self):
         result = self.users().set({"name": "mrossi", "given_name": "Mario", "surname": "Rossi", "enabled": True,
-                                   "expires": None, "groups": ["Teachers"]})
+                                   "expires": None, "groups": ["Managers"]})
         self.assertFalse(result["changed"], self.dc.calls)
         self.assertEqual(self.dc.calls, [])
 
@@ -267,9 +267,9 @@ class TestUserSet(Base):
         # replace: the primary group stays, the others follow the list
         self.users().set({"name": "mrossi", "groups": ["Staff"]})
         self.assertEqual(self.dc.calls, [("members", "Staff", "add", ("mrossi",)),
-                                         ("members", "Teachers", "remove", ("mrossi",))])
+                                         ("members", "Managers", "remove", ("mrossi",))])
         with self.assertRaisesRegex(AddcError, "primary group of bianchi"):
-            self.users().set({"name": "bianchi", "groups": ["Teachers"], "groups_mode": "remove"})
+            self.users().set({"name": "bianchi", "groups": ["Managers"], "groups_mode": "remove"})
         with self.assertRaisesRegex(AddcError, "not a member of Staff"):
             self.users().set({"name": "bianchi", "primary_group": "Staff"})
 
@@ -293,7 +293,7 @@ class TestUserSet(Base):
 
 class TestOthers(Base):
     def test_create_user_keeps_the_password_out_of_the_output(self):
-        result = self.users().create({"name": "t-new", "password": "S3cret!pw", "groups": ["Teachers"]})
+        result = self.users().create({"name": "t-new", "password": "S3cret!pw", "groups": ["Managers"]})
         self.assertNotIn("S3cret!pw", repr(result) + repr(self.runner.commands))
         self.assertEqual(self.dc.last_password, "S3cret!pw")
 
@@ -304,8 +304,8 @@ class TestOthers(Base):
 
     def test_group_members_skip_primary_members(self):
         groups = Groups(self.dc, self.runner)
-        result = groups.set({"name": "Teachers", "members": ["bianchi", "Administrator"], "members_mode": "append"})
-        self.assertEqual(self.dc.calls, [("members", "Teachers", "add", ("Administrator",))])
+        result = groups.set({"name": "Managers", "members": ["bianchi", "Administrator"], "members_mode": "append"})
+        self.assertEqual(self.dc.calls, [("members", "Managers", "add", ("Administrator",))])
         self.assertTrue(result["changed"])
         with self.assertRaisesRegex(AddcError, "built-in group"):
             groups.delete({"name": "Domain Users"})
@@ -314,25 +314,25 @@ class TestOthers(Base):
 
     def test_group_email(self):
         groups = Groups(self.dc, self.runner)
-        groups.create({"name": "t-mail", "email": "t-mail@school.internal", "description": "Mail"})
-        self.assertEqual(self.dc.last_group_mail, "t-mail@school.internal")
+        groups.create({"name": "t-mail", "email": "t-mail@corp.internal", "description": "Mail"})
+        self.assertEqual(self.dc.last_group_mail, "t-mail@corp.internal")
         groups = Groups(self.dc, self.runner)
-        self.assertTrue(groups.set({"name": "Teachers", "email": "teachers@school.internal"})["changed"])
-        self.assertEqual(self.dc.modified[-1][1], {"mail": "teachers@school.internal"})
-        self.dc.groups[2]["mail"] = ["teachers@school.internal"]
+        self.assertTrue(groups.set({"name": "Managers", "email": "managers@corp.internal"})["changed"])
+        self.assertEqual(self.dc.modified[-1][1], {"mail": "managers@corp.internal"})
+        self.dc.groups[2]["mail"] = ["managers@corp.internal"]
         groups = Groups(self.dc, self.runner)
-        self.assertFalse(groups.set({"name": "Teachers", "email": "teachers@school.internal"})["changed"])
-        self.assertTrue(groups.set({"name": "Teachers", "email": ""})["changed"])
+        self.assertFalse(groups.set({"name": "Managers", "email": "managers@corp.internal"})["changed"])
+        self.assertTrue(groups.set({"name": "Managers", "email": ""})["changed"])
         self.assertEqual(self.dc.modified[-1][1], {"mail": None})
 
     def test_delete_names_the_shares_that_keep_it(self):
-        shares = {"Docs": {"path": "/srv/samba/shares/Docs", "valid users": '@"SCHOOL\\Teachers" "SCHOOL\\mrossi"'},
-                  "Lab": {"path": "/srv/samba/shares/Lab", "valid users": '"SCHOOL\\teachers"'},
-                  "Hand": {"path": "/data/hand", "valid users": '"SCHOOL\\mrossi"'}}
+        shares = {"Docs": {"path": "/srv/samba/shares/Docs", "valid users": '@"CORP\\Managers" "CORP\\mrossi"'},
+                  "Lab": {"path": "/srv/samba/shares/Lab", "valid users": '"CORP\\managers"'},
+                  "Hand": {"path": "/data/hand", "valid users": '"CORP\\mrossi"'}}
         self.dc.shares = lambda: shares
         result = self.users().delete({"name": "MROSSI"})
         self.assertEqual(result["shares"], ["Docs"])
-        self.assertEqual(Groups(self.dc, self.runner).delete({"name": "teachers"})["shares"], ["Docs"])
+        self.assertEqual(Groups(self.dc, self.runner).delete({"name": "managers"})["shares"], ["Docs"])
 
     def test_computers(self):
         computers = Computers(self.dc, self.runner)
@@ -347,9 +347,9 @@ class TestOthers(Base):
         for bad in ("pc_01", "1234", "-pc", "a" * 16, "pc 01"):
             with self.assertRaisesRegex(AddcError, "Invalid (computer|account) name"):
                 computers.create({"name": bad})
-        result = computers.create({"name": "LAB-PC02", "ou": "OU=School", "description": "Lab"})
+        result = computers.create({"name": "LAB-PC02", "ou": "OU=Office", "description": "Lab"})
         self.assertEqual(result["computer"]["name"], "LAB-PC02")
-        self.assertEqual(result["computer"]["container"], "OU=School")
+        self.assertEqual(result["computer"]["container"], "OU=Office")
         with self.assertRaisesRegex(AddcError, "already exists"):
             computers.create({"name": "lab-pc02"})
 

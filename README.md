@@ -211,7 +211,7 @@ The prerequisites, checked again with "Check again" after each fix:
 - **disk space** under `/var/lib/samba`.
 
 The form asks for the domain's DNS name (also its Kerberos realm, e.g.
-`school.example.org`), its NetBIOS name (proposed from the first part), the
+`corp.example.org`), its NetBIOS name (proposed from the first part), the
 password of the domain's `Administrator` and the DNS forwarder, the server
 that answers for the names outside the domain (the router's, the
 provider's). A confirmation lists what changes on the host, from `addcctl
@@ -242,7 +242,7 @@ the program that holds port 53 (one started after the check): stop it, run
 the domain's computers. The same from a shell:
 
 ```bash
-echo '{"realm": "school.example.org", "netbios_domain": "SCHOOL",
+echo '{"realm": "corp.example.org", "netbios_domain": "CORP",
        "admin_password": "…", "dns_forwarder": "192.168.1.1"}' |
     sudo addcctl domain provision --check
 ```

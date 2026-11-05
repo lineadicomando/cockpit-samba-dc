@@ -541,7 +541,7 @@ def host_name_violation(name):
 def realm_violation(realm, host_name):
     labels = realm.split(".")
     if len(realm) > 253 or len(labels) < 2 or not all(_LABEL.match(label) for label in labels):
-        return ('The domain "%s" must be a DNS name of two or more parts (e.g. school.example.org): letters, '
+        return ('The domain "%s" must be a DNS name of two or more parts (e.g. corp.example.org): letters, '
                 'digits and hyphens' % realm)
     if labels[-1].isdigit():
         return 'The domain "%s" must not end with a number' % realm
