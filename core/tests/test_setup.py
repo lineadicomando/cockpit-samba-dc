@@ -279,7 +279,7 @@ class TestValues(unittest.TestCase):
 
     def test_netbios(self):
         self.assertIsNone(netbios_violation("CORP", "dc"))
-        for bad in ("DC", "", "SIXTEEN-LETTERS1", "-CORP", "123", "SCH.OOL", "SCH OOL"):
+        for bad in ("DC", "", "SIXTEEN-LETTERS1", "-CORP", "123", "CO.RP", "CO RP"):
             self.assertIsNotNone(netbios_violation(bad, "dc"), bad)
 
     def test_forwarder(self):

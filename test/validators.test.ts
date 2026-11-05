@@ -264,7 +264,7 @@ describe("a new domain", () => {
         assert.equal(validateNetbiosDomain("corp", "dc"), null);
         assert.equal(validateNetbiosDomain("dc", "dc"), "hostName");
         assert.equal(validateNetbiosDomain("SIXTEEN-LETTERS1", "dc"), "tooLong");
-        assert.equal(validateNetbiosDomain("SCH.OOL", "dc"), "invalidChars");
+        assert.equal(validateNetbiosDomain("CO.RP", "dc"), "invalidChars");
         assert.equal(validateNetbiosDomain("-CORP", "dc"), "dash");
         assert.equal(validateNetbiosDomain("123", "dc"), "onlyDigits");
     });

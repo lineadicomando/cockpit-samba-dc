@@ -24,6 +24,6 @@ def test_find_skips_the_default_containers():
 def test_changes_only_what_differs():
     ou = OUS[2]
     assert changes(ou, UNSET) == {}
-    assert changes(ou, dict(UNSET, new_name="Team 1A", new_parent="OU=CORP", description="x")) == {}
-    assert changes(ou, dict(UNSET, new_name="Class 2A", new_parent="", description="")) == {
-        "new_name": "Class 2A", "parent": "", "description": ""}
+    assert changes(ou, dict(UNSET, new_name="Team 1A", new_parent="OU=OFFICE", description="x")) == {}
+    assert changes(ou, dict(UNSET, new_name="Team 2A", new_parent="", description="")) == {
+        "new_name": "Team 2A", "parent": "", "description": ""}

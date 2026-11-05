@@ -50,7 +50,7 @@ EXAMPLES = r"""
   lineadicomando.samba_dc.samba_ou:
     name: Team 1A
     parent: OU=Office
-    new_name: Class 2A
+    new_name: Team 2A
     new_parent: ""
 
 - name: Delete an OU and everything in it
